@@ -420,7 +420,15 @@ class _MCImagingDataset(ImagingDataset):
                 valid_rows[1:] *= valid_rows[:-1].copy()
             else:
                 valid_rows = np.ones(labels.shape).astype('bool')
-            ret[channel] = valid_rows.reshape([self.num_cycles, -1])
+            # Reshape back to a list of arrays, one per cycle
+            row_start = 0
+            valid_rows_by_cycle = []
+            for cycle in self:
+                valid_rows_by_cycle.append(
+                    valid_rows[row_start:
+                               row_start + cycle.num_frames * cycle.num_rows])
+                row_start += cycle.num_frames * cycle.num_rows
+            ret[channel] = valid_rows_by_cycle
         return ret
 
     def _pixel_distribution(self, tolerance=0.001, min_frames=1000):
