@@ -55,13 +55,13 @@ setup(
     #   # metadata for upload to PyPI
     author = "Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
     author_email = "software@losonczylab.org",
-    description = "Software for in vivo imaging",
+    description = "Software for analysis of sequential imaging data",
     license = "GNU GPLv2",
     keywords = "imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules = extensions,
     setup_requires=['setuptools_cython'],
-    url = "http://www.losonczylab.org/software/",
+    url = "http://www.losonczylab.org/sima/",
 
     platforms = ["Linux", "Mac OS-X", "Windows"],
     #

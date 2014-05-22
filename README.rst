@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Installation and Use
 --------------------
-For complete documentation go to <http://www.losonczy.org/sima>
+For complete documentation go to <http://www.losonczylab.org/sima>
 
 Dependencies
 -------------

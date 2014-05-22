@@ -61,6 +61,8 @@ on the installer and select "Run as Administrator".
 Building from source
 ====================
 
+Source code can be downloaded from https://pypi.python.org/pypi/sima.
+
 Linux
 -----
 
