@@ -6,3 +6,4 @@ Licensed under the GNU GPL version 2 or later.
 """
 from sima.imaging import ImagingDataset
 import sima.imaging_parameters as imaging_parameters
+from sima import motion
