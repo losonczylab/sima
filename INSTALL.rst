@@ -39,47 +39,37 @@ If you build the package from source, you may also need:
 * Cython (http://cython.org)
 
 
-Binary installation
-===================
-
+SIMA installation
+=================
 
 Linux / Mac OS X
 ----------------
 
-Pip can be installed from the python package index::
+The SIMA package can be installed from the python package index::
 
     $ pip install sima
 
-Windows
--------
+The easy_install tool can also be used::
 
-On Windows, you can simply execute this `installer<>_`. 
-If you run Windows Vista or Windows 7, you may need to right-click 
-on the installer and select "Run as Administrator".
-
-
-Building from source
-====================
+    $ easy_install sima
 
 Source code can be downloaded from https://pypi.python.org/pypi/sima.
-
-Linux
------
-
-If you download the source, you can use setuptools::
+If you download the source, you can install the package with setuptools::
 
     $ python setup.py build
     $ sudo python setup.py install
 
 Windows
 -------
-We recommend using 32bit `WinPython <http://winpython.sourceforge.net/>`_.
 
-You may also need compilers and other Windows (7) stuff:
+On Windows, you can simply execute the Windows installer that can be downloaded from https://pypi.python.org/pypi/sima.
+If you run Windows Vista or Windows 7, you may need to right-click 
+on the installer and select "Run as Administrator".
 
+If building from source or using pip or easy_install on Windows,
+you may also need compilers and other Windows (7) stuff:
+
+* http://go.microsoft.com/?linkid=7729279
 * http://www.microsoft.com/en-us/download/details.aspx?id=29
 * http://www.microsoft.com/en-us/download/details.aspx?id=3138
 
-
-Mac OS X
---------
