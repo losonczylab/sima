@@ -1,4 +1,25 @@
 #NOTE: NEED TO COPY .DLLs FROM SHAPELY INTO THE DIST DIRECTORY AFTER BUILDING
+"""
+Setup script for building the ROI Buddy GUI
+
+Things to note:
+-- This should be build from a machine with a patched version of guiqwt.baseplot.py:
+        def add_item_with_z_offset(self, item, zoffset):
+        ""
+        Add a plot *item* instance within a specified z range, over *zmin*
+        ""
+        zlist = sorted([_it.z() for _it in self.items
+                        if _it.z() >= zoffset]+[zoffset-1])
+        dzlist = np.argwhere(np.diff(zlist) > 1)
+        if len(dzlist) == 0:
+            z = max(zlist)+1
+        else:
+            z = zlist[dzlist[0,0]]+1
+        self.add_item(item, z=z)
+
+-- Due to a shapely error, the geos.dll and geos_c.dll files need to be copied into dist manually
+"""
+
 from guidata import disthelpers as dh
 from shutil import copy, copytree
 from os.path import join
@@ -12,7 +33,8 @@ INCLUDES = ['numpy', 'cPickle', 'sima', 'sima.iterables', 'sima.ROI', 'sima.segm
             'skimage._shared.interpolation',
             'skimage.filter.rank.core_cy', 'scipy.special._ufuncs_cxx', 'skimage._shared.geometry',
             'scipy.sparse.csgraph._validation', 'skimage._shared.transform',
-            'skimage.transform', 'sip', 'PyQt4', 'PyQt4.QtSvg', 'guidata', 'guiqwt']
+            'skimage.transform', 'sip', 'PyQt4', 'PyQt4.QtSvg', 'guidata', 'guiqwt', 'ctypes', 'libtiff.libtiff_ctypes',
+            '_ctypes', '_ctypes']
 
 dist = dh.Distribution()
 
