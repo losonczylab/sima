@@ -262,7 +262,7 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
         The dataset to which the offset PCA will be applied.
     channel : int, optional
         The index of the channel whose signals are used. Defaults
-        to using the last channel.
+        to using the first channel.
     num_pcs : int, optional
         The number of PCs to calculate. Default is 75.
     path : str
