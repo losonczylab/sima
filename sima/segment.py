@@ -286,7 +286,7 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
         except IOError:
             pass
         else:
-            if data['oPC_signals'].shape[0] >= num_pcs:
+            if data['oPC_signals'].shape[1] >= num_pcs:
                 ret = (
                     data['oPC_vars'][:num_pcs],
                     data['oPCs'][:, :, :num_pcs],
