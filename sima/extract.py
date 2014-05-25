@@ -7,7 +7,7 @@ import itertools as it
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
-from scipy.sparse import vstack, diags
+from scipy.sparse import vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
 
 
@@ -103,7 +103,11 @@ def _roi_extract(inputs):
         imaged_rois = np.unique(A.nonzero()[1])
         if len(imaged_rois) < n_rois:
             A = A.tocsc()[:, imaged_rois].tocsr()
-        weights = inv(A.T * A) * A.T
+        # First assume ROIs are independent, if not fallback to full pseudo-inv
+        try:
+            weights = inv(A.T * A) * A.T
+        except RuntimeError:
+            weights = csc_matrix(np.linalg.pinv(A.todense()))
     else:
         orig_masks = constants['mask_stack'].copy()
         imaged_masks = orig_masks[:, imaged_pixels]
@@ -315,7 +319,10 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     # A is defined as the pseudoinverse of the mask weights
     if n_rois != 1:
-        A = mask_stack.T * inv(mask_stack * mask_stack.T).tocsc()
+        try:
+            A = mask_stack.T * inv(mask_stack * mask_stack.T).tocsc()
+        except RuntimeError:
+            A = csc_matrix(np.linalg.pinv(mask_stack.todense()))
     else:
         mask_mask_t = mask_stack * mask_stack.T
         mask_mask_t.data = 1 / mask_mask_t.data
@@ -384,7 +391,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     def put_back_nan_rois(signals, included_rois, n_rois):
         """Put NaN rows back in the signals file for ROIs that were never
-        imaged or entirely overlapped with other ROIs.
+        imaged or entirely overlapped with other ROIs and were removed.
         """
         final_signals = []
         for cycle_signals in signals:
@@ -423,6 +430,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     signals['rois'] = [roi.todict() for roi in rois]
     timestamp = datetime.strftime(datetime.now(), '%Y-%m-%d-%Hh%Mm%Ss')
     signals['timestamp'] = timestamp
+
     return signals
 
 
