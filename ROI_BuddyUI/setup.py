@@ -18,11 +18,15 @@ Things to note:
         self.add_item(item, z=z)
 
 -- Due to a shapely error, the geos.dll and geos_c.dll files need to be copied into dist manually
+
+
+--CTYPES PATCH HERE
 """
 
 from guidata import disthelpers as dh
 from shutil import copy, copytree
 from os.path import join
+import zipfile as zf
 
 TARGET_DIR = './dist'
 
@@ -33,8 +37,7 @@ INCLUDES = ['numpy', 'cPickle', 'sima', 'sima.iterables', 'sima.ROI', 'sima.segm
             'skimage._shared.interpolation',
             'skimage.filter.rank.core_cy', 'scipy.special._ufuncs_cxx', 'skimage._shared.geometry',
             'scipy.sparse.csgraph._validation', 'skimage._shared.transform',
-            'skimage.transform', 'sip', 'PyQt4', 'PyQt4.QtSvg', 'guidata', 'guiqwt', 'ctypes', 'libtiff.libtiff_ctypes',
-            '_ctypes', '_ctypes']
+            'skimage.transform', 'sip', 'PyQt4', 'PyQt4.QtSvg', 'guidata', 'guiqwt', 'libtiff', 'ctypes', 'libtiff.libtiff_ctypes']
 
 dist = dh.Distribution()
 
@@ -53,3 +56,4 @@ dist.build_py2exe()
 copy('geos.dll', TARGET_DIR)
 copy('geos_c.dll', TARGET_DIR)
 copytree('icons', join(TARGET_DIR, 'icons'))
+
