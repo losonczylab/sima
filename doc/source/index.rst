@@ -17,8 +17,7 @@ acquired imaging data.
    install
    api/index
    examples
-   support
-   credits
+   roi_buddy
 
 
 Indices and tables
