@@ -1234,15 +1234,15 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         for tSeries in tSeries_list:
             for roi in rois[tSeries]:
                 if clusters[idx] in ROIs_by_cluster:
-                    ROIs_by_cluster[clusters[idx]].append(roi)
+                    ROIs_by_cluster[clusters[idx]].extend(roi)
                 else:
-                    ROIS_by_cluster[clusters[idx]] = [roi]
+                    ROIs_by_cluster[clusters[idx]] = roi
                 idx += 1
 
         # Check each cluster for locked ROIs and just propagate ids
         all_unlocked_rois = []
-        used_idx = set([])
-        for cluster_id, rois in ROIS_by_cluster.iteritems():
+        used_ids = set([])
+        for cluster_id, rois in ROIs_by_cluster.iteritems():
             locked_rois = [roi for roi in rois if roi.parent.roi_id_lock]
             if len(locked_rois):
                 roi_id, _ = mode([roi.id for roi in locked_rois])
@@ -1250,11 +1250,10 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 for roi in rois:
                     if roi.parent.roi_id_lock:
                         continue
-                    for poly in roi:
-                        poly.id = roi_id
-                        poly.update_name()
-                        poly.update_color()
-                used_idx.add(roi_id)
+                    roi.id = roi_id
+                    roi.update_name()
+                    roi.update_color()
+                used_ids.add(roi_id)
             else:
                 all_unlocked_rois.append(rois)
 
@@ -1262,19 +1261,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         unique_id_gen = (num for num in it.count() if num not in used_ids)
         for next_id, rois in it.izip(unique_id_gen, all_unlocked_rois):
             for roi in rois:
-                for poly in roi:
-                    poly.id = roi_id
-                    poly.update_name()
-                    poly.update_color()
-
-        # idx = 0
-        # for tSeries in tSeries_list:
-        #     for roi in rois[tSeries]:
-        #         for poly in roi:
-        #             poly.id = clusters[idx]
-        #             poly.update_name()
-        #             poly.update_color()
-        #         idx += 1
+                roi.id = next_id
+                roi.update_name()
+                roi.update_color()
 
         self.randomize_colors()
 
