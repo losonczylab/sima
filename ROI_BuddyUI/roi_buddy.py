@@ -473,6 +473,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
 
         if button is self.align_mode_radiobutton and self.mode is 'edit':
+
             active_tSeries.update_rois()
 
             y_lims = [x + self.base_im.data.shape[0]
@@ -1167,12 +1168,21 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.initialize_roi_set_list(active_tSeries)
 
     def register_rois(self):
+
         if not self.show_all_checkbox.isChecked():
             self.show_all_checkbox.setChecked(True)
+
+        if not self.show_all_checkbox.isChecked():
+            return
 
         active_tSeries = self.tSeries_list.currentItem()
         tSeries_list = [self.tSeries_list.item(i) for i in
                         range(self.tSeries_list.count())]
+
+        #launch roi_lock popup
+        self.roi_lock_popup = lockROIsWidget(self, tSeries_list)
+        if not self.roi_lock_popup.exec_():
+            return
 
         # rois is the original UI_ROIs, roi_polygons are ROIs converted to
         # shapely polygons, and roi_names is roi names
@@ -1246,14 +1256,17 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             locked_rois = [roi for roi in rois if roi.parent.roi_id_lock]
             if len(locked_rois):
                 roi_id, _ = mode([roi.id for roi in locked_rois])
-                roi_id = int(roi_id)
+                roi_id = roi_id.tostring()
                 for roi in rois:
                     if roi.parent.roi_id_lock:
                         continue
                     roi.id = roi_id
                     roi.update_name()
                     roi.update_color()
-                used_ids.add(roi_id)
+                try:
+                    used_ids.add(int(roi_id))
+                except ValueError:
+                    continue
             else:
                 all_unlocked_rois.append(rois)
 
@@ -1261,7 +1274,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         unique_id_gen = (num for num in it.count() if num not in used_ids)
         for next_id, rois in it.izip(unique_id_gen, all_unlocked_rois):
             for roi in rois:
-                roi.id = next_id
+                roi.id = str(next_id)
                 roi.update_name()
                 roi.update_color()
 
@@ -1671,6 +1684,42 @@ class UI_ROI(PolygonShape, ROI):
             pass
         else:
             self.set_private(not show_in_list)
+
+
+class lockROIsWidget(QDialog):
+    def __init__(self, parent, tSeries_list):
+        QDialog.__init__(self)
+
+        layout = QVBoxLayout()
+        self.checks = {}
+        for tSeries in tSeries_list:
+            text = tSeries.dataset.savedir.split('/')[-3:-1]
+            c = QCheckBox('{}'.format(text))
+            layout.addWidget(c)
+            self.checks[tSeries] = c
+
+        self.accept_button = QPushButton("Accept", self)
+        self.cancel_button = QPushButton("Cancel", self)
+
+        layout.addWidget(self.accept_button)
+        layout.addWidget(self.cancel_button)
+
+        self.accept_button.clicked.connect(
+            lambda: self.toggle_lock_status(tSeries_list))
+
+        self.cancel_button.clicked.connect(
+            self.cancel)
+
+        self.setLayout(layout)
+        self.setWindowTitle(QString('Lock ROI IDs during alignment?'))
+
+    def toggle_lock_status(self, tSeries_list):
+        for tSeries in tSeries_list:
+            tSeries.roi_id_lock = self.checks[tSeries].isChecked()
+        self.accept()
+
+    def cancel(self):
+        self.reject()
 
 
 def next_int(sequence):
