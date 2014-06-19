@@ -1690,19 +1690,21 @@ class lockROIsWidget(QDialog):
     def __init__(self, parent, tSeries_list):
         QDialog.__init__(self)
 
-        layout = QVBoxLayout()
+        self.layout = QVBoxLayout()
+        self.select_all_button = self.initialize_select_all()
+
         self.checks = {}
         for tSeries in tSeries_list:
             text = tSeries.dataset.savedir.split('/')[-3:-1]
             c = QCheckBox('{}'.format(text))
-            layout.addWidget(c)
+            self.layout.addWidget(c)
             self.checks[tSeries] = c
 
         self.accept_button = QPushButton("Accept", self)
         self.cancel_button = QPushButton("Cancel", self)
 
-        layout.addWidget(self.accept_button)
-        layout.addWidget(self.cancel_button)
+        self.layout.addWidget(self.accept_button)
+        self.layout.addWidget(self.cancel_button)
 
         self.accept_button.clicked.connect(
             lambda: self.toggle_lock_status(tSeries_list))
@@ -1710,8 +1712,22 @@ class lockROIsWidget(QDialog):
         self.cancel_button.clicked.connect(
             self.cancel)
 
-        self.setLayout(layout)
+        self.setLayout(self.layout)
         self.setWindowTitle(QString('Lock ROI IDs during alignment?'))
+
+    def initialize_select_all(self):
+        c = QCheckBox('Select All')
+        c.clicked.connect(self.select_all)
+        self.layout.addWidget(c)
+
+        return c
+
+    def select_all(self):
+        check_state = self.select_all_button.isChecked()
+
+        for tSeries_checkbox in self.checks.itervalues():
+            tSeries_list.setChecked(check_state)
+
 
     def toggle_lock_status(self, tSeries_list):
         for tSeries in tSeries_list:
