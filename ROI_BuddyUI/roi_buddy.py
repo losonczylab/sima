@@ -1720,6 +1720,11 @@ class lockROIsWidget(QDialog):
         c.clicked.connect(self.select_all)
         self.layout.addWidget(c)
 
+        hline = QFrame()
+        hline.setFrameStyle(QFrame.HLine)
+        hline.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addWidget(hline)
+
         return c
 
     def select_all(self):
@@ -1727,7 +1732,6 @@ class lockROIsWidget(QDialog):
 
         for tSeries_checkbox in self.checks.itervalues():
             tSeries_list.setChecked(check_state)
-
 
     def toggle_lock_status(self, tSeries_list):
         for tSeries in tSeries_list:
