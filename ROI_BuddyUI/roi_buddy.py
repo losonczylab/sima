@@ -8,7 +8,9 @@ import cv2
 from datetime import datetime
 from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
+from scipy.stats import mode
 from shapely.geometry import MultiPolygon, Polygon
+import itertools as it
 
 from roiBuddyUI import Ui_ROI_Buddy
 
@@ -471,6 +473,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
 
         if button is self.align_mode_radiobutton and self.mode is 'edit':
+
             active_tSeries.update_rois()
 
             y_lims = [x + self.base_im.data.shape[0]
@@ -1165,12 +1168,21 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.initialize_roi_set_list(active_tSeries)
 
     def register_rois(self):
+
         if not self.show_all_checkbox.isChecked():
             self.show_all_checkbox.setChecked(True)
+
+        if not self.show_all_checkbox.isChecked():
+            return
 
         active_tSeries = self.tSeries_list.currentItem()
         tSeries_list = [self.tSeries_list.item(i) for i in
                         range(self.tSeries_list.count())]
+
+        #launch roi_lock popup
+        self.roi_lock_popup = lockROIsWidget(self, tSeries_list)
+        if not self.roi_lock_popup.exec_():
+            return
 
         # rois is the original UI_ROIs, roi_polygons are ROIs converted to
         # shapely polygons, and roi_names is roi names
@@ -1226,15 +1238,45 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             condensed_distance_matrix)))
         clusters = fcluster(linkage, 4, criterion='distance')
 
-        # re-index and re-color the ROIs!
+        # Group ROIs by cluster
         idx = 0
+        ROIs_by_cluster = {}
         for tSeries in tSeries_list:
             for roi in rois[tSeries]:
-                for poly in roi:
-                    poly.id = clusters[idx]
-                    poly.update_name()
-                    poly.update_color()
+                if clusters[idx] in ROIs_by_cluster:
+                    ROIs_by_cluster[clusters[idx]].extend(roi)
+                else:
+                    ROIs_by_cluster[clusters[idx]] = roi
                 idx += 1
+
+        # Check each cluster for locked ROIs and just propagate ids
+        all_unlocked_rois = []
+        used_ids = set([])
+        for cluster_id, rois in ROIs_by_cluster.iteritems():
+            locked_rois = [roi for roi in rois if roi.parent.roi_id_lock]
+            if len(locked_rois):
+                roi_id, _ = mode([roi.id for roi in locked_rois])
+                roi_id = roi_id.tostring()
+                for roi in rois:
+                    if roi.parent.roi_id_lock:
+                        continue
+                    roi.id = roi_id
+                    roi.update_name()
+                    roi.update_color()
+                try:
+                    used_ids.add(int(roi_id))
+                except ValueError:
+                    continue
+            else:
+                all_unlocked_rois.append(rois)
+
+        # For clusters with no locked ROIS, give them a unique id
+        unique_id_gen = (num for num in it.count() if num not in used_ids)
+        for next_id, rois in it.izip(unique_id_gen, all_unlocked_rois):
+            for roi in rois:
+                roi.id = str(next_id)
+                roi.update_name()
+                roi.update_color()
 
         self.randomize_colors()
 
@@ -1285,6 +1327,9 @@ class UI_tSeries(QListWidgetItem):
         self.shape = self.dataset.time_averages[0].shape
         self.transform_shape = tuple(3 * np.array(self.shape))
         self.active_channel = self.dataset.channel_names[0]
+
+        # Lock ROI ids
+        self.roi_id_lock = False
 
         self.roi_sets = self.dataset.ROIs.keys()
         try:
@@ -1639,6 +1684,62 @@ class UI_ROI(PolygonShape, ROI):
             pass
         else:
             self.set_private(not show_in_list)
+
+
+class lockROIsWidget(QDialog):
+    def __init__(self, parent, tSeries_list):
+        QDialog.__init__(self)
+
+        self.layout = QVBoxLayout()
+        self.select_all_button = self.initialize_select_all()
+
+        self.checks = {}
+        for tSeries in tSeries_list:
+            text = tSeries.dataset.savedir.split('/')[-3:-1]
+            c = QCheckBox('{}'.format(text))
+            self.layout.addWidget(c)
+            self.checks[tSeries] = c
+
+        self.accept_button = QPushButton("Accept", self)
+        self.cancel_button = QPushButton("Cancel", self)
+
+        self.layout.addWidget(self.accept_button)
+        self.layout.addWidget(self.cancel_button)
+
+        self.accept_button.clicked.connect(
+            lambda: self.toggle_lock_status(tSeries_list))
+
+        self.cancel_button.clicked.connect(
+            self.cancel)
+
+        self.setLayout(self.layout)
+        self.setWindowTitle(QString('Lock ROI IDs during alignment?'))
+
+    def initialize_select_all(self):
+        c = QCheckBox('Select All')
+        c.clicked.connect(self.select_all)
+        self.layout.addWidget(c)
+
+        hline = QFrame()
+        hline.setFrameStyle(QFrame.HLine)
+        hline.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addWidget(hline)
+
+        return c
+
+    def select_all(self):
+        check_state = self.select_all_button.isChecked()
+
+        for tSeries_checkbox in self.checks.itervalues():
+            tSeries_list.setChecked(check_state)
+
+    def toggle_lock_status(self, tSeries_list):
+        for tSeries in tSeries_list:
+            tSeries.roi_id_lock = self.checks[tSeries].isChecked()
+        self.accept()
+
+    def cancel(self):
+        self.reject()
 
 
 def next_int(sequence):
