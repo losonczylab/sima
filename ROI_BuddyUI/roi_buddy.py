@@ -1731,7 +1731,7 @@ class lockROIsWidget(QDialog):
         check_state = self.select_all_button.isChecked()
 
         for tSeries_checkbox in self.checks.itervalues():
-            tSeries_list.setChecked(check_state)
+            tSeries_checkbox.setChecked(check_state)
 
     def toggle_lock_status(self, tSeries_list):
         for tSeries in tSeries_list:
