@@ -20,11 +20,11 @@ Installation
 
 The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is 
 available for download `here
-<https://dl.dropboxusercontent.com/u/25540135/ROI_Buddy.zip>`_.
+<http://losonczylab.org/ROI_Buddy.zip>`_.
 
 Alternatively, the ROI Buddy GUI can be built from source.  Source code for
 the ROI Buddy GUI is available for download `here
-<https://dl.dropboxusercontent.com/u/25540135/ROI_Buddy_Source.zip>`_.
+<http://losonczylab.org/ROI_Buddy_Source.zip>`_.
 Dependencies for the GUI are identical to those for the SIMA module.
 
 Note that the ROI Buddy .exe file is compiled with the tifffile module rather
