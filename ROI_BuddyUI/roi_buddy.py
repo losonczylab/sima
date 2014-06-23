@@ -11,6 +11,7 @@ from scipy.cluster.hierarchy import average, fcluster
 from scipy.stats import mode
 from shapely.geometry import MultiPolygon, Polygon
 import itertools as it
+from random import shuffle
 
 from roiBuddyUI import Ui_ROI_Buddy
 
@@ -1059,9 +1060,19 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         tSeries_list = [self.tSeries_list.item(i)
                         for i in range(self.tSeries_list.count())]
 
+        n_rois = sum([len(tSeries.roi_list) for tSeries in tSeries_list])
+
+        z_levels = range(1, n_rois + 1)
+        shuffle(z_levels)
+
+        idx = 0
         for tSeries in tSeries_list:
             for roi in tSeries.roi_list:
                 roi.update_color()
+                roi.setZ(z_levels[idx])
+                idx += 1
+
+        self.plot.unselect_all()
         self.plot.replot()
 
     def edit_roi(self):
