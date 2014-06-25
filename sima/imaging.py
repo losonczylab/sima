@@ -75,7 +75,8 @@ class ImagingDataset(object):
 
     """
     def __init__(self, iterables, savedir, channel_names=None,
-                 displacements=None, trim_criterion=None):
+                 displacements=None, trim_criterion=None,
+                 invalid_frames=None):
 
         # Convert savedir into an absolute path ending with .sima
         if savedir is None:
@@ -135,7 +136,7 @@ class ImagingDataset(object):
             except KeyError:
                 pass
             try:
-                self._invalid_frames = data.pop('_invalid_frames')
+                invalid_frames = data.pop('_invalid_frames')
             except KeyError:
                 pass
             try:
@@ -188,6 +189,9 @@ class ImagingDataset(object):
 
         if self.channel_names is None:
             self.channel_names = [str(x) for x in range(self.num_channels)]
+
+        if invalid_frames is not None:
+            self.invalid_frames = invalid_frames
 
         if save and self.savedir is not None:
             self._save(self.savedir)
@@ -520,7 +524,10 @@ class ImagingDataset(object):
         if not all(all(isinstance(y, int) for y in z) for z in x):
             raise TypeError(" input must be a list of lists of integers.")
         self._invalid_frames = x
-        self._save()
+        for cycle, invalids in it.izip(self, x):
+            cycle._invalid_frames = x
+        if self.savedir is not None:
+            self._save()
 
     def segment(self, method='normcut', label=None, **kwargs):
         """Segment an ImagingDataset to generate ROIs.
@@ -667,6 +674,7 @@ class _ImagingCycle(object):
     """
     def __init__(self, channels):
         self.channels = channels
+        self._invalid_frames = []
 
     @lazyprop
     def num_frames(self):
@@ -695,8 +703,11 @@ class _ImagingCycle(object):
         """Iterate over the image frames.
 
         Each frame is returned as a list of arrays (one per channel)."""
-        for frame in it.izip(*self.channels):
-            yield [chan for chan in frame]
+        for frame_idx, frame in enumerate(it.izip(*self.channels)):
+            if frame_idx in self._invalid_frames:
+                yield [np.nan * chan for chan in frame]
+            else:
+                yield [chan for chan in frame]
 
     def _export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
                        scale_values=False):
