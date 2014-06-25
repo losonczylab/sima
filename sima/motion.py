@@ -516,7 +516,7 @@ class _MCImagingDataset(ImagingDataset):
         for cyc_idx, cycle in enumerate(self):
             invalid_frames = set(self._invalid_frames[cyc_idx])
             for frame_idx, frame in enumerate(cycle):
-                if (frame_idx + 1) in invalid_frames:
+                if frame_idx in invalid_frames:
                     correlations[i] = np.nan
                     shifts[:, i] = np.nan
                 elif not started:
@@ -960,7 +960,7 @@ class _MCCycle(_ImagingCycle):
                 states[t - 1], log_markov_matrix_tbl, log_p_old,
                 position_tbl, transition_tbl)
             #observation probabilities
-            if (frame_number + 1) not in invalid_frames:
+            if frame_number not in invalid_frames:
                 if all(x[t] for x in valid_rows.itervalues()):
                     mc.log_observation_probabilities(
                         tmp_log_p, tmp_states, im, log_im_p, log_im_fac,
