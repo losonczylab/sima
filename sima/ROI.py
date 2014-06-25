@@ -131,10 +131,12 @@ class ROI(object):
         return '<ROI: label={label}>'.format(label=self.label)
 
     def __repr__(self):
-        return '<ROI: label={label}, type={type}, im_shape={im_shape}'.format(
-            label=self.label,
-            type='mask' if self._mask is not None else 'poly',
-            im_shape=self.im_shape)
+        return '<ROI: ' + \
+            'label={label}, id={id}, type={type}, im_shape={im_shape}'.format(
+                label=self.label,
+                id=self.id,
+                type='mask' if self._mask is not None else 'poly',
+                im_shape=self.im_shape)
 
     def todict(self):
         """Returns the data in the ROI as a dictionary.
