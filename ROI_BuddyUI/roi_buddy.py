@@ -748,19 +748,24 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.plot.replot()
 
     def edit_label(self):
-        """
-        Edit the labels of the selected ROIs
-        """
+        """Edit the labels of the selected ROIs"""
 
         active_tSeries = self.tSeries_list.currentItem()
 
         rois = self.plot.get_selected_items()
-        for idx, r in enumerate(rois):
-            if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-                new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-                rois[idx] = new_roi
-                active_tSeries.roi_list.append(new_roi)
-        active_tSeries.update_rois()
+        rois = active_tSeries.update_rois(rois)
+        if not len(rois):
+            self.plot.unselect_all()
+            return
+        # for idx, r in enumerate(rois):
+        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
+        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
+        #         if new_roi is None:
+        #             self.plot.unselect_all()
+        #             return
+        #         rois[idx] = new_roi
+        #         active_tSeries.roi_list.append(new_roi)
+        # active_tSeries.update_rois()
 
         label, ok = QInputDialog.getText(
             self, 'Edit Label', 'Enter the label to be associated with each ' +
@@ -784,12 +789,19 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
 
         rois = self.plot.get_selected_items()
-        for idx, r in enumerate(rois):
-            if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-                new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-                rois[idx] = new_roi
-                active_tSeries.roi_list.append(new_roi)
-        active_tSeries.update_rois()
+        rois = active_tSeries.update_rois(rois)
+        if not len(rois):
+            self.plot.unselect_all()
+            return
+        # for idx, r in enumerate(rois):
+        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
+        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
+        #         if new_roi is None:
+        #             self.plot.unselect_all()
+        #             return
+        #         rois[idx] = new_roi
+        #         active_tSeries.roi_list.append(new_roi)
+        # active_tSeries.update_rois()
 
         tags, ok = QInputDialog.getText(
             self, 'Add Tags', 'Enter the tag strings:')
@@ -815,12 +827,19 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
 
         rois = self.plot.get_selected_items()
-        for idx, r in enumerate(rois):
-            if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-                new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-                rois[idx] = new_roi
-                active_tSeries.roi_list.append(new_roi)
-        active_tSeries.update_rois()
+        rois = active_tSeries.update_rois(rois)
+        if not len(rois):
+            self.plot.unselect_all()
+            return
+        # for idx, r in enumerate(rois):
+        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
+        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
+        #         if new_roi is None:
+        #             self.plot.unselect_all()
+        #             return
+        #         rois[idx] = new_roi
+        #         active_tSeries.roi_list.append(new_roi)
+        # active_tSeries.update_rois()
 
         for roi in rois:
             # If two separate polygons have the same id (same ROI),
@@ -842,10 +861,19 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #TODO: this is arbitrary -- either give warning or just fail
         roi = self.plot.get_selected_items()[0]
-        if isinstance(roi, PolygonShape) and not isinstance(roi, UI_ROI):
-            roi = UI_ROI.convert_polygon(roi, active_tSeries)
-            active_tSeries.update_rois()
+        rois = active_tSeries.update_rois([roi])
+        if not len(rois):
+            self.plot.unselect_all()
+            return
+        roi = rois[0]
+        # if isinstance(roi, PolygonShape) and not isinstance(roi, UI_ROI):
+        #     roi = UI_ROI.convert_polygon(roi, active_tSeries)
+        #     if roi is None:
+        #         self.plot.unselect_all()
+        #         return
+        #     active_tSeries.update_rois()
 
+        #TODO: is this check necessary?
         if roi is not None:
 
             tags_str = ''
@@ -885,7 +913,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             active_tSeries = self.tSeries_list.currentItem()
 
             selected_rois = self.plot.get_selected_items()
-            if len(selected_rois) == 0:
+            selected_rois = active_tSeries.update_rois(selected_rois)
+            if not len(selected_rois):
+                self.plot.unselect_all()
                 return
 
             rois = []
@@ -899,16 +929,18 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     selected_rois.append(roi)
 
             for roi in selected_rois:
-                if isinstance(roi, PolygonShape) \
-                        and not isinstance(roi, UI_ROI):
-                    new_roi = roi = UI_ROI.convert_polygon(roi, active_tSeries)
-                    roi = new_roi
-                    active_tSeries.roi_list.append(new_roi)
+                # if isinstance(roi, PolygonShape) \
+                #         and not isinstance(roi, UI_ROI):
+                #     roi = UI_ROI.convert_polygon(roi, active_tSeries)
+                #     if roi is None:
+                #         self.plot.unselect_all()
+                #         return
+                #     active_tSeries.roi_list.append(roi)
                 rois.append(roi.get_points().tolist())
                 self.plot.del_item(roi)
                 tags.extend(roi.tags)
                 labels.append(roi.label)
-            #eliminate redundant tags
+            # eliminate redundant tags
             tags = list(set(tags))
             labels = list(set(labels))
 
@@ -1536,8 +1568,18 @@ class UI_tSeries(QListWidgetItem):
                       hasattr(roi, 'label')]
         return next_int(all_labels)
 
-    def update_rois(self):
-        """Update the self.roi_list with the polygons currently on the plot"""
+    def update_rois(self, keep_list=None):
+        """Update the self.roi_list with the polygons currently on the plot
+
+        keep_list is optionally a list of rois to keep track of
+        If no items in keep_list, returns the same list, otherwise returns the
+        list with old items replaced by their new roi.
+        """
+        
+        if keep_list is None:
+            keep_list = []
+
+        new_keep_list = []
 
         # This should only be performed in edit mode, since in align mode all
         # the polygons will be in the wrong space
@@ -1554,9 +1596,16 @@ class UI_tSeries(QListWidgetItem):
                 if item.parent == self:
                     item.update_points()
                     self.roi_list.append(item)
+                    if item in keep_list:
+                        new_keep_list.append(item)
             elif isinstance(item, PolygonShape):
-                self.roi_list.append(UI_ROI.convert_polygon(parent=self,
-                                     polygon=item))
+                new_roi = UI_ROI.convert_polygon(
+                    parent=self, polygon=item)
+                if new_roi is not None:
+                    self.roi_list.append(new_roi)
+                    if item in keep_list:
+                        new_keep_list.append(new_roi)
+        return new_keep_list
 
     def save_rois(self, roi_set_name):
         """Save ROIList object"""
@@ -1614,9 +1663,14 @@ class UI_ROI(PolygonShape, ROI):
     @staticmethod
     def convert_polygon(polygon, parent):
         """Takes a polygon and returns a similar UI_ROI object."""
-        points = polygon.get_points().tolist()
+        points = polygon.get_points()
 
-        new_roi = UI_ROI(parent=parent, points=points, id=None,
+        # Make sure the polygon has at least 3 points
+        if points.shape[0] <= 2:
+            parent.parent.plot.del_item(polygon)
+            return None
+
+        new_roi = UI_ROI(parent=parent, points=points.tolist(), id=None,
                          label=parent.next_label(), tags=None)
 
         parent.parent.plot.del_item(polygon)
