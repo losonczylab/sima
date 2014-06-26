@@ -347,16 +347,16 @@ class _MCImagingDataset(ImagingDataset):
         mean_shift = np.nanmean(shifts, axis=1)
 
         # add a bit of extra room to move around
-        extra_buffer = (max_displacement - (np.nanmax(shifts, 1) -
-                        np.nanmin(shifts, 1)) / 2).astype(int)
+        extra_buffer = ((max_displacement - np.nanmax(shifts, 1) +
+                         np.nanmin(shifts, 1)) / 2).astype(int)
         if max_displacement[0] < 0:
             extra_buffer[0] = 5
         if max_displacement[1] < 0:
             extra_buffer[1] = 5
         min_displacements = (
-            np.nanmin(shifts, axis=1) - extra_buffer).astype(int)
+            np.nanmin(shifts, 1) - extra_buffer).astype(int)
         max_displacements = (
-            np.nanmax(shifts, axis=1) + extra_buffer).astype(int)
+            np.nanmax(shifts, 1) + extra_buffer).astype(int)
 
         displacements = self._neighbor_viterbi(
             log_transition_matrix, references, gains, decay_matrix,
