@@ -347,8 +347,8 @@ class _MCImagingDataset(ImagingDataset):
         mean_shift = np.nanmean(shifts, axis=1)
 
         # add a bit of extra room to move around
-        extra_buffer = (max_displacement - (shifts.max(axis=1) -
-                        shifts.min(axis=1)) / 2).astype(int)
+        extra_buffer = (max_displacement - (np.nanmax(shifts, 1) -
+                        np.nanmin(shifts, 1)) / 2).astype(int)
         if max_displacement[0] < 0:
             extra_buffer[0] = 5
         if max_displacement[1] < 0:
@@ -566,13 +566,13 @@ class _MCImagingDataset(ImagingDataset):
                                                             corrs.shape))
                     else:
                         min_i = np.maximum(
-                            (shifts.max(axis=1) - max_displacement + offset) /
+                            (np.nanmax(shifts, 1) - max_displacement + offset) /
                             2 + np.array(small_im[0].shape) - 1, 0)
-                        max_i = (np.ceil(
-                            (
-                                shifts.min(axis=1) + max_displacement + offset
-                            ).astype(float) / 2. +
-                            np.array(small_im[0].shape) - 1)
+                        max_i = (
+                            np.ceil(
+                                (np.nanmin(shifts, 1) + max_displacement +
+                                 offset).astype(float) / 2. +
+                                np.array(small_im[0].shape) - 1)
                         ).astype(int)
                         if max_displacement[0] < 0:
                             min_i[0] = 0
