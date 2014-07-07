@@ -519,6 +519,8 @@ class ImagingDataset(object):
 
     @invalid_frames.setter
     def invalid_frames(self, x):
+        if x is None:
+            x = [[] for _ in self]
         if not len(x) == self.num_cycles:
             raise ValueError("Input must be a list with one entry per cycle.")
         if not all(all(isinstance(y, int) for y in z) for z in x):
