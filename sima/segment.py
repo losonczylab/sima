@@ -132,8 +132,8 @@ def _rois_from_cuts(cuts, method, *args, **kwargs):
         raise ValueError('Unrecognized method')
 
 
-def _affinity_matrix(opcs, max_dist=None, spatial_decay=None, variant=None,
-                     processed_image=None, weights=None):
+def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
+                     variant=None, processed_image=None):
     """Return a sparse affinity matrix for use with normalized cuts.
 
     .. math::
@@ -144,8 +144,8 @@ def _affinity_matrix(opcs, max_dist=None, spatial_decay=None, variant=None,
 
     Parameters
     ----------
-    opcs : numpy.ndarray
-        The offset principal components to be used.
+    dataset : sima.ImagingDataset
+        The dataset for which the affinity matrix is being calculated.
     channel : int, optional
         The channel whose signals will be used in the calculations.
     max_dist : tuple of int, optional
@@ -157,7 +157,6 @@ def _affinity_matrix(opcs, max_dist=None, spatial_decay=None, variant=None,
         Extra kwargs can be used with the variant.
     processed_image : numpy.ndarry, optional
         See _processed_image_ca1pc. Only used if variant='ca1pc'.
-    weights : _____
 
     Returns
     -------
@@ -176,9 +175,22 @@ def _affinity_matrix(opcs, max_dist=None, spatial_decay=None, variant=None,
         dm = time_avg.max() - time_avg.min()
 
     Y, X = spatial_decay
-    D = _direction(opcs, weights)
-    shape = D.shape[:2]
+    shape = (dataset.num_rows, dataset.num_columns)
     A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
+
+    pairs = []
+    for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
+        for dx in range(max_dist[1] + 1):
+            if dx == 0:
+                yrange = range(1, max_dist[0] + 1)
+            else:
+                yrange = range(-max_dist[0], max_dist[0] + 1)
+            for dy in yrange:
+                if (x + dx < shape[1]) and (y + dy >= 0) and \
+                        (y + dy < shape[0]):
+                    pairs.append(((y, x), (y+dy, x+dx)))
+    correlations = _offset_corrs(dataset, pairs, channel)
+
     for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
         for dx in range(max_dist[1] + 1):
             if dx == 0:
@@ -191,7 +203,7 @@ def _affinity_matrix(opcs, max_dist=None, spatial_decay=None, variant=None,
                     a = x + y * shape[1]
                     b = a + dx + dy * shape[1]
                     w = np.exp(
-                        -4.5 * ((D[y, x, :] - D[y + dy, x + dx, :]) ** 2).sum()
+                        -9. * correlations[((y, x), (y+dy, x+dx))]
                     ) * np.exp(
                         -0.5 * ((float(dx) / X) ** 2 + (float(dy) / Y) ** 2)
                     )
@@ -309,6 +321,69 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
     return oPC_vars, oPCs, oPC_signals
 
+def pairwise(iterable):
+    a, b = it.tee(iterable)
+    next(b, None)
+    return it.izip(a, b)
+
+def _offset_corrs(dataset, pixel_pairs, channel=0):
+    """
+    Calculate the offset correlation for specified pixel pairs.
+
+    Parameters
+    -----------
+    dataset : sima.ImagingDataset
+        The dataset to be used.
+    pixel_pairs : list of tuple of tuple of int
+        The pairs of pixels, indexed ((y0, x0), (y1, x1)) for
+        which the correlation is to be calculated.
+    channel : int, optional
+        The channel to be used for estimating the pixel correlations.
+        Defaults to 0.
+
+    Returns
+    -------
+    correlations: dict
+        A dictionary whose keys are the elements of the pixel_pairs
+        input list, and whose values are the calculated offset
+        correlations.
+    """
+    pixels = set()
+    for x, y in pixel_pairs:
+        pixels.add(x)
+        pixels.add(y)
+    means = {x: 0. for x in pixels}
+    offset_stdevs = {x: 0. for x in pixels}
+    correlations = {x: 0. for x in pixel_pairs}
+    for cycle in dataset:
+        for frame_idx, frames in enumerate(pairwise(cycle)):
+            print frame_idx
+            for a in pixels:
+                a0 = np.nan_to_num(frames[0][channel][a[0], a[1]])
+                a1 = np.nan_to_num(frames[1][channel][a[0], a[1]])
+                means[a] += np.nan_to_num(a0)
+                offset_stdevs[a] += a0 * \
+                    a1
+            for pair in pixel_pairs:
+                a, b = pair
+                correlations[pair] += np.nan_to_num(
+                    frames[0][channel][a[0], a[1]] *
+                    frames[1][channel][b[0], b[1]] +
+                    frames[1][channel][a[0], a[1]] *
+                    frames[0][channel][b[0], b[1]])
+    for pixel in pixels:
+        means[pixel] /= dataset.num_frames - 1.
+        offset_stdevs /= dataset.num_frames - 1.
+        offset_stdevs[pixel] = np.sqrt(
+            max(0., offset_stdevs[pixel] - means[pixel] ** 2))
+    for pair in pixel_pairs:
+        correlations[pair] /= 2. * (dataset.num_frames - 1)
+        correlations[pair] = np.nan_to_num(
+            (correlations[pair] - means[pair[0]] * means[pair[1]]) /
+            (offset_stdevs[pair[0]] * offset_stdevs[pair[1]])
+        )
+    return correlations
+
 
 def _direction(vects, weights=None):
     if weights is None:
@@ -322,17 +397,8 @@ def _normcut(dataset, channel=0, num_pcs=75, pc_list=None,
              max_dist=None, spatial_decay=None,
              cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, variant=None,
              **kwargs):
-    if dataset.savedir is not None:
-        path = os.path.join(dataset.savedir, 'opca_' + str(channel) + '.npz')
-    else:
-        path = None
-    opc_vars, opcs, _ = _OPCA(dataset, channel, num_pcs, path)
-    weights = np.sqrt(np.maximum(0, opc_vars))
-    if pc_list is not None:
-        opcs = opcs[:, :, pc_list]
-        weights = weights[pc_list]
-    affinity = _affinity_matrix(opcs, max_dist, spatial_decay, variant,
-                                weights=weights, **kwargs)
+    affinity = _affinity_matrix(dataset, channel, max_dist, spatial_decay,
+                                variant, **kwargs)
     shape = (dataset.num_rows, dataset.num_columns)
     cuts = itercut(affinity, shape, cut_max_pen, cut_min_size, cut_max_size)
     return cuts
