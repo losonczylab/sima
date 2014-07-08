@@ -1064,4 +1064,4 @@ def hmm(iterables, savedir, channel_names=None, num_states_retained=50,
         num_states_retained, max_displacement, artifact_channels, verbose
     )
     return ImagingDataset(iterables, savedir, channel_names, displacements,
-                          trim_criterion)
+                          trim_criterion, invalid_frames)
