@@ -1,4 +1,3 @@
-import os
 import itertools as it
 
 import numpy as np
@@ -14,7 +13,8 @@ import sima.oPCA as oPCA
 import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()},
                   reload_support=True)
-from sima.offset_corr import _offset_corrs
+import sima._ocorr as oc
+
 
 def _rois_from_cuts_full(cuts):
     """Return ROI structures each containing the full extent of a cut.
@@ -232,6 +232,56 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                     A[a, b] = w
                     A[b, a] = w
     return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
+
+from pylab import hist, show
+
+def _offset_corrs(dataset, pixel_pairs, channel=0):
+    """
+    Calculate the offset correlation for specified pixel pairs.
+
+    Parameters
+    -----------
+    dataset : sima.ImagingDataset
+        The dataset to be used.
+    pixel_pairs : ndarray of int
+        The pairs of pixels, indexed ((y0, x0), (y1, x1)) for
+        which the correlation is to be calculated.
+    channel : int, optional
+        The channel to be used for estimating the pixel correlations.
+        Defaults to 0.
+
+    Returns
+    -------
+    correlations: dict
+        A dictionary whose keys are the elements of the pixel_pairs
+        input list, and whose values are the calculated offset
+        correlations.
+    """
+    means, offset_stdevs, correlations, pixels = oc._fast_ocorr(
+        dataset, pixel_pairs, channel)
+    means /= dataset.num_frames - 1.
+    offset_stdevs /= dataset.num_frames - 1.
+    correlations /= 2. * (dataset.num_frames - 1)
+    for p in range(pixels.shape[0]):
+        offset_stdevs[p] = np.sqrt(max(0., offset_stdevs[p] - means[p] ** 2))
+    hist(means); show()
+    hist(offset_stdevs); show(1000)
+    hist(correlations); show()
+    means_dict = {(r[0], r[1]): m for r, m in it.izip(pixels, means)}
+    ostd_dict = {(r[0], r[1]): s for r, s in it.izip(pixels, offset_stdevs)}
+    for pair_idx, pair in enumerate(pixel_pairs):
+        a = (pair[0], pair[1])
+        b = (pair[2], pair[3])
+        correlations[pair_idx] = np.nan_to_num(
+            (correlations[pair_idx] - means_dict[a] * means_dict[b]) /
+            (ostd_dict[a] * ostd_dict[b])
+        )
+        if ostd_dict[a] == 0 or ostd_dict[b] == 0:
+            print correlations[pair_idx]
+    print 'CHECK4'
+    return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
+            for pair_idx, PAIR in enumerate(pixel_pairs)}
+
 
 
 def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
