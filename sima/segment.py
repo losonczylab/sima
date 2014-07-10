@@ -233,7 +233,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                     A[b, a] = w
     return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
 
-from pylab import hist, show
+from pylab import hist, imshow, show, colorbar
 
 def _offset_corrs(dataset, pixel_pairs, channel=0):
     """
@@ -257,28 +257,22 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
         input list, and whose values are the calculated offset
         correlations.
     """
-    means, offset_stdevs, correlations, pixels = oc._fast_ocorr(
+    ostdevs, correlations, pixels = oc._fast_ocorr(
         dataset, pixel_pairs, channel)
-    means /= dataset.num_frames - 1.
-    offset_stdevs /= dataset.num_frames - 1.
+    ostdevs /= dataset.num_frames - 1.
     correlations /= 2. * (dataset.num_frames - 1)
-    for p in range(pixels.shape[0]):
-        offset_stdevs[p] = np.sqrt(max(0., offset_stdevs[p] - means[p] ** 2))
-    hist(means); show()
-    hist(offset_stdevs); show(1000)
-    hist(correlations); show()
-    means_dict = {(r[0], r[1]): m for r, m in it.izip(pixels, means)}
-    ostd_dict = {(r[0], r[1]): s for r, s in it.izip(pixels, offset_stdevs)}
+    imshow(ostdevs); colorbar(); show()
+    ostdevs = np.sqrt(np.maximum(0., ostdevs))
+    imshow(ostdevs); colorbar(); show()
+    hist(ostdevs.reshape(-1), 1000); show()
     for pair_idx, pair in enumerate(pixel_pairs):
-        a = (pair[0], pair[1])
-        b = (pair[2], pair[3])
-        correlations[pair_idx] = np.nan_to_num(
-            (correlations[pair_idx] - means_dict[a] * means_dict[b]) /
-            (ostd_dict[a] * ostd_dict[b])
-        )
-        if ostd_dict[a] == 0 or ostd_dict[b] == 0:
-            print correlations[pair_idx]
-    print 'CHECK4'
+        denom = ostdevs[pair[0], pair[1]] * ostdevs[pair[2], pair[3]]
+        if denom <= 0:
+            correlations[pair_idx] = 0.
+        else:
+            correlations[pair_idx] = max(
+                -1., min(1., correlations[pair_idx] / denom))
+    hist(correlations, 100); show()
     return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
             for pair_idx, PAIR in enumerate(pixel_pairs)}
 

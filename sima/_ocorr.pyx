@@ -20,12 +20,13 @@ def pairwise(iterable):
 def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
     cdef Py_ssize_t num_pairs = pixel_pairs.shape[0]
     cdef np.ndarray[FLOAT_TYPE_t] correlations = np.zeros(num_pairs)
-    #cdef np.ndarray[INT_TYPE_t] pair
-    cdef np.ndarray[float, ndim=2] X
-    cdef np.ndarray[float, ndim=2] Y
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] time_avg = dataset.time_averages[channel]
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] X
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] Y
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] ostdevs = np.zeros(
+        (dataset.num_rows, dataset.num_columns))
     cdef int pair_idx, p
     cdef Py_ssize_t a0, a1, b0, b1
-    cdef float i0, i1
     pixels_ = set()
     for a0, a1, b0, b1 in pixel_pairs:
         pixels_.add((a0, a1))
@@ -33,18 +34,13 @@ def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
     cdef np.ndarray[INT_TYPE_t, ndim=2] pixels = np.concatenate(
         [np.reshape(pix, (1,2)) for pix in pixels_])
     cdef int num_pixels = pixels.shape[0]
-    cdef np.ndarray[FLOAT_TYPE_t] means = np.zeros(num_pixels)
-    cdef np.ndarray[FLOAT_TYPE_t] offset_stdevs = np.zeros(num_pixels)
-    for cycle in dataset:
+    for cycle_idx, cycle in enumerate(dataset):
         for frame_idx, frames in enumerate(pairwise(cycle)):
-            X = np.nan_to_num(frames[0][channel])
-            Y = np.nan_to_num(frames[1][channel])
-            print frame_idx
-            for p in range(num_pixels):
-                i0 = X[pixels[p, 0], pixels[p, 1]]
-                i1 = Y[pixels[p, 0], pixels[p, 1]]
-                means[p] += i0
-                offset_stdevs[p] += i0 * i1
+            X = np.nan_to_num(frames[0][channel] - time_avg)
+            Y = np.nan_to_num(frames[1][channel] - time_avg)
+            if not frame_idx % 100:
+                print frame_idx
+            ostdevs += X * Y
             for pair_idx in range(num_pairs):
                 a0 = pixel_pairs[pair_idx, 0]
                 a1 = pixel_pairs[pair_idx, 1]
@@ -52,4 +48,4 @@ def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
                 b1 = pixel_pairs[pair_idx, 3]
                 correlations[pair_idx] += (
                     X[a0, a1] * Y[b0, b1] + Y[a0, a1] * X[b0, b1])
-    return (means, offset_stdevs, correlations, pixels)
+    return (ostdevs, correlations, pixels)
