@@ -233,8 +233,6 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                     A[b, a] = w
     return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
 
-from pylab import hist, imshow, show, colorbar
-
 def _offset_corrs(dataset, pixel_pairs, channel=0):
     """
     Calculate the offset correlation for specified pixel pairs.
@@ -261,10 +259,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
         dataset, pixel_pairs, channel)
     ostdevs /= dataset.num_frames - 1.
     correlations /= 2. * (dataset.num_frames - 1)
-    imshow(ostdevs); colorbar(); show()
     ostdevs = np.sqrt(np.maximum(0., ostdevs))
-    imshow(ostdevs); colorbar(); show()
-    hist(ostdevs.reshape(-1), 1000); show()
     for pair_idx, pair in enumerate(pixel_pairs):
         denom = ostdevs[pair[0], pair[1]] * ostdevs[pair[2], pair[3]]
         if denom <= 0:
@@ -272,7 +267,6 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
         else:
             correlations[pair_idx] = max(
                 -1., min(1., correlations[pair_idx] / denom))
-    hist(correlations, 100); show()
     return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
             for pair_idx, PAIR in enumerate(pixel_pairs)}
 
