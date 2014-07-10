@@ -7,15 +7,12 @@ import cython
 import numpy as np
 cimport numpy as np
 
+from sima.misc import pairwise
+
 INT_TYPE = np.int
 FLOAT_TYPE = np.float
 ctypedef np.int_t INT_TYPE_t
 ctypedef np.float_t FLOAT_TYPE_t
-
-def pairwise(iterable):
-    a, b = it.tee(iterable)
-    next(b, None)
-    return it.izip(a, b)
 
 def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
     cdef Py_ssize_t num_pairs = pixel_pairs.shape[0]

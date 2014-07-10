@@ -59,3 +59,8 @@ def copy_label_to_id(rois):
     Modifies the set in place."""
     for roi in rois:
         roi.id = roi.label
+
+def pairwise(iterable):
+    a, b = it.tee(iterable)
+    next(b, None)
+    return it.izip(a, b)

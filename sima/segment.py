@@ -270,7 +270,30 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
     return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
             for pair_idx, PAIR in enumerate(pixel_pairs)}
 
+class dataset_iterator():
+    def __init__(self, dataset, channel):
+        self.dataset = dataset
+        self.channel = channel
+        self.means = dataset.time_averages(self.channel)
 
+    def next(self):
+        for cycle in self.dataset:
+            for frame in cycle:
+                return frame[self.channel] - means
+
+    def __iter__(self):
+        return self
+
+class dataset_iterable():
+    def __init__(self, dataset, channel):
+        self.dataset = dataset
+        self.channel = channel
+
+    def __iter__(self):
+        return dataset_iterator(self.dataset, self.channel)
+
+
+def _power_iteration_opca(
 
 def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
                   sigma_y=10):

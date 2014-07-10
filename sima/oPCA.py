@@ -142,6 +142,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     OX = np.zeros_like(X)
     OX[1:] += X[:-1]
     OX[:-1] += X[1:]
+    Z =
 
     eivects, eivals = [], []
     for pc_idx in range(num_pcs):
@@ -154,6 +155,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
                 warnings.warn("max_iter reached by power_iteration_oPCA")
                 break
             Z = np.dot(np.dot(U, X.T), OX)  # TODO: parallelize
+            _Z_update(Z, U, data)
             U_new = np.dot(np.dot(np.dot(U, U.T), inv(np.dot(Z, U.T))), Z)
             error = norm(U_new - U) / norm(U)
             U = U_new / norm(U_new)
@@ -174,6 +176,13 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     eivals = np.array(eivals)
     idx = np.argsort(-eivals)
     return eivals[idx], eivects[:, idx], np.dot(X, eivects[:, idx])
+
+from sima.misc import pairwise
+
+def _Z_update(Z, U, data):
+    Z *= 0.
+    for X, Y in pairwise(data):
+        Z += 0.5 * (np.outer(np.dot(U, X), X+Y)
 
 
 def offsetPCA(data, num_pcs=None):
