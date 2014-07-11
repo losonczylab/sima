@@ -1,5 +1,7 @@
 import os
+import itertools as it
 import errno
+
 from numpy import nanmax
 
 

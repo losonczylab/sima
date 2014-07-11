@@ -46,3 +46,17 @@ def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
                 correlations[pair_idx] += (
                     X[a0, a1] * Y[b0, b1] + Y[a0, a1] * X[b0, b1])
     return (ostdevs, correlations, pixels)
+
+
+def _Z_update(np.ndarray[FLOAT_TYPE_t, ndim=2] Z,
+              np.ndarray[FLOAT_TYPE_t, ndim=2] U, data):
+    # Z = np.dot(np.dot(U, X.T), OX)
+    cdef np.ndarray[FLOAT_TYPE_t] X
+    cdef np.ndarray[FLOAT_TYPE_t] Y
+    Z.fill(0.)
+    i = 0
+    for X, Y in pairwise(data):
+        print i
+        Z += np.outer(np.dot(U, X), X+Y)
+        i += 1
+    Z *= 0.5

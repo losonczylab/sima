@@ -7,6 +7,11 @@ from scipy.linalg import eig, eigh, inv, norm, cholesky
 from scipy.sparse.linalg import eigsh, eigs
 import warnings
 
+import pyximport
+pyximport.install(setup_args={"include_dirs": np.get_include()},
+                  reload_support=True)
+import sima._ocorr as oc
+
 
 def _method_1(data, num_pcs=None):
     """Compute OPCA when num_observations > num_dimensions."""
@@ -82,18 +87,11 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
        Information Processing Systems. 1998.
 
     """
-    X = data - nanmean(data, axis=0)
-    X[np.logical_not(np.isfinite(X))] = 0.
-    T = X.shape[0]
-
-    OX = np.zeros_like(X)
-    OX[1:] += X[:-1]
-    OX[:-1] += X[1:]
-
-    DT = int(np.floor(float(T) / num_pcs))
-    U = np.concatenate([X[i * DT:(i + 1) * DT].mean(axis=0).reshape(1, -1)
-                        for i in range(num_pcs)], axis=0)
-    assert np.all(np.isfinite(U))
+    for X in (data):
+        p = X.size
+        break
+    U = np.random.randn(num_pcs, p)
+    Z = np.zeros((num_pcs, p))
     for i in range(num_pcs):
         U[i] /= norm(U[i])
     iter_count = 0
@@ -102,7 +100,7 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
         if iter_count > max_iter:
             warnings.warn("max_iter reached by EM_oPCA")
             break
-        Z = np.dot(np.dot(U, X.T), OX)  # TODO: parallelize
+        oc._Z_update(Z, U, data)
         U_new = np.dot(np.dot(np.dot(U, U.T), inv(np.dot(Z, U.T))), Z)
         error = max(norm(U_new[i] - U[i]) / norm(U[i]) for i in range(num_pcs))
         print "iter_count:", iter_count, "\t\terror:", error, \
@@ -112,10 +110,14 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
             break
     # project data with U
     orthonormal_basis = np.dot(U.T, inv(cholesky(np.dot(U, U.T))))
-    reduced_data = np.dot(data, orthonormal_basis)
+    reduced_data = _project(data, orthonormal_basis)  # np.dot(data, orthonormal_basis)
     eivals, eivects, coeffs = offsetPCA(reduced_data)
     eivects = np.dot(orthonormal_basis, eivects)
     return eivals, eivects, coeffs
+
+def _project(iterator, matrix):
+    return np.concatenate(
+        [np.dot(x, matrix).reshape(1, -1) for x in iterator])
 
 
 def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
@@ -137,52 +139,44 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     -------
     see offsetPCA
     """
-    X = data - nanmean(data, axis=0)
-    X[np.logical_not(np.isfinite(X))] = 0.
-    OX = np.zeros_like(X)
-    OX[1:] += X[:-1]
-    OX[:-1] += X[1:]
-    Z =
 
+    for X in (data):
+        U0 = X.reshape(1, -1)
+        p = X.shape
+        break
     eivects, eivals = [], []
+    Z = np.zeros((1, p))
     for pc_idx in range(num_pcs):
-        U = X[0].reshape(1, -1)  # np.random.randn(num_pcs, p)
-        U /= norm(U)
+        U = U0 / norm(U0)  # np.random.randn(num_pcs, p)
         iter_count = 0
         while True:
+            print iter_count
             iter_count += 1
             if iter_count > max_iter:
                 warnings.warn("max_iter reached by power_iteration_oPCA")
                 break
-            Z = np.dot(np.dot(U, X.T), OX)  # TODO: parallelize
-            _Z_update(Z, U, data)
+            oc._Z_update(Z, U, data)
             U_new = np.dot(np.dot(np.dot(U, U.T), inv(np.dot(Z, U.T))), Z)
             error = norm(U_new - U) / norm(U)
             U = U_new / norm(U_new)
             if error < tolerance:
                 break
         eivects.append(U.T)
-        eivals.append(float(np.dot(np.dot(U, X.T), np.dot(OX, U.T)) /
+        eivals.append(float(np.dot(Z, U.T) /
                             np.dot(U, U.T)) / (2. * (X.shape[0] - 1.)))
         XUtU = np.dot(np.dot(X, U.T), U)
         X -= XUtU
         OX[1:] -= XUtU[:-1]
-        OX[:-1] -= XUtU[1:]
+        OX[:-1] -= XUtU[1:]  # TODO: isn't this wrong???
         print 'Eigenvalue', pc_idx + 1, 'found'
     eivects = np.concatenate(eivects, axis=1)
     for i in range(eivects.shape[1]):
         eivects[:, i] /= norm(eivects[:, i])
-    Z = np.dot(np.dot(eivects.T, X.T), OX)
     eivals = np.array(eivals)
     idx = np.argsort(-eivals)
     return eivals[idx], eivects[:, idx], np.dot(X, eivects[:, idx])
 
 from sima.misc import pairwise
-
-def _Z_update(Z, U, data):
-    Z *= 0.
-    for X, Y in pairwise(data):
-        Z += 0.5 * (np.outer(np.dot(U, X), X+Y)
 
 
 def offsetPCA(data, num_pcs=None):
