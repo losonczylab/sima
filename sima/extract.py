@@ -100,7 +100,9 @@ def _roi_extract(inputs):
     # pseudoinverse of A, if not use a shortcut
     if constants['is_overlap']:
         A = constants['A'][imaged_pixels, :]
-        imaged_rois = np.unique(A.nonzero()[1])
+        # Identify all of the rois that were imaged this frame
+        imaged_rois = np.unique(
+            constants['mask_stack'][:, imaged_pixels].nonzero()[0])
         if len(imaged_rois) < n_rois:
             A = A.tocsc()[:, imaged_rois].tocsr()
         # First assume ROIs are independent, if not fallback to full pseudo-inv
@@ -348,7 +350,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     for cycle_idx, cycle in it.izip(it.count(), dataset):
 
-        chunksize = int(float(cycle.num_frames) / n_pools / chunkfactor) + 1
+        # chunksize = int(float(cycle.num_frames) / n_pools / chunkfactor) + 1
 
         signal = np.empty((n_rois, cycle.num_frames), dtype='float32')
         if demixer is not None:
