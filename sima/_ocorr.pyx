@@ -1,3 +1,5 @@
+# cython: profile=True
+
 STUFF = 'HI' # Fixes cython issue. See link below:
 # http://stackoverflow.com/questions/8024805/cython-compiled-c-extension-importerror-dynamic-module-does-not-define-init-fu
 
@@ -7,7 +9,7 @@ import cython
 import numpy as np
 cimport numpy as np
 
-from sima.misc import pairwise
+# from sima.misc import pairwise
 
 INT_TYPE = np.int
 FLOAT_TYPE = np.float
@@ -50,13 +52,47 @@ def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
 
 def _Z_update(np.ndarray[FLOAT_TYPE_t, ndim=2] Z,
               np.ndarray[FLOAT_TYPE_t, ndim=2] U, data):
-    # Z = np.dot(np.dot(U, X.T), OX)
+    # Calculate: Z = np.dot(np.dot(U, data.T), np.dot(O, data))
     cdef np.ndarray[FLOAT_TYPE_t] X
-    cdef np.ndarray[FLOAT_TYPE_t] Y
+    cdef np.ndarray[FLOAT_TYPE_t] UX
+    cdef np.ndarray[FLOAT_TYPE_t] X_
+    cdef np.ndarray[FLOAT_TYPE_t] UX_
+    cdef np.ndarray[FLOAT_TYPE_t] X__
+    cdef np.ndarray[FLOAT_TYPE_t] UX__
     Z.fill(0.)
-    i = 0
-    for X, Y in pairwise(data):
-        print i
-        Z += np.outer(np.dot(U, X), X+Y)
-        i += 1
+
+    i = iter(data)
+    X__ = next(i)
+    UX__ = np.dot(U, X__)
+    X_ = next(i)
+    UX_ = np.dot(U, X_)
+    X_ = X_
+
+    Z += np.outer(UX_, X__)
+
+    for X in i:
+        UX = np.dot(U, X)
+        Z += np.outer(UX__ + UX, X_)
+
+        X__ = X_
+        X_ = X
+        UX__ = UX_
+        UX_ = UX
+
+    Z += np.outer(UX__, X_)
+    # for X, Y in pairwise(data):
+    #     if t == 0:
+    #         UX = np.dot(U, X)
+    #     else:
+    #         UX = UY
+    #     UY = np.dot(U, Y)
+    #     Z += np.outer(UX, Y)
+    #     Z += np.outer(UY, X)
+    #     t += 1
     Z *= 0.5
+
+
+def pairwise(iterable):
+    a, b = it.tee(iterable)
+    next(b, None)
+    return it.izip(a, b)

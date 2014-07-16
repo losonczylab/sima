@@ -271,30 +271,22 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
             for pair_idx, PAIR in enumerate(pixel_pairs)}
 
 
-class dataset_iterator():
+class dataset_iterable():
     def __init__(self, dataset, channel):
         self.dataset = dataset
         self.channel = channel
         self.means = dataset.time_averages[self.channel].reshape(-1)
 
-    def next(self):
+    def __iter__(self):
+        # return dataset_iterator(self.dataset, self.channel)
+        i = 0
         for cycle in self.dataset:
+            print 'cycle', i
+            i += 1
             for frame in cycle:
                 yield np.nan_to_num(
                     frame[self.channel].reshape(-1) - self.means)
         raise StopIteration
-
-    def __iter__(self):
-        return self
-
-
-class dataset_iterable():
-    def __init__(self, dataset, channel):
-        self.dataset = dataset
-        self.channel = channel
-
-    def __iter__(self):
-        return dataset_iterator(self.dataset, self.channel)
 
 
 def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
