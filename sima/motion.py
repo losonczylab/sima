@@ -107,7 +107,8 @@ def _estimate_movement_model(shifts, num_rows):
     A = 0.5 * (A + A.T)
     U, s, V = svd(A)
     s **= 1. / num_rows
-    decay_matrix = np.dot(U, np.dot(np.diag(s), V))  # take A^(1/num_rows)
+    decay_matrix = np.dot(U, np.dot(np.diag(s), U))  # take A^(1/num_rows)
+    # NOTE: U == V for positive definite A
 
     # Gaussian Transition Probabilities
     transition_probs = lambda x, x0: 1. / np.sqrt(
@@ -1064,4 +1065,4 @@ def hmm(iterables, savedir, channel_names=None, num_states_retained=50,
         num_states_retained, max_displacement, artifact_channels, verbose
     )
     return ImagingDataset(iterables, savedir, channel_names, displacements,
-                          trim_criterion)
+                          trim_criterion, invalid_frames)
