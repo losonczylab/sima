@@ -52,13 +52,24 @@ def _fast_ocorr(dataset, np.ndarray[INT_TYPE_t, ndim=2] pixel_pairs, channel=0):
 
 def _Z_update(np.ndarray[FLOAT_TYPE_t, ndim=2] Z,
               np.ndarray[FLOAT_TYPE_t, ndim=2] U, data):
-    # Calculate: Z = np.dot(np.dot(U, data.T), np.dot(O, data))
-    cdef np.ndarray[FLOAT_TYPE_t] X
-    cdef np.ndarray[FLOAT_TYPE_t] UX
-    cdef np.ndarray[FLOAT_TYPE_t] X_
-    cdef np.ndarray[FLOAT_TYPE_t] UX_
-    cdef np.ndarray[FLOAT_TYPE_t] X__
-    cdef np.ndarray[FLOAT_TYPE_t] UX__
+    """
+    This function performs a step of the EM PCA algorithm
+    for OPCA without needing to load all data at once.
+
+    If memory were not an issue, this function would be
+    equivalent to
+        return np.dot(np.dot(U, data.T), np.dot(O, data))
+
+    The current version has a (hopefully) faster implementation
+    of the following:
+    # for X, Y in pairwise(data):
+    #     UX = np.dot(U, X)
+    #     UY = np.dot(U, Y)
+    #     Z += np.outer(UX, Y)
+    #     Z += np.outer(UY, X)
+
+    """
+    cdef np.ndarray[FLOAT_TYPE_t] X, X_, X__, UX, UX_, UX__
     Z.fill(0.)
 
     i = iter(data)
@@ -80,15 +91,6 @@ def _Z_update(np.ndarray[FLOAT_TYPE_t, ndim=2] Z,
         UX_ = UX
 
     Z += np.outer(UX__, X_)
-    # for X, Y in pairwise(data):
-    #     if t == 0:
-    #         UX = np.dot(U, X)
-    #     else:
-    #         UX = UY
-    #     UY = np.dot(U, Y)
-    #     Z += np.outer(UX, Y)
-    #     Z += np.outer(UY, X)
-    #     t += 1
     Z *= 0.5
 
 

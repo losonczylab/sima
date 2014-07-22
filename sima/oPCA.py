@@ -10,7 +10,7 @@ import warnings
 import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()},
                   reload_support=True)
-import sima._ocorr as oc
+import sima._opca as _opca
 
 
 def _method_1(data, num_pcs=None):
@@ -84,71 +84,13 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     for X in (data):
         p = X.size
         break
-    U = np.random.randn(num_pcs, p)
-    Z = np.zeros((num_pcs, p))
-    U = np.linalg.qr(U.T)[0].T
-    iter_count = 0
-    eivals_old = np.zeros(num_pcs)
-    while True:
-        iter_count += 1
-        if iter_count > max_iter:
-            warnings.warn("max_iter reached by EM_oPCA")
-            break
-        oc._Z_update(Z, U, data)
-        ZUT = np.dot(Z, U.T)
-        eivals = np.diag(ZUT)
-        order = np.argsort(abs(eivals))[::-1]
-        error = np.amax(abs((eivals - eivals_old) / eivals))
-        eivals_old = eivals[order]
-        U = np.dot(np.dot(np.dot(U, U.T), inv(ZUT)), Z)[order]
-        print "iter_count:", iter_count, "\t\terror:", error, \
-            '\t\teivals', eivals
-        U = np.linalg.qr(U.T)[0].T
-        if error < tolerance:
-            break
-    # project data with U
-    reduced_data = _project(data, U.T)  # np.dot(data, orthonormal_basis)
-    eivals, eivects, coeffs = offsetPCA(reduced_data)
-    eivects = np.dot(U.T, eivects)
-    return eivals, eivects, coeffs
-
-
-def EM_oPCA2(data, num_pcs, tolerance=0.01, max_iter=1000):
-    """Calculate the leading magnitude PCs with the EM algorithm.
-
-    Adapted from the EM algorithm for PCA [1].
-
-    Parameters
-    ----------
-    data : array
-        see offsetPCA
-    num_pcs : int
-        Then number of oPCs to be computed.
-    tolerance : float, optional
-        The criterion for fractional difference between subsequent estimates
-        used to determine when to terminate the algorithm. Default: 0.01.
-    max_iter : int, optional
-        The maximum number of iterations. Default: 1000.
-
-    Returns
-    -------
-    see offsetPCA
-
-    References
-    -----
-    .. [1] S. Roweis. EM Algorithms for PCA and SPCA. Advances in Neural
-       Information Processing Systems. 1998.
-
-    """
-    for X in (data):
-        p = X.size
-        break
     first_frames = np.zeros((num_pcs, p))
     for i, X in enumerate(data):
         if i == num_pcs:
             break
         first_frames[i] = X
-    U = offsetPCA(first_frames)[1].T  # initialize by calling oPCA on first num_pcs frames
+    # initialize by calling oPCA on first num_pcs frames
+    U = offsetPCA(first_frames)[1].T
     Z = np.zeros((num_pcs, p))
     U = np.linalg.qr(U.T)[0].T
     iter_count = 0
@@ -158,25 +100,28 @@ def EM_oPCA2(data, num_pcs, tolerance=0.01, max_iter=1000):
         if iter_count > max_iter:
             warnings.warn("max_iter reached by EM_oPCA")
             break
-        oc._Z_update(Z, U, data)
+        _opca._Z_update(Z, U, data)
         ZUT = np.dot(Z, U.T)
         eivals = np.diag(ZUT)
         order = np.argsort(abs(eivals))[::-1]
         error = np.sum(abs(eivals - eivals_old)) / np.sum(abs(eivals))
         eivals_old = eivals[order]
+        # Although part of the original OPCA algorithm, the line below
+        # causes problems with convergence for large numbers of PCs,
+        # presumably because of inaccuracies in the inverse. Therfore
+        # we have replaced it with QR decomposition to obtain orthogonal
+        # eigenvectors via Gram-Schmidt.
         # U = np.dot(np.dot(np.dot(U, U.T), inv(ZUT)), Z)[order]
+        U = np.linalg.qr(Z[order].T)[0].T
         print "iter_count:", iter_count, "\t\terror:", error, \
             '\t\teivals', eivals
-        U = np.linalg.qr(Z[order].T)[0].T
         if error < tolerance:
             break
     # project data with U
-    reduced_data = _project(data, U.T)  # np.dot(data, orthonormal_basis)
+    reduced_data = _project(data, U.T)
     eivals, eivects, coeffs = offsetPCA(reduced_data)
     eivects = np.dot(U.T, eivects)
     return eivals, eivects, coeffs
-
-
 
 
 def _project(iterator, matrix):
@@ -202,6 +147,9 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     Returns
     -------
     see offsetPCA
+
+
+    WARNING: INCOMPLETE!!!!!!!!!!!
     """
 
     for X in (data):
@@ -219,7 +167,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
             if iter_count > max_iter:
                 warnings.warn("max_iter reached by power_iteration_oPCA")
                 break
-            oc._Z_update(Z, U, data)
+            _opca._Z_update(Z, U, data)
             U_new = np.dot(np.dot(np.dot(U, U.T), inv(np.dot(Z, U.T))), Z)
             error = norm(U_new - U) / norm(U)
             U = U_new / norm(U_new)
@@ -228,10 +176,12 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
         eivects.append(U.T)
         eivals.append(float(np.dot(Z, U.T) /
                             np.dot(U, U.T)) / (2. * (X.shape[0] - 1.)))
+        """
         XUtU = np.dot(np.dot(X, U.T), U)
         X -= XUtU
         OX[1:] -= XUtU[:-1]
         OX[:-1] -= XUtU[1:]  # TODO: isn't this wrong???
+        """
         print 'Eigenvalue', pc_idx + 1, 'found'
     eivects = np.concatenate(eivects, axis=1)
     for i in range(eivects.shape[1]):
@@ -239,8 +189,6 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     eivals = np.array(eivals)
     idx = np.argsort(-eivals)
     return eivals[idx], eivects[:, idx], np.dot(X, eivects[:, idx])
-
-from sima.misc import pairwise
 
 
 def offsetPCA(data, num_pcs=None):

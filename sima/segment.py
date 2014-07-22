@@ -13,7 +13,7 @@ import sima.oPCA as oPCA
 import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()},
                   reload_support=True)
-import sima._ocorr as oc
+import sima._opca as _opca
 
 
 def _rois_from_cuts_full(cuts):
@@ -233,6 +233,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                     A[b, a] = w
     return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
 
+
 def _offset_corrs(dataset, pixel_pairs, channel=0):
     """
     Calculate the offset correlation for specified pixel pairs.
@@ -255,7 +256,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
         input list, and whose values are the calculated offset
         correlations.
     """
-    ostdevs, correlations, pixels = oc._fast_ocorr(
+    ostdevs, correlations, pixels = _opca._fast_ocorr(
         dataset, pixel_pairs, channel)
     ostdevs /= dataset.num_frames - 1.
     correlations /= 2. * (dataset.num_frames - 1)
@@ -372,9 +373,7 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
             X.append(frame[ch].reshape(1, -1))
     shape = (dataset.num_rows, dataset.num_columns)
     X = np.concatenate(X)
-    oPC_vars, oPCs, oPC_signals = oPCA.offsetPCA(X, num_pcs=num_pcs)
-    # TODO: switch to EM or iterative algorithm when convergence
-    # is working properly
+    oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(X, num_pcs=num_pcs)
     oPCs = oPCs.reshape(shape + (-1,))
     if path is not None:
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
