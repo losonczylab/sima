@@ -280,10 +280,7 @@ class dataset_iterable():
 
     def __iter__(self):
         # return dataset_iterator(self.dataset, self.channel)
-        i = 0
         for cycle in self.dataset:
-            print 'cycle', i
-            i += 1
             for frame in cycle:
                 yield np.nan_to_num(
                     frame[self.channel].reshape(-1) - self.means)
