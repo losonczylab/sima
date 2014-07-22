@@ -84,13 +84,13 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     for X in (data):
         p = X.size
         break
-    first_frames = np.zeros((num_pcs, p))
+    # initialize by calling oPCA on first 2 * num_pcs frames
+    first_frames = np.zeros((2 * num_pcs, p))
     for i, X in enumerate(data):
-        if i == num_pcs:
+        if i == 2 * num_pcs:
             break
         first_frames[i] = X
-    # initialize by calling oPCA on first num_pcs frames
-    U = offsetPCA(first_frames)[1].T
+    U = offsetPCA(first_frames[:i])[1].T[:num_pcs]
     Z = np.zeros((num_pcs, p))
     U = np.linalg.qr(U.T)[0].T
     iter_count = 0
