@@ -1,3 +1,4 @@
+import os
 import itertools as it
 
 import numpy as np
@@ -137,7 +138,7 @@ def _rois_from_cuts(cuts, method, *args, **kwargs):
 
 
 def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
-                     variant=None, processed_image=None):
+                     variant=None, num_pcs=75, processed_image=None):
     """Return a sparse affinity matrix for use with normalized cuts.
 
     .. math::
@@ -193,8 +194,8 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                 if (x + dx < shape[1]) and (y + dy >= 0) and \
                         (y + dy < shape[0]):
                     pairs.append(np.reshape([y, x, y+dy, x+dx], (1, 4)))
-    correlations = _offset_corrs(dataset, np.concatenate(pairs, 0), channel)
-
+    correlations = _offset_corrs(dataset, np.concatenate(pairs, 0), channel,
+                                 num_pcs=num_pcs)
     for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
         for dx in range(max_dist[1] + 1):
             if dx == 0:
@@ -234,7 +235,8 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
     return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
 
 
-def _offset_corrs(dataset, pixel_pairs, channel=0):
+def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
+                  num_pcs=75):
     """
     Calculate the offset correlation for specified pixel pairs.
 
@@ -248,6 +250,10 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
     channel : int, optional
         The channel to be used for estimating the pixel correlations.
         Defaults to 0.
+    method : {'EM', 'fast'}
+        The method for estimating the correlations. EM uses the EM
+        algorithm to perform OPCA. Fast calculates the offset correlations
+        directly, but is more noisy since all PCs are used.
 
     Returns
     -------
@@ -256,20 +262,35 @@ def _offset_corrs(dataset, pixel_pairs, channel=0):
         input list, and whose values are the calculated offset
         correlations.
     """
-    ostdevs, correlations, pixels = _opca._fast_ocorr(
-        dataset, pixel_pairs, channel)
-    ostdevs /= dataset.num_frames - 1.
-    correlations /= 2. * (dataset.num_frames - 1)
-    ostdevs = np.sqrt(np.maximum(0., ostdevs))
-    for pair_idx, pair in enumerate(pixel_pairs):
-        denom = ostdevs[pair[0], pair[1]] * ostdevs[pair[2], pair[3]]
-        if denom <= 0:
-            correlations[pair_idx] = 0.
+    if method == 'EM':
+        if dataset.savedir is not None:
+            path = os.path.join(
+                dataset.savedir, 'opca_' + str(channel) + '.npz')
         else:
-            correlations[pair_idx] = max(
-                -1., min(1., correlations[pair_idx] / denom))
-    return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
-            for pair_idx, PAIR in enumerate(pixel_pairs)}
+            path = None
+        oPC_vars, oPCs, _ = _OPCA(dataset, channel, num_pcs, path)
+        weights = np.sqrt(np.maximum(0, oPC_vars))
+        D = _direction(oPCs, weights)
+        return {
+            ((u, v), (w, x)):
+            1. - 0.5 * ((D[u, v, :] - D[w, x, :]) ** 2).sum()
+            for u, v, w, x in pixel_pairs
+            }
+    elif method == 'fast':
+        ostdevs, correlations, pixels = _opca._fast_ocorr(
+            dataset, pixel_pairs, channel)
+        ostdevs /= dataset.num_frames - 1.
+        correlations /= 2. * (dataset.num_frames - 1)
+        ostdevs = np.sqrt(np.maximum(0., ostdevs))
+        for pair_idx, pair in enumerate(pixel_pairs):
+            denom = ostdevs[pair[0], pair[1]] * ostdevs[pair[2], pair[3]]
+            if denom <= 0:
+                correlations[pair_idx] = 0.
+            else:
+                correlations[pair_idx] = max(
+                    -1., min(1., correlations[pair_idx] / denom))
+        return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
+                for pair_idx, PAIR in enumerate(pixel_pairs)}
 
 
 class dataset_iterable():
@@ -279,7 +300,6 @@ class dataset_iterable():
         self.means = dataset.time_averages[self.channel].reshape(-1)
 
     def __iter__(self):
-        # return dataset_iterator(self.dataset, self.channel)
         for cycle in self.dataset:
             for frame in cycle:
                 yield np.nan_to_num(
@@ -364,17 +384,14 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
             data.close()
     if ret is not None:
         return ret
-    X = []
-    for cycle in dataset:
-        for frame in cycle:
-            X.append(frame[ch].reshape(1, -1))
     shape = (dataset.num_rows, dataset.num_columns)
-    X = np.concatenate(X)
-    oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(X, num_pcs=num_pcs)
+    oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(
+        dataset_iterable(dataset, ch), num_pcs=num_pcs)
     oPCs = oPCs.reshape(shape + (-1,))
     if path is not None:
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
     return oPC_vars, oPCs, oPC_signals
+
 
 def _direction(vects, weights=None):
     if weights is None:
@@ -389,7 +406,7 @@ def _normcut(dataset, channel=0, num_pcs=75, pc_list=None,
              cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, variant=None,
              **kwargs):
     affinity = _affinity_matrix(dataset, channel, max_dist, spatial_decay,
-                                variant, **kwargs)
+                                variant, num_pcs, **kwargs)
     shape = (dataset.num_rows, dataset.num_columns)
     cuts = itercut(affinity, shape, cut_max_pen, cut_min_size, cut_max_size)
     return cuts
