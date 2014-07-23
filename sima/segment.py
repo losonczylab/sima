@@ -272,8 +272,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
         weights = np.sqrt(np.maximum(0, oPC_vars))
         D = _direction(oPCs, weights)
         return {
-            ((u, v), (w, x)):
-            1. - 0.5 * ((D[u, v, :] - D[w, x, :]) ** 2).sum()
+            ((u, v), (w, x)): np.dot(D[u, v, :], D[w, x, :])
             for u, v, w, x in pixel_pairs
             }
     elif method == 'fast':
@@ -289,8 +288,9 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
             else:
                 correlations[pair_idx] = max(
                     -1., min(1., correlations[pair_idx] / denom))
-        return {((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
-                for pair_idx, PAIR in enumerate(pixel_pairs)}
+        return {
+            ((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
+            for pair_idx, PAIR in enumerate(pixel_pairs)}
 
 
 class dataset_iterable():
