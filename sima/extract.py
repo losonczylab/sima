@@ -350,7 +350,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     for cycle_idx, cycle in it.izip(it.count(), dataset):
 
-        # chunksize = int(float(cycle.num_frames) / n_pools / chunkfactor) + 1
+        chunksize = int(float(cycle.num_frames) / n_pools / chunkfactor) + 1
 
         signal = np.empty((n_rois, cycle.num_frames), dtype='float32')
         if demixer is not None:
