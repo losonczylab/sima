@@ -37,6 +37,8 @@ common data formats.
 from os.path import abspath
 import warnings
 
+import numpy as np
+
 try:
     from libtiff import TIFF
 except ImportError:
@@ -117,3 +119,89 @@ class MultiPageTIFF(object):
 
     def _todict(self):
         return {'path': self.path, 'clip': self.clip}
+
+
+try:
+    import h5py
+except:
+    warnings.warn(
+        'Failed to import h5py. HDF5 formats will not be supported.')
+else:
+    class HDF5(object):
+
+        def __init__(self, path, dim_order, group=None, key=None, channel=None,
+                     clip=None):
+            self.path = abspath(path)
+            self._clip = clip
+            self._channel = channel
+            self._file = h5py.File(path, 'r')
+            if group is None:
+                group = '/'
+            self._group = self._file[group]
+            if key is None:
+                if len(group.keys()) != 1:
+                    raise ValueError(
+                        'key must be provided to resolve ambiguity.')
+                key = group.keys()[0]
+            self._key = key
+            self._dataset = group[key]
+            if len(dim_order) != len(self._dataset.shape):
+                raise ValueError(
+                    'dim_order must have same length as the number of ' +
+                    'dimensions in the HDF5 dataset.')
+            self._T_DIM = dim_order.find('t')
+            self._Z_DIM = dim_order.find('z')
+            self._Y_DIM = dim_order.find('y')
+            self._X_DIM = dim_order.find('x')
+            self._C_DIM = dim_order.find('c')
+            self._dim_order = dim_order
+
+        def __len__(self):
+            return self._dataset[self._T_DIM]
+
+        @property
+        def num_rows(self):
+            return self._dataset[self._Y_DIM]
+
+        @property
+        def num_columns(self):
+            return self._dataset[self._X_DIM]
+
+        @property
+        def num_frames(self):
+            return len(self)
+
+        def __iter__(self):
+            slices = [slice(None) for _ in range(len(self._dataset.shape))]
+            swapper_shape = 2 + (self._Z_DIM > -1)
+            swapper = ['0' for _ in swapper_shape]
+            if self._Z_DIM > -1:
+                swapper[self._Z_DIM] = 0
+            swapper[self._Y_DIM] = 1
+            swapper[self._X_DIM] = 2
+            if self._clip is not None:
+                for d, dim in zip([self._Y_DIM, self._X_DIM], self.clip):
+                    if d > -1:
+                        slices[d] = slice(
+                            *[None if x is 0 else x for x in dim])
+            if self._C_DIM > -1:
+                slices[self._C_DIM] = self._channel
+            for t in range(len(self)):
+                slices[self._T_DIM] = t
+                frame = self._dataset[slices]
+                for i in range(frame.ndim):
+                    idx = np.argmin(swapper[i:]) + i
+                    if idx != i:
+                        swapper[i], swapper[idx] = swapper[idx], swapper[i]
+                        frame.swapaxes(i, idx)
+                yield frame
+
+    def _todict(self):
+        return {
+            'path': self.path,
+            'dim_order': self._dim_order,
+            'group': self._group.name,
+            'key': self._key,
+            'channel': self._channel,
+            'clip': self._clip,
+        }
