@@ -193,7 +193,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
             for dy in yrange:
                 if (x + dx < shape[1]) and (y + dy >= 0) and \
                         (y + dy < shape[0]):
-                    pairs.append(np.reshape([y, x, y+dy, x+dx], (1, 4)))
+                    pairs.append(np.reshape([y, x, y + dy, x + dx], (1, 4)))
     correlations = _offset_corrs(dataset, np.concatenate(pairs, 0), channel,
                                  num_pcs=num_pcs)
     for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
@@ -208,7 +208,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                     a = x + y * shape[1]
                     b = a + dx + dy * shape[1]
                     w = np.exp(
-                        -9. * correlations[((y, x), (y+dy, x+dx))]
+                        9. * correlations[((y, x), (y + dy, x + dx))]
                     ) * np.exp(
                         -0.5 * ((float(dx) / X) ** 2 + (float(dy) / Y) ** 2)
                     )
