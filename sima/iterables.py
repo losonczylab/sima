@@ -139,12 +139,12 @@ else:
                 group = '/'
             self._group = self._file[group]
             if key is None:
-                if len(group.keys()) != 1:
+                if len(self._group.keys()) != 1:
                     raise ValueError(
                         'key must be provided to resolve ambiguity.')
-                key = group.keys()[0]
+                key = self._group.keys()[0]
             self._key = key
-            self._dataset = group[key]
+            self._dataset = self._group[key]
             if len(dim_order) != len(self._dataset.shape):
                 raise ValueError(
                     'dim_order must have same length as the number of ' +
@@ -155,17 +155,20 @@ else:
             self._X_DIM = dim_order.find('x')
             self._C_DIM = dim_order.find('c')
             self._dim_order = dim_order
+            if self._C_DIM > -1 and self._channel is None and \
+                    self._dataset.shape[self._C_DIM] > 1:
+                raise ValueError('Must specify channel')
 
         def __len__(self):
-            return self._dataset[self._T_DIM]
+            return self._dataset.shape[self._T_DIM]
 
         @property
         def num_rows(self):
-            return self._dataset[self._Y_DIM]
+            return self._dataset.shape[self._Y_DIM]
 
         @property
         def num_columns(self):
-            return self._dataset[self._X_DIM]
+            return self._dataset.shape[self._X_DIM]
 
         @property
         def num_frames(self):
@@ -173,12 +176,12 @@ else:
 
         def __iter__(self):
             slices = [slice(None) for _ in range(len(self._dataset.shape))]
-            swapper_shape = 2 + (self._Z_DIM > -1)
-            swapper = ['0' for _ in swapper_shape]
+            swapper = [None for _ in range(len(self._dataset.shape))]
             if self._Z_DIM > -1:
                 swapper[self._Z_DIM] = 0
             swapper[self._Y_DIM] = 1
             swapper[self._X_DIM] = 2
+            swapper = filter(lambda x: x is not None, swapper)
             if self._clip is not None:
                 for d, dim in zip([self._Y_DIM, self._X_DIM], self.clip):
                     if d > -1:
@@ -188,13 +191,13 @@ else:
                 slices[self._C_DIM] = self._channel
             for t in range(len(self)):
                 slices[self._T_DIM] = t
-                frame = self._dataset[slices]
+                frame = self._dataset[tuple(slices)]
                 for i in range(frame.ndim):
                     idx = np.argmin(swapper[i:]) + i
                     if idx != i:
                         swapper[i], swapper[idx] = swapper[idx], swapper[i]
                         frame.swapaxes(i, idx)
-                yield frame
+                yield np.squeeze(frame)
 
     def _todict(self):
         return {
