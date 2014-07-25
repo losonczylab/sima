@@ -18,7 +18,7 @@ extensions = [
     Extension(
         'sima._ocorr',
         include_dirs = [numpy.get_include()],
-        sources = ['sima/_ocorr.c']
+        sources = ['sima/_opca.c']
     )
 ]
 
