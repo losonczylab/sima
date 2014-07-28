@@ -32,8 +32,9 @@ class ImagingDataset(object):
     >>> dataset = ImagingDataset.load('path')
     >>> for cycle in dataset:
     ...     for frame in cycle:
-    ...         for channel in frame:
-    ...             print channel
+    ...         for plane in frame:
+    ...             for channel in frame:
+    ...                 print channel
 
     Parameters
     ----------
@@ -57,6 +58,14 @@ class ImagingDataset(object):
         argument only has effect if the ImagingDataset object is
         initialized with displacements.
 
+    Notes
+    -----
+    Keys for metadata:
+        'acquisition period' :
+        'plane order' :
+        'plane times' :
+        'plane heights' :
+
     Attributes
     ----------
     num_cycles : int
@@ -76,14 +85,6 @@ class ImagingDataset(object):
         The time-averaged intensity for each channel.
     invalid_frames : list of list of int
         The indices of the invalid frames in each cycle.
-
-    Notes
-    -----
-    Keys for metadata:
-        'acquisition period' :
-        'plane order' :
-        'plane times' :
-        'plane heights' :
 
     """
     def __init__(self, iterables, savedir, channel_names=None,
@@ -376,6 +377,9 @@ class ImagingDataset(object):
     def export_averages(self, filenames, fmt='TIFF16', scale_values=True):
         """Save TIFF files with the time average of each channel.
 
+        For datasets with multiple frames, the resulting TIFF files
+        have multiple pages.
+
         Parameters
         ----------
         filenames : list of str
@@ -406,6 +410,7 @@ class ImagingDataset(object):
                       scale_values=False):
         """Save a multi-page TIFF files of the motion-corrected time series.
 
+        # TODO: HDF5, multiple Z planes
         One TIFF file is created for each cycle and channel.
         The TIFF files have the same name as the uncorrected files, but should
         be saved in a different directory.
@@ -416,7 +421,7 @@ class ImagingDataset(object):
             Path to the locations where the output files will be saved,
             organized such that filenames[i][j] is the path to the file
             for the jth channel of the ith cycle.
-        fmt : {'TIFF8', 'TIFF16'}, optional
+        fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         fill_gaps : bool, optional
             Whether to fill in unobserved rows with data from adjacent frames.
@@ -545,7 +550,7 @@ class ImagingDataset(object):
         if self.savedir is not None:
             self._save()
 
-    def segment(self, method='normcut', label=None, **kwargs):
+    def segment(self, method='normcut', label=None, planes=None, **kwargs):
         """Segment an ImagingDataset to generate ROIs.
 
         Parameters
@@ -554,6 +559,8 @@ class ImagingDataset(object):
             The method for segmentation. Defaults to normcut.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
+        planes : list of int
+            List of the planes that are to be segmented.
         kwargs : dict
             Additional keyword arguments are passed to the function
             implementing the selected segmentation method.
@@ -704,6 +711,11 @@ class _ImagingCycle(object):
     def num_channels(self):
         """The number of simultaneously imaged channels."""
         return len(self.channels)
+
+    @lazyprop
+    def num_planes(self):
+        """The number of planes in the dataset."""
+        return  # TODO
 
     @lazyprop
     def num_rows(self):
