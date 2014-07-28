@@ -107,7 +107,8 @@ def _estimate_movement_model(shifts, num_rows):
     A = 0.5 * (A + A.T)
     U, s, V = svd(A)
     s **= 1. / num_rows
-    decay_matrix = np.dot(U, np.dot(np.diag(s), V))  # take A^(1/num_rows)
+    decay_matrix = np.dot(U, np.dot(np.diag(s), U))  # take A^(1/num_rows)
+    # NOTE: U == V for positive definite A
 
     # Gaussian Transition Probabilities
     transition_probs = lambda x, x0: 1. / np.sqrt(
@@ -347,16 +348,16 @@ class _MCImagingDataset(ImagingDataset):
         mean_shift = np.nanmean(shifts, axis=1)
 
         # add a bit of extra room to move around
-        extra_buffer = (max_displacement - (np.nanmax(shifts, 1) -
-                        np.nanmin(shifts, 1)) / 2).astype(int)
+        extra_buffer = ((max_displacement - np.nanmax(shifts, 1) +
+                         np.nanmin(shifts, 1)) / 2).astype(int)
         if max_displacement[0] < 0:
             extra_buffer[0] = 5
         if max_displacement[1] < 0:
             extra_buffer[1] = 5
         min_displacements = (
-            np.nanmin(shifts, axis=1) - extra_buffer).astype(int)
+            np.nanmin(shifts, 1) - extra_buffer).astype(int)
         max_displacements = (
-            np.nanmax(shifts, axis=1) + extra_buffer).astype(int)
+            np.nanmax(shifts, 1) + extra_buffer).astype(int)
 
         displacements = self._neighbor_viterbi(
             log_transition_matrix, references, gains, decay_matrix,
@@ -1064,4 +1065,4 @@ def hmm(iterables, savedir, channel_names=None, num_states_retained=50,
         num_states_retained, max_displacement, artifact_channels, verbose
     )
     return ImagingDataset(iterables, savedir, channel_names, displacements,
-                          trim_criterion)
+                          trim_criterion, invalid_frames)

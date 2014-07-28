@@ -18,6 +18,7 @@ from sima.ROI import ROIList
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from sima.misc.tifffile import imsave, TiffFileWriter
+from sima._motion import _align_frame
 
 
 class ImagingDataset(object):
@@ -519,6 +520,8 @@ class ImagingDataset(object):
 
     @invalid_frames.setter
     def invalid_frames(self, x):
+        if x is None:
+            x = [[] for _ in self]
         if not len(x) == self.num_cycles:
             raise ValueError("Input must be a list with one entry per cycle.")
         if not all(all(isinstance(y, int) for y in z) for z in x):
@@ -779,7 +782,8 @@ class _CorrectedCycle(_ImagingCycle):
                 super(_CorrectedCycle, self).__iter__()):
             out = []
             for channel in frame:
-                im = _align_frame(channel, self._displacements[
+                tmp = channel.astype(float)
+                im = _align_frame(tmp, self._displacements[
                     (frame_idx * channel.shape[0]):
                     ((frame_idx + 1) * channel.shape[0])],
                     self._untrimmed_frame_size)
@@ -835,35 +839,6 @@ def _observation_counts(displacements, im_size, output_size):
         i = row_idx % im_size[0]
         count[i + disp[0], disp[1]:(disp[1] + im_size[1])] += 1
     return count
-
-
-def _align_frame(frame, displacements, corrected_frame_size):
-    """Correct a frame based on previously estimated displacements.
-
-    Parameters
-    ----------
-    frame : list of array
-        Uncorrected imaging frame from each each channel.
-    displacements : array
-        The displacements, adjusted so that (0,0) corresponds to the corner.
-        Shape: (num_rows, 2).
-
-    Returns
-    -------
-    array : float32
-        The corrected frame, with unobserved locations indicated as NaN.
-    """
-    corrected_frame = np.zeros(corrected_frame_size, dtype=frame.dtype)
-    count = np.zeros(corrected_frame_size, dtype='uint16')
-    num_cols = frame.shape[1]
-    for i, (row, disp) in enumerate(it.izip(frame, displacements)):
-        count[i + disp[0], disp[1]:(disp[1] + num_cols)] += 1
-        corrected_frame[i + disp[0], disp[1]:(disp[1] + num_cols)] += row
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        result = (corrected_frame / count).astype('float32')
-        result[count == 0] = np.nan
-        return result
 
 
 def _fill_gaps(frame_iter1, frame_iter2):

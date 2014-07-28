@@ -10,6 +10,9 @@
 STUFF = 'HI' # Fixes cython issue. See link below:
 # http://stackoverflow.com/questions/8024805/cython-compiled-c-extension-importerror-dynamic-module-does-not-define-init-fu
 
+import warnings
+import itertools as it
+
 import cython
 import numpy as np
 cimport numpy as np
@@ -143,3 +146,37 @@ def log_observation_probabilities(
                 for j in range(maxFrame, logImP.shape[2]):
                     logp += logImP[chan, frame_row, j]
             tmpLogP[i] += logp
+
+def _align_frame(
+        np.ndarray[FLOAT_TYPE_t, ndim=2] frame,
+        np.ndarray[INT_TYPE_t, ndim=2] displacements,
+        corrected_frame_size):
+    """Correct a frame based on previously estimated displacements.
+
+    Parameters
+    ----------
+    frame : list of array
+        Uncorrected imaging frame from each each channel.
+    displacements : array
+        The displacements, adjusted so that (0,0) corresponds to the corner.
+        Shape: (num_rows, 2).
+
+    Returns
+    -------
+    array : float32
+        The corrected frame, with unobserved locations indicated as NaN.
+    """
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] corrected_frame = np.zeros(
+        corrected_frame_size)
+    cdef np.ndarray[INT_TYPE_t, ndim=2] count = np.zeros(corrected_frame_size, dtype=int)
+    cdef int num_cols, i, j, x, y
+    num_cols = frame.shape[1]
+    for i in range(frame.shape[0]):
+        y = i + displacements[i, 0]
+        for j in range(num_cols):
+            x = displacements[i, 1] + j
+            count[y, x] += 1
+            corrected_frame[y, x] += frame[i, j]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return corrected_frame / count
