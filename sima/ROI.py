@@ -112,6 +112,8 @@ class ROI(object):
             raise TypeError('ROI: ROI must be initialized with either a mask \
                              or a polygon, not both and not neither')
 
+        self.im_shape = im_shape
+
         if mask is not None:
             self.mask = mask
         else:
@@ -125,7 +127,6 @@ class ROI(object):
         self.id = id
         self.tags = tags
         self.label = label
-        self.im_shape = im_shape
 
     def __str__(self):
         return '<ROI: label={label}>'.format(label=self.label)
@@ -244,6 +245,137 @@ class ROI(object):
             self._im_shape = None
         else:
             self._im_shape = tuple(shape)
+
+
+class ROI_3D(ROI):
+    """Structure used to store 3D ROIs
+
+    Parameters
+    ----------
+    mask : array, optional
+        A boolean mask in which all non-zero values define the region of
+        interest.
+    polygons: array_like, optional
+        Either an Nx2 np.array (single polygon), a list of array_like objects
+        (multiple polygons), or a list of shapely Polygon class instances
+    label : str, optional
+        A label associated with the ROI for reference
+    tags : list of str, optional
+        A list of tags associated with the ROI.
+    id : str, optional
+        A unique identifier for the ROI. By default, the ROI will not have
+        a unique identifier.
+    im_shape: tuple, optional
+        The shape of the image on which the ROI is drawn.  If initialized with
+        a mask, should be None, since im_shape will default to shape of the
+        mask.
+
+    Raises
+    ------
+    NonBooleanMask
+        Raised when you try to get a polygon representation of a non-boolean
+        mask.
+
+    See Also
+    --------
+    sima.ROI.ROIList
+
+    Notes
+    -----
+    ROI class instance must be initialized with either a mask or polygons (not
+    both).  If initialized with a polygon, im_shape must be defined before the
+    ROI can be converted to a mask.
+
+    By convention polygon points are assumed to designate the top-left corner
+    of a pixel (see example).
+
+    Examples
+    --------
+    >>> from sima.ROI import ROI
+    >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
+    >>> roi.coords
+    [array([[ 0.,  0.],
+           [ 0.,  1.],
+           [ 1.,  1.],
+           [ 1.,  0.],
+           [ 0.,  0.]])]
+    >>> roi.mask.todense()
+    matrix([[ True, False],
+            [False, False]], dtype=bool)
+
+    Attributes
+    ----------
+    id : string
+        The unique identifier for the ROI.
+    tags : set of str
+        The set of tags associated with the ROI.
+    label : string
+        A label associated with the ROI.
+    mask : array
+        A mask defining the region of interest.
+    polygons : MultiPolygon
+        A MultiPolygon representation of the ROI.
+    coords : list of arrays
+        Coordinates of the polygons as a list of Nx2 arrays
+    im_shape : tuple
+        The shape of the image associated with the ROI. Determines the shape
+        of the mask.
+
+    """
+    @property
+    def polygons(self):
+        if self._polys is not None:
+            return self._polys
+        if not np.all((np.array(self._mask.todense() == 0) |
+                       np.array(self._mask.todense() == 1))):
+            raise NonBooleanMask(
+                'Unable to convert a non-boolean mask to polygons')
+        return mask2poly(self._mask)
+
+    @polygons.setter
+    def polygons(self, polygons):
+        self._polys = _reformat_polygons(polygons)
+        self._mask = None
+
+    @property
+    def coords(self):
+        coords = []
+        for polygon in self.polygons:
+            coords.append(np.array(polygon.exterior.coords))
+        return coords
+
+    @property
+    def mask(self):
+        if self._mask is None and self.im_shape is None:
+            raise Exception('Polygon ROIs must have an im_shape set')
+        if self._mask is not None:
+            if self._mask.shape == self.im_shape:
+                return self._mask
+            else:
+                mask = lil_matrix(self.im_shape, dtype=self._mask.dtype)
+                values = self._mask.nonzero()
+                for row, col in zip(*values):
+                    if row < self.im_shape[0] and col < self.im_shape[1]:
+                        mask[row, col] = self._mask[row, col]
+                return mask
+        return poly2mask(polygons=self.polygons,
+                         im_size=self.im_shape)
+
+    @mask.setter
+    def mask(self, mask):
+        if isinstance(mask, lil_matrix):
+            self._mask = mask
+        else:
+            self._mask = lil_matrix(mask)
+        self._polys = None
+
+    @property
+    def im_shape(self):
+        if self._im_shape is not None:
+            return self._im_shape
+        if self._mask is not None:
+            return self._mask.shape
+        return None
 
 
 class ROIList(list):
@@ -504,3 +636,22 @@ def _reformat_polygons(polygons):
             new_polygons.append(Polygon(poly).simplify(tolerance=0))
         polygons = new_polygons
     return MultiPolygon(polygons)
+
+
+def _validate_z(MultiPolygon):
+    """Checks that all Polygons in a MultiPolygon have a valid z-coordinate.
+    
+    """
+
+    for polygon in MultiPolygon:
+        if not polygon.has_z:
+            coords = np.array(polygon.exterior.coords[:, :2])
+            nans = np.empty([coords.shape[0], 1])
+            nans.fill(np.nan)
+            coords = np.hstack([coords, nans])
+            polygon.exterior.coords = coords
+        coords = np.array(polygon.exterior.coords)
+        if not np.all(coords[:, 2] == coords[0, 2]):
+            return False
+    return True
+

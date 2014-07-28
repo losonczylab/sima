@@ -11,20 +11,16 @@ def prairie_imaging_parameters(filepath):
 
     assert filepath.endswith('.xml')
 
-    fields = ['objectiveLensNA', 'objectiveLensMag', 'pixelsPerLine',
-              'linesPerFrame', 'binningMode', 'framePeriod',
-              'scanlinePeriod', 'dwellTime', 'bitDepth', 'opticalZoom',
-              'micronsPerPixel_XAxis', 'micronsPerPixel_YAxis',
-              'pmtGain_0', 'pmtGain_1', 'pmtGain_2', 'laserPower_0',
-              'twophotonLaserPower_0']
-
     params = {}
     for _, elem in ElementTree.iterparse(filepath, events=("start",)):
         if elem.tag == 'PVStateShard':
             for key in elem.findall('Key'):
                 field = key.get('key')
-                if field in fields:
-                    params[field] = float(key.get('value'))
+                value = key.get('value')
+                try:
+                    params[field] = float(value)
+                except ValueError:
+                    params[field] = value
             break
     return params
 
