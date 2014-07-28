@@ -45,6 +45,9 @@ class ImagingDataset(object):
         be appended.
     channel_names : list of str, optional
         Names for the channels. Defaults to ['0', '1', '2', ...].
+    metadata : dict
+        Data for the order and timing of the data acquisition.
+        See Notes for details.
     displacements : list of array, optional
     trim_criterion : float, optional
         The required fraction of frames during which a location must
@@ -74,9 +77,17 @@ class ImagingDataset(object):
     invalid_frames : list of list of int
         The indices of the invalid frames in each cycle.
 
+    Notes
+    -----
+    Keys for metadata:
+        'acquisition period' :
+        'plane order' :
+        'plane times' :
+        'plane heights' :
+
     """
     def __init__(self, iterables, savedir, channel_names=None,
-                 displacements=None, trim_criterion=None,
+                 metadata=None, displacements=None, trim_criterion=None,
                  invalid_frames=None):
 
         # Convert savedir into an absolute path ending with .sima
@@ -86,6 +97,8 @@ class ImagingDataset(object):
             self.savedir = abspath(savedir)
             if not self.savedir.endswith('.sima'):
                 self.savedir += '.sima'
+
+        self.metadata = {} if metadata is None else metadata
 
         if iterables is None:
             # Special case used to load an existing ImagingDataset
