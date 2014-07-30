@@ -199,12 +199,12 @@ else:
                         frame.swapaxes(i, idx)
                 yield np.squeeze(frame)
 
-    def _todict(self):
-        return {
-            'path': self.path,
-            'dim_order': self._dim_order,
-            'group': self._group.name,
-            'key': self._key,
-            'channel': self._channel,
-            'clip': self._clip,
-        }
+        def _todict(self):
+            return {
+                'path': self.path,
+                'dim_order': self._dim_order,
+                'group': self._group.name,
+                'key': self._key,
+                'channel': self._channel,
+                'clip': self._clip,
+            }
