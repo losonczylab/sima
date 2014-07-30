@@ -121,83 +121,124 @@ class MultiPageTIFF(object):
         return {'path': self.path, 'clip': self.clip}
 
 
-try:
-    import h5py
-except:
-    warnings.warn(
-        'Failed to import h5py. HDF5 formats will not be supported.')
-else:
-    class HDF5(object):
+H5PY = False
 
-        def __init__(self, path, dim_order, group=None, key=None, channel=None,
-                     clip=None):
-            self.path = abspath(path)
-            self._clip = clip
-            self._channel = channel
-            self._file = h5py.File(path, 'r')
-            if group is None:
-                group = '/'
-            self._group = self._file[group]
-            if key is None:
-                if len(self._group.keys()) != 1:
-                    raise ValueError(
-                        'key must be provided to resolve ambiguity.')
-                key = self._group.keys()[0]
-            self._key = key
-            self._dataset = self._group[key]
-            if len(dim_order) != len(self._dataset.shape):
+
+class HDF5(object):
+    """
+    Iterable for an HDF5 file containing imaging data.
+
+    Parameters
+    ----------
+    path : str
+        The HDF5 filename, typicaly with .h5 extension.
+    dim_order : str
+        Specification of the order of the dimensions. This
+        string can contain the letters 't', 'x', 'y', 'z',
+        and 'c', representing time, column, row, plane,
+        and channel, respectively.
+        For example, 'tzyxc' indicates that the HDF5 data
+        dimensions represent time (t), plane (z), row (y),
+        column(x), and channel (c), respectively.
+        The string 'tyx' indicates data with a single
+        Note that SIMA 0.1.x does not support multiple z-planes,
+        although these will be supported in future versions.
+    group : str, optional
+        The HDF5 group containing the imaging data.
+        Defaults to using the root group '/'
+    key : str, optional
+        The key for indexing the the HDF5 dataset containing
+        the imaging data. This can be omitted if the HDF5
+        group contains only a single key.
+    channel : int, optional
+        The index of the channel to be used. This can be
+        omitted if there is no channel dimension specified
+        by dim_order, or if the length along the channel
+        dimension is just one.
+    clip : tuple of tuple of int, optional
+        The number of rows/columns to clip from each edge
+        in order ((top, bottom), (left, right)).
+
+
+    Warning
+    -------
+    Moving the HDF5 file may make this iterable unusable
+    when the ImagingDataset is reloaded. The HDF5 file can
+    only be moved if the ImagingDataset path is also moved
+    such that they retain the same relative position.
+
+    """
+    def __init__(self, path, dim_order, group=None, key=None, channel=None,
+                 clip=None):
+        if not H5PY:
+            import h5py
+        self.path = abspath(path)
+        self._clip = clip
+        self._channel = channel
+        self._file = h5py.File(path, 'r')
+        if group is None:
+            group = '/'
+        self._group = self._file[group]
+        if key is None:
+            if len(self._group.keys()) != 1:
                 raise ValueError(
-                    'dim_order must have same length as the number of ' +
-                    'dimensions in the HDF5 dataset.')
-            self._T_DIM = dim_order.find('t')
-            self._Z_DIM = dim_order.find('z')
-            self._Y_DIM = dim_order.find('y')
-            self._X_DIM = dim_order.find('x')
-            self._C_DIM = dim_order.find('c')
-            self._dim_order = dim_order
-            if self._C_DIM > -1 and self._channel is None and \
-                    self._dataset.shape[self._C_DIM] > 1:
-                raise ValueError('Must specify channel')
+                    'key must be provided to resolve ambiguity.')
+            key = self._group.keys()[0]
+        self._key = key
+        self._dataset = self._group[key]
+        if len(dim_order) != len(self._dataset.shape):
+            raise ValueError(
+                'dim_order must have same length as the number of ' +
+                'dimensions in the HDF5 dataset.')
+        self._T_DIM = dim_order.find('t')
+        self._Z_DIM = dim_order.find('z')
+        self._Y_DIM = dim_order.find('y')
+        self._X_DIM = dim_order.find('x')
+        self._C_DIM = dim_order.find('c')
+        self._dim_order = dim_order
+        if self._C_DIM > -1 and self._channel is None and \
+                self._dataset.shape[self._C_DIM] > 1:
+            raise ValueError('Must specify channel')
 
-        def __len__(self):
-            return self._dataset.shape[self._T_DIM]
+    def __len__(self):
+        return self._dataset.shape[self._T_DIM]
 
-        @property
-        def num_rows(self):
-            return self._dataset.shape[self._Y_DIM]
+    @property
+    def num_rows(self):
+        return self._dataset.shape[self._Y_DIM]
 
-        @property
-        def num_columns(self):
-            return self._dataset.shape[self._X_DIM]
+    @property
+    def num_columns(self):
+        return self._dataset.shape[self._X_DIM]
 
-        @property
-        def num_frames(self):
-            return len(self)
+    @property
+    def num_frames(self):
+        return len(self)
 
-        def __iter__(self):
-            slices = [slice(None) for _ in range(len(self._dataset.shape))]
-            swapper = [None for _ in range(len(self._dataset.shape))]
-            if self._Z_DIM > -1:
-                swapper[self._Z_DIM] = 0
-            swapper[self._Y_DIM] = 1
-            swapper[self._X_DIM] = 2
-            swapper = filter(lambda x: x is not None, swapper)
-            if self._clip is not None:
-                for d, dim in zip([self._Y_DIM, self._X_DIM], self._clip):
-                    if d > -1:
-                        slices[d] = slice(
-                            *[None if x is 0 else x for x in dim])
-            if self._C_DIM > -1:
-                slices[self._C_DIM] = self._channel
-            for t in range(len(self)):
-                slices[self._T_DIM] = t
-                frame = self._dataset[tuple(slices)]
-                for i in range(frame.ndim):
-                    idx = np.argmin(swapper[i:]) + i
-                    if idx != i:
-                        swapper[i], swapper[idx] = swapper[idx], swapper[i]
-                        frame.swapaxes(i, idx)
-                yield np.squeeze(frame)
+    def __iter__(self):
+        slices = [slice(None) for _ in range(len(self._dataset.shape))]
+        swapper = [None for _ in range(len(self._dataset.shape))]
+        if self._Z_DIM > -1:
+            swapper[self._Z_DIM] = 0
+        swapper[self._Y_DIM] = 1
+        swapper[self._X_DIM] = 2
+        swapper = filter(lambda x: x is not None, swapper)
+        if self._clip is not None:
+            for d, dim in zip([self._Y_DIM, self._X_DIM], self._clip):
+                if d > -1:
+                    slices[d] = slice(
+                        *[None if x is 0 else x for x in dim])
+        if self._C_DIM > -1:
+            slices[self._C_DIM] = self._channel
+        for t in range(len(self)):
+            slices[self._T_DIM] = t
+            frame = self._dataset[tuple(slices)]
+            for i in range(frame.ndim):
+                idx = np.argmin(swapper[i:]) + i
+                if idx != i:
+                    swapper[i], swapper[idx] = swapper[idx], swapper[i]
+                    frame.swapaxes(i, idx)
+            yield np.squeeze(frame)
 
     def _todict(self):
         return {
