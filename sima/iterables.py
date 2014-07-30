@@ -183,7 +183,7 @@ else:
             swapper[self._X_DIM] = 2
             swapper = filter(lambda x: x is not None, swapper)
             if self._clip is not None:
-                for d, dim in zip([self._Y_DIM, self._X_DIM], self.clip):
+                for d, dim in zip([self._Y_DIM, self._X_DIM], self._clip):
                     if d > -1:
                         slices[d] = slice(
                             *[None if x is 0 else x for x in dim])
