@@ -299,6 +299,7 @@ class ImagingDataset(object):
         def pack(iterable):
             try:
                 d = iterable._todict()
+            #TODO: is this necessary?
             except AttributeError:
                 return iterable
             else:
