@@ -11,7 +11,7 @@ ROI class
     :members:
     :member-order: bysource
 
-ROI_Set class
+ROIList class
 =============
 
 .. autoclass:: sima.ROI.ROIList
