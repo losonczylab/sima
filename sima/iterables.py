@@ -140,7 +140,10 @@ class HDF5(object):
         For example, 'tzyxc' indicates that the HDF5 data
         dimensions represent time (t), plane (z), row (y),
         column(x), and channel (c), respectively.
-        The string 'tyx' indicates data with a single
+        The string 'tyx' indicates data that data for a single
+        imaging plane and single channel has been stored in a
+        HDF5 dataset with three dimensions representing time (t),
+        column (y), and row (x) respectively.
         Note that SIMA 0.1.x does not support multiple z-planes,
         although these will be supported in future versions.
     group : str, optional
