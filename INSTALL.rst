@@ -19,6 +19,8 @@ installing the various prerequisites. Recommended distributions are:
 * Anaconda (https://store.continuum.io/cshop/anaconda)
 * EPD (http://www.enthought.com/products/epd.php)
 
+For Mac OS X, we recommend installing the prerequisites, especially OpenCV,
+using a package manager, such as MacPorts (http://www.macports.org).
 
 Prerequisites
 =============
@@ -33,6 +35,13 @@ that must be installed prior to using SIMA:
 * shapely (https://pypi.python.org/pypi/Shapely)
 * mdp (http://mdp-toolkit.sourceforge.net)
 * OpenCV 2.4 (http://opencv.org)
+
+Depending on the data formats you wish to use, you may also
+need to install the following packages:
+
+* h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
+* pylibtiff (https://code.google.com/p/pylibtiff/), required for more 
+  efficient handling of large TIFF files
 
 If you build the package from source, you may also need:
 
@@ -62,7 +71,8 @@ If you download the source, you can install the package with setuptools::
 Windows
 -------
 
-On Windows, you can simply execute the Windows installer that can be downloaded from https://pypi.python.org/pypi/sima.
+On Windows, you can simply execute the Windows installer that can 
+be downloaded from https://pypi.python.org/pypi/sima.
 If you run Windows Vista or Windows 7, you may need to right-click 
 on the installer and select "Run as Administrator".
 

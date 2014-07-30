@@ -7,6 +7,7 @@ import csv
 from os.path import dirname, join, normpath, normcase, isfile, relpath, \
     abspath
 import cPickle as pickle
+from h5py import File
 
 import numpy as np
 
@@ -417,10 +418,12 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        filenames : list of list of string
-            Path to the locations where the output files will be saved,
-            organized such that filenames[i][j] is the path to the file
+        filenames : list of list of string or list of string
+            Path to the locations where the output files will be saved.
+            If fmt is TIFF, filenames[i][j] is the path to the file
             for the jth channel of the ith cycle.
+            If fmt is 'HDF5', filenames[i] is the path to the file for the
+            ith cycle
         fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         fill_gaps : bool, optional
@@ -431,7 +434,8 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         for cycle, fns in it.izip(self, filenames):
-            cycle._export_frames(fns, fmt, fill_gaps, scale_values)
+            cycle._export_frames(fns, fmt, fill_gaps, scale_values,
+                                 self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extrated signals to a file.
@@ -738,27 +742,51 @@ class _ImagingCycle(object):
                 yield [chan for chan in frame]
 
     def _export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
-                       scale_values=False):
+                       scale_values=False, channel_names=None):
         """Save frames to the indicated filenames.
 
         This function stores a multipage tiff file for each channel.
         """
-        output_files = [TiffFileWriter(fn) for fn in filenames]
-        for frame in self:
-            for channel, f in zip(frame, output_files):
+
+        if 'TIFF' in fmt:
+            output_files = [TiffFileWriter(fn) for fn in filenames]
+        elif fmt == 'HDF5':
+            f = File(filenames, 'w')
+            output_array = np.empty((self.num_frames, 1,
+                                     self.num_rows,
+                                     self.num_columns,
+                                     self.num_channels), dtype='uint16')
+        else:
+            raise('Not Implemented')
+
+        for f_idx, frame in enumerate(self):
+            for ch_idx, channel in enumerate(frame):
                 if fmt == 'TIFF16':
+                    f = output_files[ch_idx]
                     if scale_values:
                         f.write_page(sima.misc.to16bit(channel))
                     else:
                         f.write_page(channel.astype('uint16'))
                 elif fmt == 'TIFF8':
+                    f = output_files[ch_idx]
                     if scale_values:
                         f.write_page(sima.misc.to8bit(channel))
                     else:
                         f.write_page(channel.astype('uint8'))
+                elif fmt == 'HDF5':
+                    output_array[f_idx, 0, :, :, ch_idx] = channel
                 else:
                     raise ValueError('Unrecognized output format.')
-        for f in output_files:
+
+        if 'TIFF' in fmt:
+            for f in output_files:
+                f.close()
+        elif fmt == 'HDF5':
+            f.create_dataset(name='imaging', data=output_array)
+            for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
+                f['imaging'].dims[idx].label = label
+            if channel_names is not None:
+                f['imaging'].attrs['channel_names'] = np.array(channel_names)
             f.close()
 
 
@@ -819,7 +847,7 @@ class _CorrectedCycle(_ImagingCycle):
             yield out
 
     def _export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
-                       scale_values=False):
+                       scale_values=False, channel_names=None):
         """Save a multi-page TIFF files of the motion corrected time series.
 
         One TIFF file is created for each channel.
@@ -834,23 +862,47 @@ class _CorrectedCycle(_ImagingCycle):
             Whether to fill in unobserved pixels with data from nearby frames.
         """
         if fill_gaps:
-            output_files = [TiffFileWriter(fn) for fn in filenames]
+            if 'TIFF' in fmt:
+                output_files = [TiffFileWriter(fn) for fn in filenames]
+            elif fmt == 'HDF5':
+                f = File(filenames, 'w')
+                output_array = np.empty((self.num_frames, 1,
+                                         self.num_rows,
+                                         self.num_columns,
+                                         self.num_channels), dtype='uint16')
+            else:
+                raise('Not Implemented')
+
             save_frames = _fill_gaps(iter(self), iter(self))
-            for frame in save_frames:
-                for channel, f in zip(frame, output_files):
+            for f_idx, frame in enumerate(save_frames):
+                for ch_idx, channel in enumerate(frame):
                     if fmt == 'TIFF16':
+                        f = output_files[ch_idx]
                         if scale_values:
                             f.write_page(sima.misc.to16bit(channel))
                         else:
                             f.write_page(channel.astype('uint16'))
                     elif fmt == 'TIFF8':
+                        f = output_files[ch_idx]
                         if scale_values:
                             f.write_page(sima.misc.to8bit(channel))
                         else:
                             f.write_page(channel.astype('uint8'))
+                    elif fmt == 'HDF5':
+                        output_array[f_idx, 0, :, :, ch_idx] = channel
                     else:
                         raise ValueError('Unrecognized output format.')
-            for f in output_files:
+
+            if 'TIFF' in fmt:
+                for f in output_files:
+                    f.close()
+            elif fmt == 'HDF5':
+                f.create_dataset(name='imaging', data=output_array)
+                for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
+                    f['imaging'].dims[idx].label = label
+                if channel_names is not None:
+                    f['imaging'].attrs['channel_names'] = np.array(
+                        channel_names)
                 f.close()
         else:
             super(_CorrectedCycle, self)._export_frames(

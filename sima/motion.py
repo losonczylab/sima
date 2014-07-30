@@ -340,7 +340,7 @@ class _MCImagingDataset(ImagingDataset):
         references, _, offset = self._whole_frame_shifting(
             shifts, correlations)
         gains = self._estimate_gains(references, offset,
-                                     shifts, correlations)
+                                     shifts.astype(int), correlations)
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
         pixel_means, pixel_variances = self._pixel_distribution()
         cov_matrix_est, decay_matrix, log_transition_matrix = \

@@ -46,8 +46,8 @@ setup(
         'matplotlib>=1.2.1',
         'scikit-image>=0.9.3',
         'shapely>=1.2.14',
-        'mdp>=3.3',
-        #'cv2>=2.4.8',
+        # 'h5py>=2.3.1',
+        # 'cv2>=2.4.8',
     ],
     #
     #   package_data = {
