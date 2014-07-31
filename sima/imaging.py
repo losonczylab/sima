@@ -31,11 +31,25 @@ class ImagingDataset(object):
     Examples
     --------
     >>> dataset = ImagingDataset.load('path')
+
+    Datasets can be iterated over as follows:
     >>> for cycle in dataset:
     ...     for frame in cycle:
     ...         for plane in frame:
-    ...             for channel in frame:
-    ...                 print channel
+    ...             for row in plane
+    ...                 for column in row:
+    ...                     for channel in column:
+    ...                         pass
+
+    Datasets can also be indexed and sliced.
+    >>> dataset[0].num_cycles
+
+    The following slices are all equivalent.
+    >>> slice0 = dataset[channel='GCaMP']
+    >>> slice1 = dataset[channel=1]
+    >>> slice2 = dataset[:, :, :, :, 1]
+
+    The resulting sliced datasets are not saved by default.
 
     Parameters
     ----------
@@ -62,24 +76,29 @@ class ImagingDataset(object):
     Notes
     -----
     Keys for metadata:
-        'acquisition period' :
-        'plane order' :
-        'plane times' :
-        'plane heights' :
+        'acquisition period' :\n
+        'plane order' :\n
+        'plane times' :\n
+        'plane heights' :\n
 
     Attributes
     ----------
+    frame_shape : tuple of int
+        The shape of the data acquired for each frame, in order
+        (num_planes, num_rows, num_columns).
     num_cycles : int
         The number of cycles in the ImagingDataset.
     num_channels : int
         The number of simultaneously recorded channels in the
         ImagingDataset.
-    num_frames : int
-        The total number of image frames in the ImagingDataset.
-    num_rows : int
-        The number of rows per image frame.
     num_columns : int
         The number of columns per image frame.
+    num_frames : int
+        The total number of image frames in the ImagingDataset.
+    num_planes : int
+        The number of imaging planes in the ImagingDataset.
+    num_rows : int
+        The number of rows per image frame.
     ROIs : dict of (str, ROIList)
         The sets of ROIs saved with this ImagingDataset.
     time_averages : list of ndarray

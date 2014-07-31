@@ -998,10 +998,10 @@ class _MCCycle(_ImagingCycle):
         return displacements
 
 
-def hmm(iterables, savedir, channel_names=None, num_states_retained=50,
-        max_displacement=None, correction_channels=None,
-        artifact_channels=None, trim_criterion=None, invalid_frames=None,
-        verbose=True):
+def hmm(iterables, savedir, channel_names=None, metadata=None,
+        num_states_retained=50, max_displacement=None,
+        correction_channels=None, artifact_channels=None,
+        trim_criterion=None, invalid_frames=None, verbose=True):
     """
     Create a motion-corrected ImagingDataset using a row-wise hidden
     Markov model (HMM).
@@ -1016,6 +1016,9 @@ def hmm(iterables, savedir, channel_names=None, num_states_retained=50,
         be appended.
     channel_names : list of str, optional
         Names for the channels. Defaults to ['0', '1', '2', ...].
+    metadata : dict
+        Data for the order and timing of the data acquisition.
+        See sima.ImagingDataset for details.
     num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
