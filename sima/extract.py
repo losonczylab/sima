@@ -31,7 +31,7 @@ def _demixing_matrix(dataset):
         [im.reshape(-1, 1) for im in dataset.time_averages], axis=1)
 
     # Perform ICA on the time averaged data.
-    node = FastICANode()
+    node = FastICANode()  # TODO: switch to ICA from scikit-learn ?
     node(time_avgs)
     W = np.dot(node.white.v, node.filters).T
 
