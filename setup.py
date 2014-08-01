@@ -16,7 +16,7 @@ extensions = [
         sources = ['sima/_motion.c']
     ),
     Extension(
-        'sima._ocorr',
+        'sima._opca',
         include_dirs = [numpy.get_include()],
         sources = ['sima/_opca.c']
     )
