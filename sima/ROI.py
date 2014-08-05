@@ -516,6 +516,7 @@ class ROIList(list):
 def poly2mask(polygons, im_size):
     """Converts polygons to a sparse binary mask.
 
+    >>> from sima.ROI import poly2mask
     >>> poly1 = [[0,0], [0,1], [1,1], [1,0]]
     >>> poly2 = [[0,1], [0,2], [2,2], [2,1]]
     >>> mask = poly2mask([poly1, poly2], (3, 3))

@@ -78,14 +78,14 @@ def test_threshold_gradient():
 def test_hmm():
     global tmp_dir
 
-    frames = MultiPageTIFF(misc.example_data())
+    frames = MultiPageTIFF(misc.example_images())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore",category=DeprecationWarning)
         corrected = motion.hmm([[frames]],os.path.join(tmp_dir,'test_hmm.sima'),
                                artifact_channels=[0],verbose=False)
 
     displacements=np.array([])
-    with open(misc.example_data()[:-4]+'.sima/displacements.pkl','rb') as fh:
+    with open(misc.example_data()+'/displacements.pkl','rb') as fh:
         displacements = pickle.load(fh)
 
     assert_almost_equal(corrected._displacements,displacements)

@@ -30,13 +30,17 @@ class ImagingDataset(object):
 
     Examples
     --------
-    >>> dataset = ImagingDataset.load('path')
+    >>> import sima # doctest: +ELLIPSIS
+    ...
+    >>> from sima.misc import example_data
+    >>> from sima.imaging import ImagingDataset
+    >>> dataset = ImagingDataset.load(example_data())
 
     Datasets can be iterated over as follows:
     >>> for cycle in dataset:
     ...     for frame in cycle:
     ...         for plane in frame:
-    ...             for row in plane
+    ...             for row in plane:
     ...                 for column in row:
     ...                     for channel in column:
     ...                         pass
@@ -356,9 +360,11 @@ class ImagingDataset(object):
         Import an ROIList from a zip file containing ROIs created
         with NIH ImageJ.
 
-        >>> dataset = ImagingDataset.load('example.sima')
         >>> from sima.ROI import ROIList
-        >>> rois = ROIList.load('example.zip', fmt='imagej')
+        >>> from sima.misc import example_ROIs,example_data
+        >>> from sima.imaging import ImagingDataset
+        >>> dataset = ImagingDataset.load(example_data())
+        >>> rois = ROIList.load(example_ROIs(), fmt='ImageJ')
         >>> dataset.add_ROIs(rois, 'from_ImageJ')
 
         """
