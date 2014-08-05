@@ -111,12 +111,17 @@ References
 
 Examples
 --------
+>>> import numpy
+>>> from sima.misc.tifffile import imsave, imread, TiffFile
+>>> from tempfile import mkdtemp
+>>> from os.path import join
+>>> filename = join(mkdtemp(),'temp.tif')
 >>> data = numpy.random.rand(301, 219)
->>> imsave('temp.tif', data)
->>> image = imread('temp.tif')
+>>> imsave(filename, data)
+>>> image = imread(filename)
 >>> assert numpy.all(image == data)
 
->>> tif = TiffFile('test.tif')
+>>> tif = TiffFile(filename)
 >>> images = tif.asarray()
 >>> image0 = tif[0].asarray()
 >>> for page in tif:
@@ -495,6 +500,8 @@ def imsave_iter(filename, data, photometric=None, planarconfig=None,
 
     Examples
     --------
+    >>> import numpy
+    >>> from sima.misc.tifffile import imsave
     >>> data = numpy.ones((2, 5, 3, 301, 219), 'float32') * 0.5
     >>> imsave('temp.tif', data, compress=6)
 
@@ -617,6 +624,8 @@ def imsave(filename, data, photometric=None, planarconfig=None,
 
     Examples
     --------
+    >>> import numpy
+    >>> from sima.misc.tifffile import imsave
     >>> data = numpy.ones((2, 5, 3, 301, 219), 'float32') * 0.5
     >>> imsave('temp.tif', data, compress=6)
 
@@ -907,12 +916,14 @@ def imread(files, *args, **kwargs):
 
     Examples
     --------
-    >>> im = imread('test.tif', 0)
+    >>> from sima.misc.tifffile import imread
+    >>> from sima.misc import example_images
+    >>> im = imread(example_images(), 0)
     >>> im.shape
-    (256, 256, 4)
-    >>> ims = imread(['test.tif', 'test.tif'])
+    (128, 256)
+    >>> ims = imread([example_images(), example_images()])
     >>> ims.shape
-    (2, 256, 256, 4)
+    (2, 20, 128, 256)
 
     """
     kwargs_file = {}
@@ -977,7 +988,9 @@ class TiffFile(object):
 
     Examples
     --------
-    >>> tif = TiffFile('test.tif')
+    >>> from sima.misc.tifffile import TiffFile
+    >>> from sima.misc import example_images
+    >>> tif = TiffFile(example_images())
     ... try:
     ...     images = tif.asarray()
     ... except Exception as e:
@@ -2082,10 +2095,13 @@ class TiffSequence(object):
 
     Examples
     --------
-    >>> ims = TiffSequence("test.oif.files/*.tif")
+    >>> from sima.misc.tifffile import TiffSequence
+    >>> from sima.misc import example_images
+    >>> from os.path import dirname,join
+    >>> ims = TiffSequence(join(dirname(example_images()),"*.tif"))
     >>> ims = ims.asarray()
     >>> ims.shape
-    (2, 100, 256, 256)
+    (1, 20, 128, 256)
 
     """
     _axes_pattern = """
@@ -2775,6 +2791,8 @@ def unpackrgb(data, dtype='<B', bitspersample=(5, 6, 5), rescale=True):
 
     Examples
     --------
+    >>> import struct
+    >>> from sima.misc.tifffile import unpackrgb
     >>> data = struct.pack('BBBB', 0x21, 0x08, 0xff, 0xff)
     >>> print(unpackrgb(data, '<B', (5, 6, 5), False))
     [ 1  1  1 31 63 31]
@@ -2870,6 +2888,7 @@ def format_size(size):
 def natural_sorted(iterable):
     """Return human sorted list of strings.
 
+    >>> from sima.misc.tifffile import natural_sorted
     >>> natural_sorted(['f1', 'f2', 'f10'])
     ['f1', 'f2', 'f10']
 
@@ -2885,6 +2904,7 @@ def datetime_from_timestamp(n, epoch=datetime.datetime.fromordinal(693594)):
 
     Examples
     --------
+    >>> from sima.misc.tifffile import datetime_from_timestamp
     >>> datetime_from_timestamp(40237.029999999795)
     datetime.datetime(2010, 2, 28, 0, 43, 11, 999982)
 
@@ -2897,6 +2917,7 @@ def test_tifffile(directory='testimages', verbose=True):
 
     Examples
     --------
+    >>> from sima.misc.tifffile import test_tifffile
     >>> test_tifffile(verbose=False)
 
     """
