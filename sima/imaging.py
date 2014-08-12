@@ -244,6 +244,8 @@ class ImagingDataset(object):
 
     @property
     def _displacements(self):
+        if self.savedir is None:
+            return None
         try:
             with open(join(self.savedir, 'displacements.pkl'), 'rb') as f:
                 displacements = pickle.load(f)
