@@ -33,16 +33,14 @@ class ImagingDataset(object):
     >>> import sima # doctest: +ELLIPSIS
     ...
     >>> from sima.misc import example_data
-    >>> from sima.imaging import ImagingDataset
-    >>> dataset = ImagingDataset.load(example_data())
+    >>> dataset = sima.ImagingDataset.load(example_data())
 
     Datasets can be iterated over as follows:
     >>> for cycle in dataset:
     ...     for frame in cycle:
-    ...         for plane in frame:
-    ...             for row in plane:
+    ...         for channel in frame:
+    ...             for row in channel:
     ...                 for column in row:
-    ...                     for channel in column:
     ...                         pass
 
     Datasets can also be indexed and sliced.
