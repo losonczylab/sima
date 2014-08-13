@@ -30,11 +30,28 @@ class ImagingDataset(object):
 
     Examples
     --------
-    >>> dataset = ImagingDataset.load('path')
+    >>> import sima # doctest: +ELLIPSIS
+    ...
+    >>> from sima.misc import example_data
+    >>> dataset = sima.ImagingDataset.load(example_data())
+
+    Datasets can be iterated over as follows:
     >>> for cycle in dataset:
     ...     for frame in cycle:
     ...         for channel in frame:
-    ...             print channel
+    ...             for row in channel:
+    ...                 for column in row:
+    ...                         pass
+
+    Datasets can also be indexed and sliced.
+    >>> dataset[0].num_cycles
+
+    The following slices are all equivalent.
+    >>> slice0 = dataset[channel='GCaMP']
+    >>> slice1 = dataset[channel=1]
+    >>> slice2 = dataset[:, :, :, :, 1]
+
+    The resulting sliced datasets are not saved by default.
 
     Parameters
     ----------
@@ -46,6 +63,9 @@ class ImagingDataset(object):
         be appended.
     channel_names : list of str, optional
         Names for the channels. Defaults to ['0', '1', '2', ...].
+    metadata : dict
+        Data for the order and timing of the data acquisition.
+        See Notes for details.
     displacements : list of array, optional
     trim_criterion : float, optional
         The required fraction of frames during which a location must
@@ -55,19 +75,32 @@ class ImagingDataset(object):
         argument only has effect if the ImagingDataset object is
         initialized with displacements.
 
+    Notes
+    -----
+    Keys for metadata:
+        'acquisition period' :\n
+        'plane order' :\n
+        'plane times' :\n
+        'plane heights' :\n
+
     Attributes
     ----------
+    frame_shape : tuple of int
+        The shape of the data acquired for each frame, in order
+        (num_planes, num_rows, num_columns).
     num_cycles : int
         The number of cycles in the ImagingDataset.
     num_channels : int
         The number of simultaneously recorded channels in the
         ImagingDataset.
-    num_frames : int
-        The total number of image frames in the ImagingDataset.
-    num_rows : int
-        The number of rows per image frame.
     num_columns : int
         The number of columns per image frame.
+    num_frames : int
+        The total number of image frames in the ImagingDataset.
+    num_planes : int
+        The number of imaging planes in the ImagingDataset.
+    num_rows : int
+        The number of rows per image frame.
     ROIs : dict of (str, ROIList)
         The sets of ROIs saved with this ImagingDataset.
     time_averages : list of ndarray
@@ -77,7 +110,7 @@ class ImagingDataset(object):
 
     """
     def __init__(self, iterables, savedir, channel_names=None,
-                 displacements=None, trim_criterion=None,
+                 metadata=None, displacements=None, trim_criterion=None,
                  invalid_frames=None):
 
         # Convert savedir into an absolute path ending with .sima
@@ -87,6 +120,8 @@ class ImagingDataset(object):
             self.savedir = abspath(savedir)
             if not self.savedir.endswith('.sima'):
                 self.savedir += '.sima'
+
+        self.metadata = {} if metadata is None else metadata
 
         if iterables is None:
             # Special case used to load an existing ImagingDataset
@@ -207,6 +242,8 @@ class ImagingDataset(object):
 
     @property
     def _displacements(self):
+        if self.savedir is None:
+            return None
         try:
             with open(join(self.savedir, 'displacements.pkl'), 'rb') as f:
                 displacements = pickle.load(f)
@@ -323,9 +360,11 @@ class ImagingDataset(object):
         Import an ROIList from a zip file containing ROIs created
         with NIH ImageJ.
 
-        >>> dataset = ImagingDataset.load('example.sima')
         >>> from sima.ROI import ROIList
-        >>> rois = ROIList.load('example.zip', fmt='imagej')
+        >>> from sima.misc import example_ROIs,example_data
+        >>> from sima.imaging import ImagingDataset
+        >>> dataset = ImagingDataset.load(example_data())
+        >>> rois = ROIList.load(example_ROIs(), fmt='ImageJ')
         >>> dataset.add_ROIs(rois, 'from_ImageJ')
 
         """
@@ -365,6 +404,9 @@ class ImagingDataset(object):
     def export_averages(self, filenames, fmt='TIFF16', scale_values=True):
         """Save TIFF files with the time average of each channel.
 
+        For datasets with multiple frames, the resulting TIFF files
+        have multiple pages.
+
         Parameters
         ----------
         filenames : list of str
@@ -395,6 +437,7 @@ class ImagingDataset(object):
                       scale_values=False):
         """Save a multi-page TIFF files of the motion-corrected time series.
 
+        # TODO: HDF5, multiple Z planes
         One TIFF file is created for each cycle and channel.
         The TIFF files have the same name as the uncorrected files, but should
         be saved in a different directory.
@@ -537,7 +580,7 @@ class ImagingDataset(object):
         if self.savedir is not None:
             self._save()
 
-    def segment(self, method='normcut', label=None, **kwargs):
+    def segment(self, method='normcut', label=None, planes=None, **kwargs):
         """Segment an ImagingDataset to generate ROIs.
 
         Parameters
@@ -546,6 +589,8 @@ class ImagingDataset(object):
             The method for segmentation. Defaults to normcut.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
+        planes : list of int
+            List of the planes that are to be segmented.
         kwargs : dict
             Additional keyword arguments are passed to the function
             implementing the selected segmentation method.
@@ -696,6 +741,11 @@ class _ImagingCycle(object):
     def num_channels(self):
         """The number of simultaneously imaged channels."""
         return len(self.channels)
+
+    @lazyprop
+    def num_planes(self):
+        """The number of planes in the dataset."""
+        return  # TODO
 
     @lazyprop
     def num_rows(self):

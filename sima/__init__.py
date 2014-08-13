@@ -12,4 +12,7 @@ from sima.imaging import ImagingDataset
 import sima.imaging_parameters as imaging_parameters
 from sima import motion
 
+from numpy.testing import Tester
+test = Tester().test
+
 __version__ = '0.1.2-alpha'
