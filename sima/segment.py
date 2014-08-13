@@ -73,14 +73,17 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
                                           y_diameter)
     shape = processed_im.shape[:2]
     ROIs = ROIList([])
-    #roi_idx = 0
     for cut in cuts:
         if len(cut.indices) > min_cut_size:
             #pixel values in the cut
             vals = processed_im.flat[cut.indices]
 
-            #indices of those values below the otsu threshold
-            roi_indices = cut.indices[vals < threshold_otsu(vals)]
+            # indices of those values below the otsu threshold
+            # if all values are identical, continue without adding an ROI
+            try:
+                roi_indices = cut.indices[vals < threshold_otsu(vals)]
+            except ValueError:
+                continue
 
             #apply binary opening and closing to the surviving pixels
             twoD_indices = [np.unravel_index(x, shape) for x in roi_indices]
