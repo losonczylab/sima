@@ -56,7 +56,8 @@ dataset = sima.motion.hmm(
 )
 
 # Export the time averages for a manuscript figure.
-dataset.export_averages(['tdTomato.tif', 'GCaMP.tif'])
+dataset.export_averages(['workflow_data/tdTomato.tif',
+                         'workflow_data/GCaMP.tif'])
 
 # Generate the output filenames with Python list comprehensions.
 output_filenames = [
