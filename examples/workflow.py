@@ -1,61 +1,145 @@
+#! /usr/bin/env python
+"""
+This file provides a demonstration of how to use the SIMA package.
+
+In order to run this file, you will need to download the file
+http://www.losonczylab.org/workflow_data.zip and extract it in your
+current working directory.
+
+"""
+
+##############################################################################
+#                                                                            #
+#   PART 0: Import SIMA and necessary submodules.                            #
+#                                                                            #
+##############################################################################
+
 import sima
 import sima.motion
 from sima.iterables import MultiPageTIFF
+
+##############################################################################
+#                                                                            #
+#   PART 1: Preparing the iterables.                                         #
+#                                                                            #
+##############################################################################
+
+# Generate the filenames with Python list comprehensions.
+tiff_filenames = [
+    ['workflow_data/Cycle{n1:02d}_Ch{n2}.tif'.format(n1=cycle, n2=channel)
+     for channel in range(1, 3)] for cycle in range(1, 16)
+]
+
+# The resulting filenames are printed for clarification.
+print "TIFF filenames:\n", tiff_filenames
+
+# We set the clip to remove the first 20 columns from each image because
+# of a problem with the imaging system that produced the images.
+clip = ((0, 0), (20, 0))
+
+# Finally, we construct a MultiPageTIFF iterable using each of the filenames.
+iterables = [
+    [MultiPageTIFF(chan, clip) for chan in cycle] for cycle in tiff_filenames
+]
+
+##############################################################################
+#                                                                            #
+#   PART 2: Running motion correction to create the dataset, and exporting   #
+#           the corrected image data.                                        #
+#                                                                            #
+##############################################################################
+
+dataset_path = 'workflow_data/dataset.sima'
+dataset = sima.motion.hmm(
+    iterables, dataset_path, ['tdTomato', 'GCaMP'], num_states_retained=30,
+    max_displacement=[20, 30], trim_criterion=0.95
+)
+
+# Export the time averages for a manuscript figure.
+dataset.export_averages(['tdTomato.tif', 'GCaMP.tif'])
+
+# Generate the output filenames with Python list comprehensions.
+output_filenames = [
+    [channel.replace('.tif', '_corrected.tif') for channel in cycle]
+    for cycle in tiff_filenames
+]
+
+# The resulting filenames are printed for clarification.
+print "Output filenames:\n", output_filenames
+
+# Export the corrected frames for a presentation.
+dataset.export_frames(output_filenames, fill_gaps=True)
+
+# At this point, one may wish to inspect the exported image data to evaluate
+# the quality of the motion correction before continuing.
+while True:
+    input_ = raw_input("Continue? (y/n): ")
+    if input_ == 'n':
+        exit()
+    elif input_ == 'y':
+        break
+
+##############################################################################
+#                                                                            #
+#   PART 3: Running automated segmentation and editing results with the ROI  #
+#           Buddy GUI.                                                       #
+#                                                                            #
+##############################################################################
+
+# Segment the field of view into ROIs using the method for CA1 pyramidal cells
+# and parameters that were determined based on the imaging magnification.
+dataset.segment(
+    'ca1pc',
+    channel='GCaMP',
+    num_pcs=50,
+    max_dist=(3, 6),
+    spatial_decay=(3, 6),
+    cut_max_pen=0.10,
+    cut_min_size=50,
+    cut_max_size=150,
+    x_diameter=14,
+    y_diameter=7,
+    circularity_threhold=.5,
+    min_roi_size=20,
+    min_cut_size=40
+)
+
+# At this point, one may wish to edit the automatically segmented ROIs using
+# the ROI Buddy GUI before performing signal extraction.
+while True:
+    input_ = raw_input("Continue? (y/n): ")
+    if input_ == 'n':
+        exit()
+    elif input_ == 'y':
+        break
+
+##############################################################################
+#                                                                            #
+#   PART 4: Extracting fluorescence signals from the ROIs.                   #
+#                                                                            #
+##############################################################################
+
+# Reload the dataset in case any changes have been made with ROI Buddy
+dataset = sima.ImagingDataset.load(dataset_path)
+
+# Extract the signals. By default, the most recently created ROIs are used.
+dataset.extract(signal_channel='GCaMP', label='GCaMP_signals')
+
+# Export the extracted signals to a CSV file.
+dataset.export_signals('example_signals.csv', channel='GCaMP',
+                       signals_label='GCaMP_signals')
+
+##############################################################################
+#                                                                            #
+#   PART 5: Visualizing data using Python.                                   #
+#                                                                            #
+##############################################################################
+
+# import necessary functions from matplotlib
 from matplotlib.pyplot import plot, show
-import shutil
 
-CORRECT = True
-SEGMENT = True
-RECORD_PATH = '/home/patrick/tmp-test-data/TSeries-Loc6-control-006/test3.sima'
-if CORRECT:
-    try:
-        shutil.rmtree(RECORD_PATH)
-    except:
-        pass
-
-    # CONSTRUCT ITERABLES
-    d = '/home/patrick/tmp-test-data/TSeries-Loc6-control-006/'
-    b = d + 'TSeries-Loc6-control-006_Cycle000'
-    filenames = [
-        [b + '01_CurrentSettings_Ch1.tif', b + '01_CurrentSettings_Ch2.tif'],
-        [b + '02_CurrentSettings_Ch1.tif', b + '02_CurrentSettings_Ch2.tif'],
-        [b + '03_CurrentSettings_Ch1.tif', b + '03_CurrentSettings_Ch2.tif'],
-        [b + '04_CurrentSettings_Ch1.tif', b + '04_CurrentSettings_Ch2.tif'],
-        [b + '05_CurrentSettings_Ch1.tif', b + '05_CurrentSettings_Ch2.tif'],
-        [b + '06_CurrentSettings_Ch1.tif', b + '06_CurrentSettings_Ch2.tif'],
-        [b + '07_CurrentSettings_Ch1.tif', b + '07_CurrentSettings_Ch2.tif'],
-        [b + '08_CurrentSettings_Ch1.tif', b + '08_CurrentSettings_Ch2.tif'],
-        [b + '09_CurrentSettings_Ch1.tif', b + '09_CurrentSettings_Ch2.tif'],
-        [b + '10_CurrentSettings_Ch1.tif', b + '10_CurrentSettings_Ch2.tif'],
-        [b + '11_CurrentSettings_Ch1.tif', b + '11_CurrentSettings_Ch2.tif'],
-        [b + '12_CurrentSettings_Ch1.tif', b + '12_CurrentSettings_Ch2.tif'],
-        [b + '13_CurrentSettings_Ch1.tif', b + '13_CurrentSettings_Ch2.tif'],
-        [b + '14_CurrentSettings_Ch1.tif', b + '14_CurrentSettings_Ch2.tif'],
-        [b + '15_CurrentSettings_Ch1.tif', b + '15_CurrentSettings_Ch2.tif']
-    ]
-    clip = ((0, 0), (20, 0))
-    iterables = [
-        [MultiPageTIFF(chan, clip) for chan in cycle]
-        for cycle in filenames
-    ]
-
-    dataset = sima.motion.hmm(
-        iterables, RECORD_PATH, ['tdTomato', 'GCaMP'],
-        30, [20, 30], trim_criterion=0.95
-    )
-
-else:
-    dataset = sima.ImagingDataset.load(RECORD_PATH)
-
-if SEGMENT:
-    dataset.segment()
-
-""" USE IMAGING BUDDY"""
-
-dataset = sima.ImagingDataset.load(RECORD_PATH)
-dataset.extract(signal_channel=0)
-
-"""
-plot(dataset.signals[0])
+# plot the signal from an ROI object, with a different color for each cycle
+raw_signals = dataset.signals('GCaMP')['GCaMP_signals']['raw']
+for cycle in range(dataset.num_cycles):
+    plot(raw_signals[cycle][5])  # plot the data from ROI #5
 show()
-"""
