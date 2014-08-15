@@ -54,7 +54,7 @@ def _method_2(data, num_pcs=None):
     return eivals, transformed_eivects, np.dot(data, transformed_eivects)
 
 
-def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
+def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000, verbose=False):
     """Calculate the leading magnitude PCs with the EM algorithm.
 
     Adapted from the EM algorithm for PCA [1].
@@ -113,8 +113,9 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
         # eigenvectors via Gram-Schmidt.
         # U = np.dot(np.dot(np.dot(U, U.T), inv(ZUT)), Z)[order]
         U = np.linalg.qr(Z[order].T)[0].T
-        print "iter_count:", iter_count, "\t\terror:", error, \
-            '\t\teivals', eivals
+        if verbose:
+            print "iter_count:", iter_count, "\t\terror:", error, \
+                '\t\teivals', eivals
         if error < tolerance:
             break
     # project data with U
