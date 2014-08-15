@@ -1,6 +1,6 @@
 Overview
 --------
-The SIMA (Sequential IMage Analysis) package is facilitates
+The SIMA (Sequential IMage Analysis) package facilitates
 analysis of time-series imaging data arising from fluorescence
 microscopy.
 The functionality of this pacakge includes:
