@@ -63,6 +63,23 @@ def copy_label_to_id(rois):
         roi.id = roi.label
 
 
+def resolve_channels(chan, channel_names, num_channels=None):
+    """Return the index corresponding to the channel."""
+    if chan is None:
+        return None
+    if num_channels is None:
+        num_channels = len(channel_names)
+    if isinstance(chan, int):
+        if chan >= num_channels:
+            raise ValueError('Invalid channel index.')
+        return chan
+    else:
+        try:
+            return channel_names.index(chan)
+        except ValueError:
+            raise ValueError('No channel exists with the specified name.')
+
+
 def pairwise(iterable):
     a, b = it.tee(iterable)
     next(b, None)

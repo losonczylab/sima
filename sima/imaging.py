@@ -705,14 +705,7 @@ class ImagingDataset(object):
 
     def _resolve_channel(self, chan):
         """Return the index corresponding to the channel."""
-        if chan is None:
-            return None
-        if isinstance(chan, int):
-            if chan >= self.num_channels:
-                raise ValueError('Invalid channel index.')
-            return chan
-        else:
-            return self.channel_names.index(chan)
+        return sima.misc.resolve_channels(chan, self.channel_names)
 
 
 class _ImagingCycle(object):

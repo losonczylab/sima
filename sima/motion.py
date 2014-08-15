@@ -34,6 +34,7 @@ except ImportError as error:
                       reload_support=True)
     import sima._motion as mc
 from sima.imaging import ImagingDataset, _ImagingCycle
+import sima.misc
 
 
 def _discrete_transition_prob(r, r0, transition_probs, n):
@@ -1053,7 +1054,14 @@ def hmm(iterables, savedir, channel_names=None, metadata=None,
     * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
 
     """
-
+    if correction_channels:
+        correction_channels = [
+            sima.misc.resolve_channels(c, channel_names, len(iterables[0]))
+            for c in correction_channels]
+    if artifact_channels:
+        artifact_channels = [
+            sima.misc.resolve_channels(c, channel_names, len(iterables[0]))
+            for c in artifact_channels]
     if correction_channels:
         mc_iterables = [[cycle[i] for i in correction_channels]
                         for cycle in iterables]
