@@ -12,13 +12,13 @@ if 'setuptools.extension' in sys.modules:
 extensions = [
     Extension(
         'sima._motion',
-        include_dirs = [numpy.get_include()],
-        sources = ['sima/_motion.c']
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_motion.c']
     ),
     Extension(
         'sima._opca',
-        include_dirs = [numpy.get_include()],
-        sources = ['sima/_opca.c']
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_opca.c']
     )
 ]
 
@@ -33,15 +33,15 @@ Operating System :: MacOS
 
 """
 setup(
-    name = "sima",
-    version = "0.2.0",
-    packages = ['sima', 'sima.misc'],
+    name="sima",
+    version="0.2.0",
+    packages=['sima', 'sima.misc'],
     #
     #   scripts = [''],
     #
     #   # Project uses reStructuredText, so ensure that the docutils get
     #   # installed or upgraded on the target machine
-    install_requires = [
+    install_requires=[
         'numpy>=1.6.2',
         'scipy>=0.13.0',
         'matplotlib>=1.2.1',
@@ -50,27 +50,27 @@ setup(
         # 'h5py>=2.3.1',
         # 'cv2>=2.4.8',
     ],
-    package_data = {'sima':
-        ['tests/*.py',
-         'tests/data/example.sima/*',
-         'tests/data/example.tif',
-         'tests/data/example.h5',
-         'tests/data/imageJ_ROIs',
-         ]
+    package_data={
+        'sima': ['tests/*.py',
+                 'tests/data/example.sima/*',
+                 'tests/data/example.tif',
+                 'tests/data/example.h5',
+                 'tests/data/imageJ_ROIs',
+                 ]
     },
     #
     #   # metadata for upload to PyPI
-    author = "Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
-    author_email = "software@losonczylab.org",
-    description = "Software for analysis of sequential imaging data",
-    license = "GNU GPLv2",
-    keywords = "imaging microscopy neuroscience segmentation",
+    author="Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
+    author_email="software@losonczylab.org",
+    description="Software for analysis of sequential imaging data",
+    license="GNU GPLv2",
+    keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-    ext_modules = extensions,
+    ext_modules=extensions,
     setup_requires=['setuptools_cython'],
-    url = "http://www.losonczylab.org/sima/",
+    url="http://www.losonczylab.org/sima/",
 
-    platforms = ["Linux", "Mac OS-X", "Windows"],
+    platforms=["Linux", "Mac OS-X", "Windows"],
     #
     #   # could also include long_description, download_url, classifiers, etc.
 )
