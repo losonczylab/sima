@@ -361,10 +361,10 @@ class ImagingDataset(object):
         with NIH ImageJ.
 
         >>> from sima.ROI import ROIList
-        >>> from sima.misc import example_ROIs,example_data
+        >>> from sima.misc import example_imagej_rois,example_data
         >>> from sima.imaging import ImagingDataset
         >>> dataset = ImagingDataset.load(example_data())
-        >>> rois = ROIList.load(example_ROIs(), fmt='ImageJ')
+        >>> rois = ROIList.load(example_imagej_rois(), fmt='ImageJ')
         >>> dataset.add_ROIs(rois, 'from_ImageJ')
 
         """
@@ -418,7 +418,8 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         for filename, im in it.izip(filenames, self.time_averages):
-            mkdir_p(dirname(filename))
+            if dirname(filename):
+                mkdir_p(dirname(filename))
             if fmt is 'TIFF8':
                 if scale_values:
                     out = sima.misc.to8bit(im)
@@ -600,6 +601,8 @@ class ImagingDataset(object):
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
         """
+        if kwargs.has_key('channel'):
+            kwargs['channel'] = self._resolve_channel(kwargs['channel'])
         if method is 'normcut':
             rois = segment.normcut(self, **kwargs)
         elif method is 'ca1pc':
@@ -773,6 +776,9 @@ class _ImagingCycle(object):
 
         This function stores a multipage tiff file for each channel.
         """
+        for filename in filenames:
+            if dirname(filename):
+                mkdir_p(dirname(filename))
 
         if 'TIFF' in fmt:
             output_files = [TiffFileWriter(fn) for fn in filenames]

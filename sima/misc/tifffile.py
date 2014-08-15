@@ -917,11 +917,11 @@ def imread(files, *args, **kwargs):
     Examples
     --------
     >>> from sima.misc.tifffile import imread
-    >>> from sima.misc import example_images
-    >>> im = imread(example_images(), 0)
+    >>> from sima.misc import example_tiff
+    >>> im = imread(example_tiff(), 0)
     >>> im.shape
     (128, 256)
-    >>> ims = imread([example_images(), example_images()])
+    >>> ims = imread([example_tiff(), example_tiff()])
     >>> ims.shape
     (2, 20, 128, 256)
 
@@ -989,8 +989,8 @@ class TiffFile(object):
     Examples
     --------
     >>> from sima.misc.tifffile import TiffFile
-    >>> from sima.misc import example_images
-    >>> tif = TiffFile(example_images())
+    >>> from sima.misc import example_tiff
+    >>> tif = TiffFile(example_tiff())
     ... try:
     ...     images = tif.asarray()
     ... except Exception as e:
@@ -2096,9 +2096,9 @@ class TiffSequence(object):
     Examples
     --------
     >>> from sima.misc.tifffile import TiffSequence
-    >>> from sima.misc import example_images
+    >>> from sima.misc import example_tiff
     >>> from os.path import dirname,join
-    >>> ims = TiffSequence(join(dirname(example_images()),"*.tif"))
+    >>> ims = TiffSequence(join(dirname(example_tiff()),"*.tif"))
     >>> ims = ims.asarray()
     >>> ims.shape
     (1, 20, 128, 256)
