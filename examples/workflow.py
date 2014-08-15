@@ -92,7 +92,7 @@ while True:
 dataset.segment(
     'ca1pc',
     channel='GCaMP',
-    num_pcs=50,
+    num_pcs=30,
     max_dist=(3, 6),
     spatial_decay=(3, 6),
     cut_max_pen=0.10,
@@ -141,6 +141,6 @@ from matplotlib.pyplot import plot, show
 
 # plot the signal from an ROI object, with a different color for each cycle
 raw_signals = dataset.signals('GCaMP')['GCaMP_signals']['raw']
-for cycle in range(dataset.num_cycles):
-    plot(raw_signals[cycle][5])  # plot the data from ROI #5
-show()
+for cycle in range(3):  # plot data from the first 3 cycles
+    plot(raw_signals[cycle][3])  # plot the data from ROI #3
+show(block=True)

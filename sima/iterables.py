@@ -162,7 +162,6 @@ class HDF5(object):
         The number of rows/columns to clip from each edge
         in order ((top, bottom), (left, right)).
 
-
     Warning
     -------
     Moving the HDF5 file may make this iterable unusable
