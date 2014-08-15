@@ -13,7 +13,7 @@ import numpy as np
 
 import sima.segment as segment
 import sima.misc
-from sima.misc import lazyprop, mkdir_p, most_recent_key
+from sima.misc import lazyprop, mkdir_p, most_recent_key, affine_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
 with warnings.catch_warnings():
@@ -371,6 +371,55 @@ class ImagingDataset(object):
         if self.savedir is None:
             raise Exception('Cannot add ROIs unless savedir is set.')
         ROIs.save(join(self.savedir, 'rois.pkl'), label)
+
+    def import_transformed_ROIs(self, source_dataset, source_channel=0,
+                                target_channel=0, source_label=None,
+                                target_label=None, copy_properties=True):
+        """Calculate an affine transformation from source to self and import
+           the transformed ROIs.
+
+        Parameters
+        ----------
+        source_dataset : ImagingDataset
+            The ImagingDataset object from which ROIs are to be imported.  This
+            dataset must be roughly of the same field-of-view as self in order
+            to calculate an affine transformation.
+
+        source_channel : string or int, optional
+            The channel of the source image from which to calculate an affine
+            transformation, either an integer index or a string in
+            source_dataset.channel_names.
+
+        target_channel : string or int, optional
+            The channel of the target image from which to calculate an affine
+            transformation, either an integer index or a string in
+            self.channel_names.
+
+        source_label : string, optional
+            The label of the ROIList to transform
+
+        target_label : string, optional
+            The label to assign the transformed ROIList
+
+        copy_properties : bool, optional
+            Copy the label, id, tags, and im_shape properties from the source
+            ROIs to the transformed ROIs
+        """
+
+        source_channel = source_dataset._resolve_channel(source_channel)
+        target_channel = self._resolve_channel(target_channel)
+        source = source_dataset.time_averages[source_channel]
+        target = self.time_averages[target_channel]
+
+        transform = affine_transform(source, target)
+
+        src_rois = source_dataset.ROIs
+        if source_label is None:
+            source_label = most_recent_key(src_rois)
+        src_rois = src_rois[source_label]
+        transformed_ROIs = src_rois.transform(
+            transform, copy_properties=copy_properties)
+        self.add_ROIs(transformed_ROIs, label=target_label)
 
     def delete_ROIs(self, label):
         """Delete an ROI set from the rois.pkl file
