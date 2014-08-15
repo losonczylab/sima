@@ -36,6 +36,7 @@ except ImportError as error:
 from sima.imaging import ImagingDataset, _ImagingCycle
 import sima.misc
 
+np.seterr(invalid='ignore', divide='ignore')
 
 def _discrete_transition_prob(r, r0, transition_probs, n):
     """Calculate the transition probability between two discrete position

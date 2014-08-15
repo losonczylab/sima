@@ -43,16 +43,6 @@ class ImagingDataset(object):
     ...                 for column in row:
     ...                         pass
 
-    Datasets can also be indexed and sliced.
-    >>> dataset[0].num_cycles
-
-    The following slices are all equivalent.
-    >>> slice0 = dataset[channel='GCaMP']
-    >>> slice1 = dataset[channel=1]
-    >>> slice2 = dataset[:, :, :, :, 1]
-
-    The resulting sliced datasets are not saved by default.
-
     Parameters
     ----------
     iterables : list of list of iterable
