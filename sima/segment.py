@@ -1,11 +1,15 @@
 import os
 import itertools as it
+from warnings import warn
 
 import numpy as np
 from scipy import sparse, ndimage
 from scipy.ndimage.measurements import label
 from skimage.filter import threshold_otsu
-import cv2
+try:
+    import cv2
+except ImportError:
+    warn('OpenCV2 is not installed. Some functionality will not work.')
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
