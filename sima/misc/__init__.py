@@ -1,6 +1,7 @@
 import os
 import itertools as it
 import errno
+import cv2
 
 from numpy import nanmax
 
@@ -84,6 +85,42 @@ def pairwise(iterable):
     a, b = it.tee(iterable)
     next(b, None)
     return it.izip(a, b)
+
+
+def affine_transform(source, target):
+    """Calculates an affine transformation from source to target
+
+    Parameters
+    ----------
+    source : array
+        The image to transform
+    target : array
+        The image used as the template for the transformation
+
+    Returns
+    -------
+    transform : array
+        A 2x3 array of the affine transformation from source to target
+
+    See Also
+    --------
+    cv2.estimateRigidTransform
+    """
+
+    class TransformError(Exception):
+        pass
+
+    slice_ = tuple(slice(0, min(source.shape[i], target.shape[i]))
+                   for i in range(2))
+    transform = cv2.estimateRigidTransform(
+        to8bit(source[slice_]),
+        to8bit(target[slice_]), True)
+
+    if transform is None:
+        raise TransformError('Cannot calculate affine transformation from' +
+                             'source to target')
+    else:
+        return transform
 
 
 def example_tiff():
