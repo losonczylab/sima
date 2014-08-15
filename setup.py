@@ -36,6 +36,7 @@ setup(
     name = "sima",
     version = "0.2.0",
     packages = ['sima', 'sima.misc'],
+    #
     #   scripts = [''],
     #
     #   # Project uses reStructuredText, so ensure that the docutils get
@@ -49,13 +50,14 @@ setup(
         # 'h5py>=2.3.1',
         # 'cv2>=2.4.8',
     ],
-    #
-    #   package_data = {
-    #       # If any package contains *.txt or *.rst files, include them:
-    #       '': ['*.txt', '*.rst'],
-    #       # And include any *.msg files found in the 'hello' package, too:
-    #       'hello': ['*.msg'],
-    #   },
+    package_data = {'sima':
+        ['tests/*.py',
+         'tests/data/example.sima/*',
+         'tests/data/example.tif',
+         'tests/data/example.h5',
+         'tests/data/imageJ_ROIs',
+         ]
+    },
     #
     #   # metadata for upload to PyPI
     author = "Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
