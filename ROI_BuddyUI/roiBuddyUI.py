@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'roiBuddyUI.ui'
 #
-# Created: Thu Apr 24 23:26:24 2014
+# Created: Fri Aug 15 15:52:36 2014
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -13,7 +13,6 @@ try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
     _fromUtf8 = lambda s: s
-
 
 class Ui_ROI_Buddy(object):
     def setupUi(self, ROI_Buddy):
@@ -149,7 +148,7 @@ class Ui_ROI_Buddy(object):
         self.show_all_checkbox.setTristate(False)
         self.show_all_checkbox.setObjectName(_fromUtf8("show_all_checkbox"))
         self.verticalLayout_2.addWidget(self.show_all_checkbox)
-        self.gridLayout_2.addWidget(self.show_rois_widget, 6, 0, 1, 1)
+        self.gridLayout_2.addWidget(self.show_rois_widget, 5, 0, 1, 1)
         self.widget = QtGui.QWidget(self.tSeriesListFrame)
         self.widget.setObjectName(_fromUtf8("widget"))
         self.horizontalLayout_2 = QtGui.QHBoxLayout(self.widget)
@@ -167,10 +166,13 @@ class Ui_ROI_Buddy(object):
         self.verticalLayout_3 = QtGui.QVBoxLayout(self.save_rois_widget)
         self.verticalLayout_3.setMargin(0)
         self.verticalLayout_3.setObjectName(_fromUtf8("verticalLayout_3"))
+        self.import_rois_button = QtGui.QPushButton(self.save_rois_widget)
+        self.import_rois_button.setObjectName(_fromUtf8("import_rois_button"))
+        self.verticalLayout_3.addWidget(self.import_rois_button)
         self.save_current_rois_button = QtGui.QPushButton(self.save_rois_widget)
         self.save_current_rois_button.setObjectName(_fromUtf8("save_current_rois_button"))
         self.verticalLayout_3.addWidget(self.save_current_rois_button)
-        self.gridLayout_2.addWidget(self.save_rois_widget, 6, 2, 1, 1)
+        self.gridLayout_2.addWidget(self.save_rois_widget, 5, 2, 1, 1)
         self.mode_selection_widget = QtGui.QWidget(self.tSeriesListFrame)
         self.mode_selection_widget.setObjectName(_fromUtf8("mode_selection_widget"))
         self.horizontalLayout_3 = QtGui.QHBoxLayout(self.mode_selection_widget)
@@ -210,7 +212,7 @@ class Ui_ROI_Buddy(object):
         self.gridLayout.addWidget(self.tSeriesListFrame, 0, 1, 1, 1)
         ROI_Buddy.setCentralWidget(self.centralwidget)
         self.menubar = QtGui.QMenuBar(ROI_Buddy)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1200, 22))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1200, 15))
         self.menubar.setObjectName(_fromUtf8("menubar"))
         ROI_Buddy.setMenuBar(self.menubar)
         self.statusbar = QtGui.QStatusBar(ROI_Buddy)
@@ -224,13 +226,14 @@ class Ui_ROI_Buddy(object):
         ROI_Buddy.setWindowTitle(QtGui.QApplication.translate("ROI_Buddy", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
         self.baseImage_label.setText(QtGui.QApplication.translate("ROI_Buddy", "Base Image:", None, QtGui.QApplication.UnicodeUTF8))
         self.processed_checkbox.setText(QtGui.QApplication.translate("ROI_Buddy", "Processed", None, QtGui.QApplication.UnicodeUTF8))
-        self.label.setText(QtGui.QApplication.translate("ROI_Buddy", "ROI Set:", None, QtGui.QApplication.UnicodeUTF8))
+        self.label.setText(QtGui.QApplication.translate("ROI_Buddy", "ROI List:", None, QtGui.QApplication.UnicodeUTF8))
         self.new_set_button.setText(QtGui.QApplication.translate("ROI_Buddy", "New Set", None, QtGui.QApplication.UnicodeUTF8))
         self.delete_set_button.setText(QtGui.QApplication.translate("ROI_Buddy", "Delete Set", None, QtGui.QApplication.UnicodeUTF8))
         self.show_ROIs_checkbox.setText(QtGui.QApplication.translate("ROI_Buddy", "show ROIs", None, QtGui.QApplication.UnicodeUTF8))
         self.show_all_checkbox.setText(QtGui.QApplication.translate("ROI_Buddy", "show all", None, QtGui.QApplication.UnicodeUTF8))
         self.remove_tseries_button.setText(QtGui.QApplication.translate("ROI_Buddy", "remove", None, QtGui.QApplication.UnicodeUTF8))
         self.add_tseries_button.setText(QtGui.QApplication.translate("ROI_Buddy", "add ", None, QtGui.QApplication.UnicodeUTF8))
+        self.import_rois_button.setText(QtGui.QApplication.translate("ROI_Buddy", "import ROIs", None, QtGui.QApplication.UnicodeUTF8))
         self.save_current_rois_button.setText(QtGui.QApplication.translate("ROI_Buddy", "save current ROIs", None, QtGui.QApplication.UnicodeUTF8))
         self.edit_mode_radiobutton.setText(QtGui.QApplication.translate("ROI_Buddy", "Edit Mode", None, QtGui.QApplication.UnicodeUTF8))
         self.align_mode_radiobutton.setText(QtGui.QApplication.translate("ROI_Buddy", "Align Mode", None, QtGui.QApplication.UnicodeUTF8))
