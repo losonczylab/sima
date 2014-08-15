@@ -34,12 +34,12 @@ Installation
 
 The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is 
 available for **download** `here
-<http://losonczylab.org/ROI_Buddy.zip>`_.  Launch the application directly by opening
+<http://losonczylab.org/ROI_Buddy.zip>`__.  Launch the application directly by opening
 the .exe file.
 
 Alternatively, the ROI Buddy GUI can be built from source.  Source code is
 available for **download** `here
-<http://losonczylab.org/ROI_Buddy_Source.zip>`_.
+<http://losonczylab.org/ROI_Buddy_Source.zip>`__.
 The ROI Buddy GUI depends on SIMA, so shares all dependencies with SIMA. In addition, the following packages are required:
 
 * PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
@@ -102,7 +102,7 @@ are matched across days are assigned the same ``id`` property which is denoted v
     the directories of the incompatible sets.
 
 Toggling the visibility of ROIs
-++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++
 .. csv-table::
     :file: roi_buddy/control_panel_view_rois.csv
     :widths: 1, 4

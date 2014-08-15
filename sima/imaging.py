@@ -528,7 +528,7 @@ class ImagingDataset(object):
         ------
         dict of arrays
             Keys: raw, demixed_raw, mean_frame, overlap, signal_channel, rois,
-                  timestamp
+            timestamp
 
         See also
         --------
