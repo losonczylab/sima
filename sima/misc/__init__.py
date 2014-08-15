@@ -62,6 +62,7 @@ def copy_label_to_id(rois):
     for roi in rois:
         roi.id = roi.label
 
+
 def pairwise(iterable):
     a, b = it.tee(iterable)
     next(b, None)
@@ -69,10 +70,18 @@ def pairwise(iterable):
 
 
 def example_tiff():
-    return os.path.join(os.path.dirname(__file__),"../tests/data/example.tif")
+    return os.path.join(os.path.dirname(__file__), "../tests/data/example.tif")
+
 
 def example_data():
-    return os.path.join(os.path.dirname(__file__),"../tests/data/example.sima")
+    return os.path.join(
+        os.path.dirname(__file__), "../tests/data/example.sima")
+
 
 def example_imagej_rois():
-    return os.path.join(os.path.dirname(__file__),"../tests/data/imageJ_ROIs.zip")
+    return os.path.join(
+        os.path.dirname(__file__), "../tests/data/imageJ_ROIs.zip")
+
+
+def example_hdf5():
+    return os.path.join(os.path.dirname(__file__), "../tests/data/example.h5")

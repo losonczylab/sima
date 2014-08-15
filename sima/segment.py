@@ -141,7 +141,8 @@ def _rois_from_cuts(cuts, method, *args, **kwargs):
 
 
 def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
-                     variant=None, num_pcs=75, processed_image=None):
+                     variant=None, num_pcs=75, processed_image=None,
+                     verbose=False):
     """Return a sparse affinity matrix for use with normalized cuts.
 
     .. math::
@@ -198,7 +199,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
                         (y + dy < shape[0]):
                     pairs.append(np.reshape([y, x, y + dy, x + dx], (1, 4)))
     correlations = _offset_corrs(dataset, np.concatenate(pairs, 0), channel,
-                                 num_pcs=num_pcs)
+                                 num_pcs=num_pcs, verbose=verbose)
     for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
         for dx in range(max_dist[1] + 1):
             if dx == 0:
@@ -239,7 +240,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
 
 
 def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
-                  num_pcs=75):
+                  num_pcs=75, verbose=False):
     """
     Calculate the offset correlation for specified pixel pairs.
 
@@ -271,7 +272,8 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
                 dataset.savedir, 'opca_' + str(channel) + '.npz')
         else:
             path = None
-        oPC_vars, oPCs, _ = _OPCA(dataset, channel, num_pcs, path)
+        oPC_vars, oPCs, _ = _OPCA(dataset, channel, num_pcs, path,
+                                  verbose=verbose)
         weights = np.sqrt(np.maximum(0, oPC_vars))
         D = _direction(oPCs, weights)
         return {
@@ -345,7 +347,7 @@ def _processed_image_ca1pc(dataset, channel_idx=-1, x_diameter=10,
                          x_diameter, y_diameter)
 
 
-def _OPCA(dataset, ch=0, num_pcs=75, path=None):
+def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):
     """Perform offset principal component analysis on the dataset.
 
     Parameters
@@ -389,7 +391,7 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None):
         return ret
     shape = (dataset.num_rows, dataset.num_columns)
     oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(
-        dataset_iterable(dataset, ch), num_pcs=num_pcs)
+        dataset_iterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
     oPCs = oPCs.reshape(shape + (-1,))
     if path is not None:
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
@@ -481,7 +483,8 @@ def ca1pc(
         dataset, channel=0, num_pcs=75, max_dist=None,
         spatial_decay=None, cut_max_pen=0.01, cut_min_size=40,
         cut_max_size=200, x_diameter=10, y_diameter=10,
-        circularity_threhold=.5, min_roi_size=20, min_cut_size=30):
+        circularity_threhold=.5, min_roi_size=20, min_cut_size=30,
+        verbose=False):
     """Segmentation method designed for finding CA1 pyramidal cell somata.
 
     Parameters
@@ -543,7 +546,7 @@ def ca1pc(
     cuts = _normcut(
         dataset, channel, num_pcs, None, max_dist, spatial_decay,
         cut_max_pen, cut_min_size, cut_max_size, 'ca1pc',
-        processed_image=processed_image)
+        processed_image=processed_image, verbose=verbose)
     return _rois_from_cuts(cuts, 'ca1pc', dataset, circularity_threhold,
                            min_roi_size, min_cut_size, channel, x_diameter,
                            y_diameter)
