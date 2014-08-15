@@ -308,8 +308,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #Propagate tags
         self.propagate_tags_button.clicked.connect(self.propagate_tags)
 
+        #Import transformed ROIs
+        self.import_rois_button.clicked.connect(self.import_rois)
+
     def closeEvent(self, event):
-        
+
         reply = QMessageBox.question(
             self, 'Message', "Do you want to save all ROIs?",
             QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
@@ -432,6 +435,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.show_all_checkbox.setEnabled(False)
             self.register_rois_button.setEnabled(False)
             self.propagate_tags_button.setEnabled(True)
+            self.import_rois_button.setEnabled(True)
 
     def remove_rois(self, roi_list):
         self.freeform_tool.shape = None
@@ -493,6 +497,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.show_all_checkbox.setEnabled(True)
             self.register_rois_button.setEnabled(True)
             self.propagate_tags_button.setEnabled(True)
+            self.import_rois_button.setEnabled(False)
 
             self.mode = 'align'
             self.toggle_roi_editing_state(False)
@@ -520,6 +525,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.show_all_checkbox.setEnabled(False)
             self.register_rois_button.setEnabled(False)
             self.propagate_tags_button.setEnabled(False)
+            self.import_rois_button.setEnabled(True)
 
             self.mode = 'edit'
             self.toggle_roi_editing_state(True)
@@ -1349,6 +1355,15 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 if roi.id is not None:
                     roi.tags.add(tags_dict[roi.id])
 
+    def import_rois(self):
+
+        active_tSeries = self.tSeries_list.currentItem()
+
+        # source_dataset, source_channel, target_channel, source_label, \
+        #     target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
+
+        t = ImportROIsWidget.getParams(self)
+        print t
     def next_id(self):
         """Return the next valid unused id across all tSeries"""
 
@@ -1575,7 +1590,7 @@ class UI_tSeries(QListWidgetItem):
         If no items in keep_list, returns the same list, otherwise returns the
         list with old items replaced by their new roi.
         """
-        
+
         if keep_list is None:
             keep_list = []
 
@@ -1805,6 +1820,43 @@ class lockROIsWidget(QDialog):
 
     def cancel(self):
         self.reject()
+
+
+class ImportROIsWidget(QDialog):
+    def __init__(self, parent=None):
+        super(ImportROIsWidget, self).__init__(parent)
+
+        self.parent = parent
+
+        self.layout = QVBoxLayout()
+
+        self.source_dataset = QComboBox(parent=self)
+        debug_trace()
+        active_dataset = self.parent.tSeries_list.currentItem()
+        source_datasets = [self.parent.tSeries_list.item(i) for i in
+                           range(self.parent.tSeries_list.count())]
+        source_datasets.remove(active_dataset)
+
+        self.source_dataset.addItems([QString(x.dataset.savedir) for x in
+                                      source_datasets])
+
+        self.layout.addWidget(self.source_dataset)
+
+        self.accept_button = QPushButton("Accept", self)
+        self.cancel_button = QPushButton("Cancel", self)
+        self.accept_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
+
+        self.layout.addWidget(self.accept_button)
+        self.layout.addWidget(self.cancel_button)
+
+        self.setLayout(self.layout)
+
+    @staticmethod
+    def getParams(parent=None):
+        dialog = ImportROIsWidget(parent)
+        result = dialog.exec_()
+        return result == QDialog.Accepted
 
 
 def next_int(sequence):

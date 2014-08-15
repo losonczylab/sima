@@ -32,7 +32,6 @@ installed prior to using SIMA:
 * scikit-image (http://scikit-image.org)
 * matplotlib (http://matplotlib.org)
 * shapely (https://pypi.python.org/pypi/Shapely)
-* mdp (http://mdp-toolkit.sourceforge.net)
 
 Depending on the data formats you wish to use, you may also need to install the
 following packages:
@@ -42,6 +41,7 @@ following packages:
 * h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
 * pylibtiff (https://code.google.com/p/pylibtiff/), required for more efficient
   handling of large TIFF files
+* mdp (http://mdp-toolkit.sourceforge.net), required for ICA demixing of channels
 
 If you build the package from source, you may also need:
 
