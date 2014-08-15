@@ -7,11 +7,17 @@ Reference
     IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,
     VOL. 22, NO. 8, AUGUST 2000.
 """
+from warnings import warn
+
 import numpy as np
 from scipy.sparse.linalg import eigsh
 from scipy.sparse import diags
-import cv2
 from scipy import ndimage
+
+try:
+    import cv2
+except ImportError:
+    warn('OpenCV2 is not installed. Some functionality will not work.')
 
 
 def normcut_vectors(affinity_matrix, k):

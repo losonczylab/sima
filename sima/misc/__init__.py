@@ -1,9 +1,14 @@
 import os
 import itertools as it
 import errno
-import cv2
+from warnings import warn
 
 from numpy import nanmax
+
+try:
+    import cv2
+except ImportError:
+    warn('OpenCV2 is not installed. Some functionality will not work.')
 
 
 def lazyprop(fn):
