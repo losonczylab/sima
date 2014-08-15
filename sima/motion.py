@@ -24,6 +24,9 @@ from scipy.cluster.vq import kmeans2
 from scipy.stats import nanstd
 from scipy.stats.mstats import mquantiles
 from scipy.ndimage.filters import gaussian_filter
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from sima.misc.tifffile import TiffFileWriter
 
 try:
     import sima._motion as mc
@@ -1018,7 +1021,7 @@ class _MCCycle(_ImagingCycle):
         displacements = _backtrace(np.argmax(log_p_old), backpointer, states,
                                    position_tbl)
         assert displacements.dtype == int
-        return displacements
+        return displacements.reshape(self.num_frames, self.num_rows, 2)
 
 
 def hmm(iterables, savedir, channel_names=None, metadata=None,
@@ -1103,3 +1106,206 @@ def hmm(iterables, savedir, channel_names=None, metadata=None,
                           displacements=displacements,
                           trim_criterion=trim_criterion,
                           invalid_frames=invalid_frames)
+
+""" FROM IMAGING.PY """
+class ImagingDataset():
+    @lazyprop
+    def _untrimmed_frame_size(self):
+        """Calculate the size of motion corrected frames before trimming.
+
+        The size of these frames is given by the size of the uncorrected
+        frames plus the extent of the displacements.
+
+        """
+        return [
+            x + y for x, y in zip((self._raw_num_rows, self._raw_num_columns),
+                                  self._max_displacement)
+        ]
+
+    @lazyprop
+    def _trim_coords(self):
+        """The coordinates used to trim the corrected imaging data."""
+        if self.trim_criterion is None:
+            trim_coords = [
+                list(self._max_displacement),
+                [self._raw_num_rows, self._raw_num_columns]
+            ]
+        elif isinstance(self.trim_criterion, (float, int)):
+            obs_counts = _observation_counts(
+                it.chain(*self._displacements),
+                (self._raw_num_rows, self._raw_num_columns),
+                self._untrimmed_frame_size
+            )
+            num_frames = sum(len(x) for x in self._displacements
+                             ) / self._raw_num_rows
+            occupancy = obs_counts.astype(float) / num_frames
+            row_occupancy = \
+                occupancy.sum(axis=1) / self._raw_num_columns \
+                > self.trim_criterion
+            row_min = np.nonzero(row_occupancy)[0].min()
+            row_max = np.nonzero(row_occupancy)[0].max()
+            col_occupancy = occupancy.sum(axis=0) / self._raw_num_rows \
+                > self.trim_criterion
+            col_min = np.nonzero(col_occupancy)[0].min()
+            col_max = np.nonzero(col_occupancy)[0].max()
+            trim_coords = [[row_min, col_min], [row_max, col_max]]
+        else:
+            raise TypeError('Invalid type for trim_criterion')
+        return trim_coords
+
+class _CorrectedCycle(_ImagingCycle):
+
+    """A multiple cycle imaging dataset that has been motion corrected.
+
+    Parameters
+    ----------
+    iterables : list of iterable
+    untrimmed_frame_size : tuple
+        The shape of the aligned images before under-observed pixels
+        are trimmed.
+    trim_coords : list of list of int
+        The top left and bottom right coordinates for trimming
+        the returned frames. If set to None, no trimming occurs.
+
+    """
+
+    def __init__(self, iterables, displacements, untrimmed_frame_size,
+                 trim_coords):
+        self._raw_num_rows, self._raw_num_columns = next(
+            iter(iterables[0])).shape
+        self._displacements = displacements
+        self._untrimmed_frame_size = untrimmed_frame_size
+        self._trim_coords = trim_coords
+        super(_CorrectedCycle, self).__init__(iterables)
+
+    def observation_counts(self):
+        """Return an array with the number of observations of each location."""
+        return _observation_counts(
+            self._displacements, (self._raw_num_rows, self._raw_num_columns),
+            self._untrimmed_frame_size)
+
+    def __iter__(self):
+        """Align the imaging data using calculated displacements.
+
+        Yields
+        ------
+        list of arrays
+            The corrected images for each channel are yielded on frame at a
+            time.
+        """
+        for frame_idx, frame in enumerate(
+                super(_CorrectedCycle, self).__iter__()):
+            out = []
+            for channel in frame:
+                tmp = channel.astype(float)
+                im = _align_frame(tmp, self._displacements[
+                    (frame_idx * channel.shape[0]):
+                    ((frame_idx + 1) * channel.shape[0])],
+                    self._untrimmed_frame_size)
+                if self._trim_coords is not None:
+                    im = im[self._trim_coords[0][0]:self._trim_coords[1][0],
+                            self._trim_coords[0][1]:self._trim_coords[1][1]]
+                out.append(im)
+            yield out
+
+    def _export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
+                       scale_values=False, channel_names=None):
+        """Save a multi-page TIFF files of the motion corrected time series.
+
+        One TIFF file is created for each channel.
+        The TIFF files have the same name as the uncorrected files, but should
+        be saved in a different directory.
+
+        Parameters
+        ----------
+        filenames : list of str
+            The filenames used for saving each channel.
+        fill_gaps : bool, optional
+            Whether to fill in unobserved pixels with data from nearby frames.
+        """
+        if fill_gaps:
+            if 'TIFF' in fmt:
+                output_files = [TiffFileWriter(fn) for fn in filenames]
+            elif fmt == 'HDF5':
+                if not h5py_available:
+                    raise ImportError('h5py required')
+                f = h5py.File(filenames, 'w')
+                output_array = np.empty((self.num_frames, 1,
+                                         self.num_rows,
+                                         self.num_columns,
+                                         self.num_channels), dtype='uint16')
+            else:
+                raise('Not Implemented')
+
+            save_frames = _fill_gaps(iter(self), iter(self))
+            for f_idx, frame in enumerate(save_frames):
+                for ch_idx, channel in enumerate(frame):
+                    if fmt == 'TIFF16':
+                        f = output_files[ch_idx]
+                        if scale_values:
+                            f.write_page(sima.misc.to16bit(channel))
+                        else:
+                            f.write_page(channel.astype('uint16'))
+                    elif fmt == 'TIFF8':
+                        f = output_files[ch_idx]
+                        if scale_values:
+                            f.write_page(sima.misc.to8bit(channel))
+                        else:
+                            f.write_page(channel.astype('uint8'))
+                    elif fmt == 'HDF5':
+                        output_array[f_idx, 0, :, :, ch_idx] = channel
+                    else:
+                        raise ValueError('Unrecognized output format.')
+
+            if 'TIFF' in fmt:
+                for f in output_files:
+                    f.close()
+            elif fmt == 'HDF5':
+                f.create_dataset(name='imaging', data=output_array)
+                for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
+                    f['imaging'].dims[idx].label = label
+                if channel_names is not None:
+                    f['imaging'].attrs['channel_names'] = np.array(
+                        channel_names)
+                f.close()
+        else:
+            super(_CorrectedCycle, self)._export_frames(
+                filenames, fmt=fmt, scale_values=scale_values)
+
+
+def _observation_counts(displacements, im_size, output_size):
+    """Count the number of times that each location was observed."""
+    count = np.zeros(output_size, dtype=np.int)
+    for row_idx, disp in enumerate(displacements):
+        i = row_idx % im_size[0]
+        count[i + disp[0], disp[1]:(disp[1] + im_size[1])] += 1
+    return count
+
+
+def _fill_gaps(frame_iter1, frame_iter2):
+    """Fill missing rows in the corrected images with data from nearby times.
+
+    Parameters
+    ----------
+    frame_iter1 : iterator of list of array
+        The corrected frames (one list entry per channel).
+    frame_iter2 : iterator of list of array
+        The corrected frames (one list entry per channel).
+
+    Yields
+    ------
+    list of array
+        The corrected and filled frames.
+    """
+    first_obs = next(frame_iter1)
+    for frame in frame_iter1:
+        for frame_chan, fobs_chan in zip(frame, first_obs):
+            fobs_chan[np.isnan(fobs_chan)] = frame_chan[np.isnan(fobs_chan)]
+        if all(np.all(np.isfinite(chan)) for chan in first_obs):
+            break
+    most_recent = [x * np.nan for x in first_obs]
+    for frame in frame_iter2:
+        for fr_chan, mr_chan in zip(frame, most_recent):
+            mr_chan[np.isfinite(fr_chan)] = fr_chan[np.isfinite(fr_chan)]
+        yield [np.nan_to_num(mr_ch) + np.isnan(mr_ch) * fo_ch
+               for mr_ch, fo_ch in zip(most_recent, first_obs)]
