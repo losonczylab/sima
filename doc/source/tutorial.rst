@@ -168,9 +168,9 @@ ROIS can also be imported from ImageJ, as shown in the following example.
 
     >>> import sima.misc
     >>> from sima.ROI import ROIList
-    >>> roi_path = sima.misc.example_ROIs()
+    >>> roi_path = sima.misc.example_imagej_rois()
     >>> dataset = sima.ImagingDataset.load('example_mc.sima')
-    >>> rois = ROIList.load(example_ROIs(), fmt='ImageJ')
+    >>> rois = ROIList.load(example_imagej_rois(), fmt='ImageJ')
     >>> dataset.add_ROIs(rois, 'from_ImageJ')
     >>> dataset.ROIs.keys()
     ['auto_ROIs', 'manually_edited_ROIS', 'from_ImageJ']

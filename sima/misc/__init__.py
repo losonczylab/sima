@@ -68,11 +68,11 @@ def pairwise(iterable):
     return it.izip(a, b)
 
 
-def example_images():
+def example_tiff():
     return os.path.join(os.path.dirname(__file__),"../tests/data/example.tif")
 
 def example_data():
     return os.path.join(os.path.dirname(__file__),"../tests/data/example.sima")
 
-def example_ROIs():
+def example_imagej_rois():
     return os.path.join(os.path.dirname(__file__),"../tests/data/imageJ_ROIs.zip")

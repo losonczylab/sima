@@ -11,7 +11,7 @@ from numpy.testing import (assert_, assert_equal, assert_almost_equal,
 from sima import motion
 from sima import misc
 from sima.iterables import MultiPageTIFF
-from sima.misc import example_images
+from sima.misc import example_tiff
 
 import warnings
 import cPickle as pickle
@@ -139,7 +139,7 @@ def test_backtrace():
 def test_hmm():
     global tmp_dir
 
-    frames = MultiPageTIFF(misc.example_images())
+    frames = MultiPageTIFF(misc.example_tiff())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore",category=DeprecationWarning)
         corrected = motion.hmm([[frames]],os.path.join(tmp_dir,'test_hmm.sima'),
@@ -157,7 +157,7 @@ class Test_MCImagingDataset(object):
     # class. Test classes can have their own setup/teardown methods
 
     def setup(self):
-        for frame in MultiPageTIFF(example_images()):
+        for frame in MultiPageTIFF(example_tiff()):
             break
         self.frame_shifts = np.array([[0,-5],[0,-10]])
         self.correlations = np.array([1,0.5])
@@ -209,7 +209,7 @@ class Test_MCImagingDataset(object):
 
     def test_estimate_gains(self):
         # This test needs to be finished
-        for frame in MultiPageTIFF(example_images()):
+        for frame in MultiPageTIFF(example_tiff()):
             break
 
 

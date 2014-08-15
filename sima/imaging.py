@@ -361,10 +361,10 @@ class ImagingDataset(object):
         with NIH ImageJ.
 
         >>> from sima.ROI import ROIList
-        >>> from sima.misc import example_ROIs,example_data
+        >>> from sima.misc import example_imagej_rois,example_data
         >>> from sima.imaging import ImagingDataset
         >>> dataset = ImagingDataset.load(example_data())
-        >>> rois = ROIList.load(example_ROIs(), fmt='ImageJ')
+        >>> rois = ROIList.load(example_imagej_rois(), fmt='ImageJ')
         >>> dataset.add_ROIs(rois, 'from_ImageJ')
 
         """
