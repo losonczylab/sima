@@ -14,56 +14,86 @@ In addition it can be used for registering ROIs from different imaging
 sessions of the same field-of-view, allowing for the longitudinal tracking of
 cells in serial imaging experiments.
 
+.. figure:: roi_buddy/overview.jpg
+   :align:  center
+
+Typical Workflow
+----------------
+* Load multiple SImA imaging datasets corresponding to different recordings of the same field of view
+* For each dataset, select the channel you wish to segment and align
+* For each dataset, create or load pre-drawn ROIs.  Edit the ROIs as necessary in Edit Mode.
+* Tag cells in one dataset based on some criteria, e.g. morphology
+* Enter Align mode, bringing all the ROIs into alignment
+* Choose "Register ROIs" to assign a common ``id`` property to overlapping ROIs
+* Use the merge and unmerge tools to manually fix any incorrect groupings
+* Choose "Propagate Tags" to assign the morphology tags to the appropriate ROIs in all datasets
 
 Installation
 ============
 
 The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is 
-available for download `here
-<http://losonczylab.org/ROI_Buddy.zip>`_.
+available for **download** `here
+<http://losonczylab.org/ROI_Buddy.zip>`_.  Launch the application directly by opening
+the .exe file.
 
-Alternatively, the ROI Buddy GUI can be built from source.  Source code for
-the ROI Buddy GUI is available for download `here
-<http://losonczylab.org/ROI_Buddy_Source.zip>`_.
-Dependencies for the GUI are identical to those for the SIMA module.
+Alternatively, the ROI Buddy GUI can be built from source.  Source code is
+available for **download** `here
+<http://losonczylab.org/ROI_Buddy_Source.zip>`_. Dependencies for the GUI are
+identical to those for the SIMA module.
 
-Note that the ROI Buddy .exe file is compiled with the tifffile module rather
-than the libtiff C library.  If the ROI Buddy GUI is to be used with large
-TIFF files containing many frames, we recommend running the ROI Buddy from
-source after installing the libtiff C library and its associated Python
-bindings, as it enables more efficient memory handling.
+.. note::
+    The ROI Buddy Windows .exe file compiled with the tifffile module rather
+    than the libtiff C library.  If the ROI Buddy GUI is to be used with large
+    TIFF files containing many frames, we recommend running the ROI Buddy from
+    source after installing the libtiff C library and its associated Python
+    bindings, as it enables more efficient memory handling.  Alternatively, 
+    initializing SIMA iterables with HDF5 datasets enables rapid data access.
 
 
-Basic Usage
-===========
+User Interface
+==============
+File Menu
+---------
+.. csv-table::
+    :file: roi_buddy/File_Menu.csv
+    :header: "File Menu Option", "Action"
+    :widths: 1, 4
 
-In order to add a sima.ImagingDataset object, select Add T-Series.  Choose the
-.sima directory for which ROIs are to be drawn.  Alternatively choose auto-add
-t-series to recursively load all .sima directories containing an arbitrary
-text string below the selected directory.  If alignment functionality is
-to be used, all loaded t-series should be of the same field of view.
+Control Panel
+-------------
+.. figure:: roi_buddy/main_panel.jpg
+   :align:  center
 
-For each t-series loaded, the ROI_List objects associated with each set are
-listed in the ROI List dropdown menu.  Choose the ROI List you wish to edit.
-New ROI List objects can be created, and ROI Lists can be removed from an 
-ImagingDataset object here as well.
+Toggling Modes
+++++++++++++++
+.. csv-table::
+    :file: roi_buddy/control_panel_modes.csv
+    :widths: 1, 4
 
-In 'edit' mode, ROIs can be created, edited, and deleted for each t-series
-separately.
-Additionally tags can be defined for the ROIs for use in sorting them in
-subsequent analyses.
-After ROIs have been created for each t-series loaded, ROIs can 
-be registered across imaging sessions of the same field by entering 'align'
-mode.  In 'align' mode, the ROIs from all imaging sessions are overlaid on the
-same field of view.  Select Register ROIs to automatically calculate the
-overlap between ROIs and assign common ID attributes to co-clustered ROIs.
-Incorrect groupings can be corrected by using the merge and unmerge features.
-The propagate tags feature allows the user to propagate tags across all
-co-clustered ROIs.
+Initializing SImA imaging dataset and ROI List objects
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+.. csv-table::
+    :file: roi_buddy/control_panel_initialize_sets.csv
+    :widths: 1, 4
 
-Following registration of ROI objects, choose 'save all' in order to save the
-ROI Lists associated with each t-series loaded.  ROIs are saved in the
-rois.pkl file within the appropriate .sima directory.
+Registering ROI objects across different imaging sessions of the same field of view
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+.. csv-table::
+    :file: roi_buddy/control_panel_registration.csv
+    :widths: 1, 4
+
+Toggling the visiblity of ROIs
+++++++++++++++++++++++++++++++
+.. csv-table::
+    :file: roi_buddy/control_panel_view_rois.csv
+    :widths: 1, 4
+
+.. warning::
+    In align mode, it is necessary that all imaging datasets loaded must be
+    roughly of the same field of view.  Alignment is based upon an affine
+    transformation with 6 degrees of freedom.  If a transform between
+    images cannot be calculated, an error message will be displayed printing
+    the directories of the incompatible sets.
 
 
 Keyboard shortcuts

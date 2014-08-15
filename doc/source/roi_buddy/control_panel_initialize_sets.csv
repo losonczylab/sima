@@ -1,0 +1,3 @@
+Remove / Add,Add or remove SImA datasets from the dataset list.
+ROI Set,"A dropdown allowing for selection of the ROI List currently being modified.  Only this ROI List is modified.  These ROI Lists correspond to the keys of imagingDataset.ROIs().  By default, the most recently modified ROI List is displayed upon initialization."
+New / Delete Set,Create or delete ROI Lists for the active SImA imaging dataset.  These lists are stored in the associated imagingDatset.ROIs dictionary.

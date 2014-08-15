@@ -1,0 +1,2 @@
+Edit Mode,"Toggling to edit mode allows for editing, creation, and deletion of ROIs.  In addition, this is the mode in which ROI tagging and labeling takes place."
+Align Mode,"Toggling to align mode allows for the transformation of ROI Lists from separate imaging sessions into a common space, allowing for simultaneous visualization of independently drawn sets.  In this view, ROI objects can be deleted (as in the case of singleton ROIs that were perhaps a false positive), and ROIs can be registered across days."
