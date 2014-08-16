@@ -25,7 +25,7 @@ in printing the docstring containing view basic information about the package.
     Copyright (C) 2014 The Trustees of Columbia University in the City of New York.
     Licensed under the GNU GPL version 2 or later.
     Documentation: http://www.losonczylab.org/sima
-    Version 0.1.2-alpha
+    Version 0.2.0
 
 In all future examples, we assume that the SIMA package has been
 imported as shown above.
@@ -160,6 +160,9 @@ for estimating the displacements, which are then applied to both channels.
 
 Segmentation and ROIs
 ---------------------
+
+Automated segmentation
+......................
 An :class:`ImagingDataset` object can be automatically segmented with a call to
 its :func:`segment` method.  The arguments of the :func:`segment` method
 specify the segmentation approach to be used, an optional label for the
@@ -170,30 +173,72 @@ cells.
 
     >>> dataset = sima.ImagingDataset.load('example.sima')
     >>> rois = dataset.segment('ca1pc', 'auto_ROIs', num_pcs=5)
-
-In addition to being returned by the :func:`segment` method, the resulting ROIs
-are also permanently stored as part of the :class:`ImagingDataset` object. They
-can be recovered at any time using the label specified at the time of
-specification.
-
-    >>> dataset = sima.ImagingDataset.load('example.sima')
-    >>> dataset.ROIs.keys()  # view the labels of the available ROI sets
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
     ['auto_ROIs']
-    >>> rois = dataset.ROIs['auto_ROIs']
 
+
+Editing, creating, and registering ROIs with ROI Buddy
+......................................................
+Note that the an :class:`ImagingDataset` object can be loaded with the `ROI
+Buddy <roi_buddy.html>`_ graphical user interface (GUI) for manual editing of
+existing the ROI lists, creation of new ROI lists, or registration of ROI lists
+across multiple experiments in which the same field of view is imaged.  For
+more details, consult the `ROI Buddy documentation <roi_buddy>`_.
+
+
+Importing ROIs from ImageJ
+..........................
 ROIS can also be imported from ImageJ, as shown in the following example.
 
     >>> from sima.ROI import ROIList
     >>> dataset = sima.ImagingDataset.load('example.sima')
     >>> rois = ROIList.load('imageJ_ROIs.zip', fmt='ImageJ')
     >>> dataset.add_ROIs(rois, 'from_ImageJ')
-    >>> dataset.ROIs.keys()
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
     ['from_ImageJ', 'auto_ROIs']
 
-Note that the an :class:`ImagingDataset` object can be loaded with the `ROI
-Buddy <roi_buddy.html>`_ graphical user interface (GUI) for manual editing of
-existing the ROI sets, creation of new ROI sets, or registration of ROI sets
-across multiple experiments in which the same field of view is imaged.
+Mapping ROIs between datasets
+.............................
+Sometimes, for example when imaging the same field of view over multiple days,
+one wishes to segment the same structures in separate :class:`ImagingDataset`
+objects.  If all of the :class:`ImagingDataset` objects have been segmented,
+then the results of the segmentations can be registered with the `ROI Buddy GUI
+<roi_buddy>`_ as mentioned previously. If, however, only one of the datasets
+has been segmented, the results of the segmentation can be applied to the other
+datasets by applying to each ROI the affine transformation necessary to map one
+imaged field of view onto the other.  This can be done either with the `ROI
+Buddy GUI <roi_buddy>`_ or with a call to the :func:`import_transformed_ROIs`
+method, whose arguments allow for specification of the channels used to align
+the two datasets, the label of the :`obj`:ROIList to be transformed from one
+dataset to the other, the label that will be applied to the new :obj:`ROIList`,
+and whether to copy the properties of the ROIs as well as their shapes.
+
+    >>> source_dataset = sima.ImagingDataset.load('example.sima')
+    >>> target_dataset = sima.ImagingDataset.load('example_mc2.sima')
+    >>> target_dataset.ROIs.keys()
+    []
+    >>> target_dataset.import_transformed_ROIs(
+    ...     source_dataset, source_channel='green', target_channel='GCaMP',
+    ...     source_label='from_ImageJ', target_label='transformed',
+    ...     copy_properties='True')
+    >>> target_dataset.ROIs.keys()
+    ['transformed']
+
+This approach allows the user to focus on careful manual curation of the
+segmentation for a single :class:`ImagingDataset`, with the results of this
+segmentation then applied to all datasets acquired at the same field of view.
+
+Accessing stored ROIs
+.....................
+Whenever ROIs are created or imported, they are permanently stored as part of
+the :class:`ImagingDataset` object.  The ROIs can be recovered at any time
+using the label specified at the time when the ROIs were created.
+
+    >>> dataset = sima.ImagingDataset.load('example.sima')
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
+    ['from_ImageJ', 'auto_ROIs']
+    >>> rois = dataset.ROIs['auto_ROIs']
+
 
 Extraction
 ----------
