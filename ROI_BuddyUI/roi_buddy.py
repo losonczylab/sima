@@ -1363,21 +1363,28 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         source_dataset, source_channel, target_channel, source_label, \
             target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
 
-        if ok:
-            # active_tSeries.dataset.import_transformed_ROIs(
-            #     source_dataset=source_dataset.dataset,
-            #     source_channel=source_channel,
-            #     target_channel=target_channel,
-            #     source_label=source_label,
-            #     target_label=target_label,
-            #     copy_properties=copy_properties)
+        if not ok:
+            return
 
-            print source_dataset
-            print source_channel
-            print target_channel
-            print source_label
-            print target_label
-            print copy_properties
+        # active_tSeries.dataset.import_transformed_ROIs(
+        #     source_dataset=source_dataset.dataset,
+        #     source_channel=source_channel,
+        #     target_channel=target_channel,
+        #     source_label=source_label,
+        #     target_label=target_label,
+        #     copy_properties=copy_properties)
+
+        
+
+
+
+
+        print source_dataset
+        print source_channel
+        print target_channel
+        print source_label
+        print target_label
+        print copy_properties
 
     def next_id(self):
         """Return the next valid unused id across all tSeries"""
@@ -1875,11 +1882,11 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.source_dataset = self.source_datasets[
             self.sourceDataset.currentIndex()]
 
-        source_channels = source_dataset.dataset.channel_names
+        source_channels = self.source_dataset.dataset.channel_names
         self.sourceChannel.clear()
         self.sourceChannel.addItems([QString(x) for x in source_channels])
 
-        source_labels = source_dataset.dataset.ROIs.keys()
+        source_labels = self.source_dataset.dataset.ROIs.keys()
         self.sourceLabels.clear()
         self.sourceLabel.addItems([QString(x) for x in source_labels])
 
