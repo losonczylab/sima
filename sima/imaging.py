@@ -11,6 +11,7 @@ from h5py import File
 
 import numpy as np
 
+import sima
 import sima.segment as segment
 import sima.misc
 from sima.misc import lazyprop, mkdir_p, most_recent_key, affine_transform
@@ -326,7 +327,8 @@ class ImagingDataset(object):
             'iterables': iterables,
             'channel_names': self.channel_names,
             'trim_criterion': self.trim_criterion,
-            'num_frames': self.num_frames
+            'num_frames': self.num_frames,
+            '__version__' : sima.__version__
         }
         if hasattr(self, '_lazy__trim_coords'):
             d['_lazy__trim_coords'] = self._trim_coords

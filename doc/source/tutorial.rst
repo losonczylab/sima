@@ -183,7 +183,7 @@ Note that the an :class:`ImagingDataset` object can be loaded with the `ROI
 Buddy <roi_buddy.html>`_ graphical user interface (GUI) for manual editing of
 existing the ROI lists, creation of new ROI lists, or registration of ROI lists
 across multiple experiments in which the same field of view is imaged.  For
-more details, consult the `ROI Buddy documentation <roi_buddy>`_.
+more details, consult the `ROI Buddy documentation <roi_buddy.html>`_.
 
 
 Importing ROIs from ImageJ
@@ -203,15 +203,16 @@ Sometimes, for example when imaging the same field of view over multiple days,
 one wishes to segment the same structures in separate :class:`ImagingDataset`
 objects.  If all of the :class:`ImagingDataset` objects have been segmented,
 then the results of the segmentations can be registered with the `ROI Buddy GUI
-<roi_buddy>`_ as mentioned previously. If, however, only one of the datasets
-has been segmented, the results of the segmentation can be applied to the other
-datasets by applying to each ROI the affine transformation necessary to map one
-imaged field of view onto the other.  This can be done either with the `ROI
-Buddy GUI <roi_buddy>`_ or with a call to the :func:`import_transformed_ROIs`
-method, whose arguments allow for specification of the channels used to align
-the two datasets, the label of the :`obj`:ROIList to be transformed from one
-dataset to the other, the label that will be applied to the new :obj:`ROIList`,
-and whether to copy the properties of the ROIs as well as their shapes.
+<roi_buddy.html>`_ as mentioned previously. If, however, only one of the
+datasets has been segmented, the results of the segmentation can be applied to
+the other datasets by applying to each ROI the affine transformation necessary
+to map one imaged field of view onto the other.  This can be done either with
+the `ROI Buddy GUI <roi_buddy.html>`_ or with a call to the
+:func:`import_transformed_ROIs` method, whose arguments allow for specification
+of the channels used to align the two datasets, the label of the :`obj`:ROIList
+to be transformed from one dataset to the other, the label that will be applied
+to the new :obj:`ROIList`, and whether to copy the properties of the ROIs as
+well as their shapes.
 
     >>> source_dataset = sima.ImagingDataset.load('example.sima')
     >>> target_dataset = sima.ImagingDataset.load('example_mc2.sima')
