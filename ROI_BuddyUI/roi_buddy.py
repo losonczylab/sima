@@ -1359,12 +1359,21 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
     def import_rois(self):
 
         active_tSeries = self.tSeries_list.currentItem()
+        active_tSeries.update_rois()
+        if active_tSeries.active_rois is not None:
+            save = QMessageBox.question(
+                self, 'Save Changes', 'Save changes to the current rois?',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+
+            if save == QMessageBox.Yes:
+                self.save([self.tSeries_list.currentItem()])
 
         source_dataset, source_channel, target_channel, source_label, \
             target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
 
         if not ok:
             return
+        debug_trace()
 
         # active_tSeries.dataset.import_transformed_ROIs(
         #     source_dataset=source_dataset.dataset,
@@ -1374,7 +1383,24 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #     target_label=target_label,
         #     copy_properties=copy_properties)
 
-        
+        #EDIT BELOW
+        self.remove_rois(active_tSeries.roi_list)
+        active_tSeries.roi_sets.append(str(roi_set_name))
+        active_tSeries.active_rois = str(roi_set_name)
+        self.initialize_roi_set_list(active_tSeries)
+        active_tSeries.initialize_rois()
+        self.hide_rois(show_in_list=False)
+        self.freeform_tool.action.setEnabled(True)
+        self.plot.replot()
+
+
+
+
+
+
+
+
+        active_tSeries.update_rois()
 
 
 
@@ -1887,7 +1913,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.sourceChannel.addItems([QString(x) for x in source_channels])
 
         source_labels = self.source_dataset.dataset.ROIs.keys()
-        self.sourceLabels.clear()
+        self.sourceLabel.clear()
         self.sourceLabel.addItems([QString(x) for x in source_labels])
 
     @staticmethod
