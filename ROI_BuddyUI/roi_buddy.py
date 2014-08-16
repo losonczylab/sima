@@ -1874,6 +1874,9 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.source_datasets = [self.parent.tSeries_list.item(i) for i in
                                 range(self.parent.tSeries_list.count())]
         self.source_datasets.remove(active_dataset)
+        if not len(self.source_datasets):
+            return
+
         self.sourceDataset.addItems([QString(x.dataset.savedir) for x in
                                      self.source_datasets])
 
@@ -1886,6 +1889,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.acceptButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
         self.sourceDataset.setCurrentIndex(0)
+        self.initialize_source_options()
 
     def initialize_source_options(self):
         self.source_dataset = self.source_datasets[
