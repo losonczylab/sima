@@ -33,8 +33,8 @@ installed prior to using SIMA:
 * matplotlib (http://matplotlib.org)
 * shapely (https://pypi.python.org/pypi/Shapely)
 
-Depending on the data formats you wish to use, you may also need to install the
-following packages:
+Depending on the features and data formats you wish to use, you may also need
+to install the following packages:
 
 * OpenCV 2.4 (http://opencv.org), required for segmentation, registration of
   ROIs across multiple datasets, and the ROI Buddy GUI
