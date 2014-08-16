@@ -1369,48 +1369,32 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 self.save([self.tSeries_list.currentItem()])
 
         source_dataset, source_channel, target_channel, source_label, \
-            target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
+            target_label, copy_properties, ok = \
+            ImportROIsWidget.getParams(self)
 
         if not ok:
             return
         debug_trace()
 
-        # active_tSeries.dataset.import_transformed_ROIs(
-        #     source_dataset=source_dataset.dataset,
-        #     source_channel=source_channel,
-        #     target_channel=target_channel,
-        #     source_label=source_label,
-        #     target_label=target_label,
-        #     copy_properties=copy_properties)
-
-        #EDIT BELOW
-        self.remove_rois(active_tSeries.roi_list)
-        active_tSeries.roi_sets.append(str(roi_set_name))
-        active_tSeries.active_rois = str(roi_set_name)
-        self.initialize_roi_set_list(active_tSeries)
-        active_tSeries.initialize_rois()
-        self.hide_rois(show_in_list=False)
-        self.freeform_tool.action.setEnabled(True)
-        self.plot.replot()
-
-
-
-
-
-
-
-
-        active_tSeries.update_rois()
-
-
-
-
-        print source_dataset
-        print source_channel
-        print target_channel
-        print source_label
-        print target_label
-        print copy_properties
+        try:
+            active_tSeries.dataset.import_transformed_ROIs(
+                source_dataset=source_dataset.dataset,
+                source_channel=source_channel,
+                target_channel=target_channel,
+                source_label=source_label,
+                target_label=target_label,
+                copy_properties=copy_properties)
+        except:
+            return
+        else:
+            self.remove_rois(active_tSeries.roi_list)
+            active_tSeries.roi_sets.append(target_label)
+            active_tSeries.active_rois = str(target_label)
+            self.initialize_roi_set_list(active_tSeries)
+            active_tSeries.initialize_rois()
+            self.hide_rois(show_in_list=False)
+            self.freeform_tool.action.setEnabled(True)
+            self.plot.replot()
 
     def next_id(self):
         """Return the next valid unused id across all tSeries"""
@@ -1876,8 +1860,6 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         """
         Initialize the application
         """
-
-        #initialize the UI and parent class
         QDialog.__init__(self)
         self.setupUi(self)
         self.setWindowTitle('Import ROIs')
@@ -1903,6 +1885,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
 
         self.acceptButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
+        self.sourceDataset.setCurrentIndex(0)
 
     def initialize_source_options(self):
         self.source_dataset = self.source_datasets[
@@ -1928,7 +1911,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
             dialog.sourceLabel.currentIndex()))
         target_channel = str(dialog.targetChannel.itemText(
             dialog.targetChannel.currentIndex()))
-        target_label = dialog.targetLabel.text()
+        target_label = str(dialog.targetLabel.text())
         copy_properties = dialog.copyRoiProperties.isChecked()
 
         return \
