@@ -1364,13 +1364,13 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
 
         if ok:
-            active_tSeries.dataset.import_transformed_ROIs(
-                source_dataset=source_dataset.dataset,
-                source_channel=source_channel,
-                target_channel=target_channel,
-                source_label=source_label,
-                target_label=target_label,
-                copy_properties=copy_properties)
+            # active_tSeries.dataset.import_transformed_ROIs(
+            #     source_dataset=source_dataset.dataset,
+            #     source_channel=source_channel,
+            #     target_channel=target_channel,
+            #     source_label=source_label,
+            #     target_label=target_label,
+            #     copy_properties=copy_properties)
 
             print source_dataset
             print source_channel
@@ -1873,7 +1873,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
 
     def initialize_source_options(self):
         self.source_dataset = self.source_datasets[
-            self.sourceDatasets.currentIndex()]
+            self.sourceDataset.currentIndex()]
 
         source_channels = source_dataset.dataset.channel_names
         self.sourceChannel.clear()
@@ -1888,15 +1888,15 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         dialog = ImportROIsWidget(parent)
         result = dialog.exec_()
 
-        source_dataset = self.source_dataset
-        source_channel = str(self.sourceChannel.itemText(
-            self.sourceChannel.currentIndex()))
-        source_label = str(self.sourceLabel.itemText(
-            self.sourceLabel.currentIndex()))
-        target_channel = str(self.targetChannel.itemText(
-            self.targetChannel.currentIndex()))
-        target_label = self.targetLabel.text()
-        copy_properties = self.copyRoiProperties.isChecked()
+        source_dataset = dialog.source_dataset
+        source_channel = str(dialog.sourceChannel.itemText(
+            dialog.sourceChannel.currentIndex()))
+        source_label = str(dialog.sourceLabel.itemText(
+            dialog.sourceLabel.currentIndex()))
+        target_channel = str(dialog.targetChannel.itemText(
+            dialog.targetChannel.currentIndex()))
+        target_label = dialog.targetLabel.text()
+        copy_properties = dialog.copyRoiProperties.isChecked()
 
         return \
             source_dataset, \
