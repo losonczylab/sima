@@ -14,6 +14,7 @@ import itertools as it
 from random import shuffle
 
 from roiBuddyUI import Ui_ROI_Buddy
+from importROIsWidget import Ui_importROIsWidget
 
 import sima
 from sima.imaging import ImagingDataset
@@ -1359,11 +1360,25 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         active_tSeries = self.tSeries_list.currentItem()
 
-        # source_dataset, source_channel, target_channel, source_label, \
-        #     target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
+        source_dataset, source_channel, target_channel, source_label, \
+            target_label, copy_properties, ok = ImportROIsWidget.getParams(self)
 
-        t = ImportROIsWidget.getParams(self)
-        print t
+        if ok:
+            active_tSeries.dataset.import_transformed_ROIs(
+                source_dataset=source_dataset.dataset,
+                source_channel=source_channel,
+                target_channel=target_channel,
+                source_label=source_label,
+                target_label=target_label,
+                copy_properties=copy_properties)
+
+            print source_dataset
+            print source_channel
+            print target_channel
+            print source_label
+            print target_label
+            print copy_properties
+
     def next_id(self):
         """Return the next valid unused id across all tSeries"""
 
@@ -1822,41 +1837,75 @@ class lockROIsWidget(QDialog):
         self.reject()
 
 
-class ImportROIsWidget(QDialog):
+class ImportROIsWidget(QDialog, Ui_importROIsWidget):
+    """Instance of the ROI Buddy Qt interface."""
     def __init__(self, parent=None):
-        super(ImportROIsWidget, self).__init__(parent)
+        """
+        Initialize the application
+        """
+
+        #initialize the UI and parent class
+        QDialog.__init__(self)
+        self.setupUi(self)
+        self.setWindowTitle('Import ROIs')
 
         self.parent = parent
 
-        self.layout = QVBoxLayout()
+        #initialize source imaging datasets
+        self.initialize_form()
 
-        self.source_dataset = QComboBox(parent=self)
-        debug_trace()
+    def initialize_form(self):
         active_dataset = self.parent.tSeries_list.currentItem()
-        source_datasets = [self.parent.tSeries_list.item(i) for i in
-                           range(self.parent.tSeries_list.count())]
-        source_datasets.remove(active_dataset)
+        self.source_datasets = [self.parent.tSeries_list.item(i) for i in
+                                range(self.parent.tSeries_list.count())]
+        self.source_datasets.remove(active_dataset)
+        self.sourceDataset.addItems([QString(x.dataset.savedir) for x in
+                                     self.source_datasets])
 
-        self.source_dataset.addItems([QString(x.dataset.savedir) for x in
-                                      source_datasets])
+        target_channels = active_dataset.dataset.channel_names
+        self.targetChannel.addItems([QString(x) for x in target_channels])
 
-        self.layout.addWidget(self.source_dataset)
+        self.sourceDataset.currentIndexChanged.connect(
+            self.initialize_source_options)
 
-        self.accept_button = QPushButton("Accept", self)
-        self.cancel_button = QPushButton("Cancel", self)
-        self.accept_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
+        self.acceptButton.clicked.connect(self.accept)
+        self.cancelButton.clicked.connect(self.reject)
 
-        self.layout.addWidget(self.accept_button)
-        self.layout.addWidget(self.cancel_button)
+    def initialize_source_options(self):
+        self.source_dataset = self.source_datasets[
+            self.sourceDatasets.currentIndex()]
 
-        self.setLayout(self.layout)
+        source_channels = source_dataset.dataset.channel_names
+        self.sourceChannel.clear()
+        self.sourceChannel.addItems([QString(x) for x in source_channels])
+
+        source_labels = source_dataset.dataset.ROIs.keys()
+        self.sourceLabels.clear()
+        self.sourceLabel.addItems([QString(x) for x in source_labels])
 
     @staticmethod
     def getParams(parent=None):
         dialog = ImportROIsWidget(parent)
         result = dialog.exec_()
-        return result == QDialog.Accepted
+
+        source_dataset = self.source_dataset
+        source_channel = str(self.sourceChannel.itemText(
+            self.sourceChannel.currentIndex()))
+        source_label = str(self.sourceLabel.itemText(
+            self.sourceLabel.currentIndex()))
+        target_channel = str(self.targetChannel.itemText(
+            self.targetChannel.currentIndex()))
+        target_label = self.targetLabel.text()
+        copy_properties = self.copyRoiProperties.isChecked()
+
+        return \
+            source_dataset, \
+            source_channel, \
+            target_channel, \
+            source_label, \
+            target_label, \
+            copy_properties, \
+            result == QDialog.Accepted
 
 
 def next_int(sequence):
