@@ -435,8 +435,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if self.mode == 'edit':
             self.show_all_checkbox.setEnabled(False)
             self.register_rois_button.setEnabled(False)
-            self.propagate_tags_button.setEnabled(True)
-            self.import_rois_button.setEnabled(True)
+            self.propagate_tags_button.setEnabled(False)
+            self.import_rois_button.setEnabled(enabled)
 
     def remove_rois(self, roi_list):
         self.freeform_tool.shape = None
@@ -675,7 +675,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.remove_rois(rois_to_remove)
             active_tSeries.dataset.delete_ROIs(active_tSeries.active_rois)
             active_tSeries.roi_sets.remove(active_tSeries.active_rois)
-            active_tSeries.active_rois = None  # will this work?
+            active_tSeries.active_rois = None
             self.initialize_roi_set_list(active_tSeries)
 
             if len(active_tSeries.roi_sets) == 0:
@@ -1358,6 +1358,16 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def import_rois(self):
 
+        tSeries_list = [self.tSeries_list.item(i) for i in
+                        range(self.tSeries_list.count())]
+        if len(tSeries_list) < 2:
+            QMessageBox.warning(self,
+                                'Import Error',
+                                'At least two imaging datasets must be ' +
+                                'loaded in order to import ROIs.',
+                                QMessageBox.Ok)
+            return
+
         active_tSeries = self.tSeries_list.currentItem()
         active_tSeries.update_rois()
         if active_tSeries.active_rois is not None:
@@ -1385,15 +1395,15 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 target_label=target_label,
                 copy_properties=copy_properties)
         except:
+            #TODO: IMPORT AND ACCEPT TRANSFORM ERROR
             return
         else:
             self.remove_rois(active_tSeries.roi_list)
             active_tSeries.roi_sets.append(target_label)
-            active_tSeries.active_rois = str(target_label)
+            active_tSeries.active_rois = target_label
             self.initialize_roi_set_list(active_tSeries)
             active_tSeries.initialize_rois()
-            self.hide_rois(show_in_list=False)
-            self.freeform_tool.action.setEnabled(True)
+            self.show_rois(active_tSeries, show_in_list=True)
             self.plot.replot()
 
     def next_id(self):
@@ -1874,8 +1884,6 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.source_datasets = [self.parent.tSeries_list.item(i) for i in
                                 range(self.parent.tSeries_list.count())]
         self.source_datasets.remove(active_dataset)
-        if not len(self.source_datasets):
-            return
 
         self.sourceDataset.addItems([QString(x.dataset.savedir) for x in
                                      self.source_datasets])
