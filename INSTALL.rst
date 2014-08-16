@@ -75,10 +75,7 @@ On Windows, you can simply execute the Windows installer that can be downloaded
 from https://pypi.python.org/pypi/sima.  If you run Windows Vista or Windows 7,
 you may need to right-click on the installer and select "Run as Administrator".
 
-If building from source or using pip or easy_install on Windows, you may also
-need compilers and other Windows (7) stuff:
-
-* http://go.microsoft.com/?linkid=7729279
-* http://www.microsoft.com/en-us/download/details.aspx?id=29
-* http://www.microsoft.com/en-us/download/details.aspx?id=3138
+If building SIMA from source or using pip or easy_install on Windows, you may
+also need to follow these `instructions for compiling the Cython extensions
+<https://github.com/cython/cython/wiki/64BitCythonExtensionsOnWindows>`_.
 
