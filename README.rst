@@ -24,14 +24,22 @@ For complete documentation go to <http://www.losonczylab.org/sima>
 Dependencies
 -------------
 
-- numpy >= 1.6.2
-- scipy >= 0.13.0
-- matplotlib >= 1.2.1
-- cython
-- mdp >= 3.3
-- opencv >= 2.4.8 <http://opencv.org/downloads.html>
-- scikit-image >= 0.9.3
-- shapely >= 1.2.14
+- Python 2.7 (http://python.org)
+- numpy >= 1.6.2 (http://www.scipy.org)
+- scipy >= 0.13.0 (http://www.scipy.org)
+- matplotlib >= 1.2.1 (http://matplotlib.org)
+- scikit-image >= 0.9.3 (http://scikit-image.org)
+- shapely >= 1.2.14 (https://pypi.python.org/pypi/Shapely)
+
+Optional dependencies
+---------------------
+
+- OpenCV 2.4 (http://opencv.org), required for segmentation, registration of
+  ROIs across multiple datasets, and the ROI Buddy GUI
+- h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
+- pylibtiff (https://code.google.com/p/pylibtiff/), required for more efficient
+  handling of large TIFF files
+- mdp (http://mdp-toolkit.sourceforge.net), required for ICA demixing of channels
 
 
 License
