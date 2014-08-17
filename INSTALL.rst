@@ -28,10 +28,11 @@ SIMA depends on various freely available, open source software that must be
 installed prior to using SIMA:
 
 * Python 2.7 (http://python.org)
-* numpy & scipy (http://www.scipy.org)
-* scikit-image (http://scikit-image.org)
-* matplotlib (http://matplotlib.org)
-* shapely (https://pypi.python.org/pypi/Shapely)
+* numpy >= 1.6.2 (http://www.scipy.org)
+* scipy >= 0.13.0 (http://www.scipy.org)
+* matplotlib >= 1.2.1 (http://matplotlib.org)
+* scikit-image >= 0.9.3 (http://scikit-image.org)
+* shapely >= 1.2.14 (https://pypi.python.org/pypi/Shapely)
 
 Depending on the features and data formats you wish to use, you may also need
 to install the following packages:
