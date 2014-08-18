@@ -79,7 +79,7 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
     ROIs = ROIList([])
     for cut in cuts:
         if len(cut.indices) > min_cut_size:
-            #pixel values in the cut
+            # pixel values in the cut
             vals = processed_im.flat[cut.indices]
 
             # indices of those values below the otsu threshold
@@ -89,12 +89,15 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
             except ValueError:
                 continue
 
-            #apply binary opening and closing to the surviving pixels
+            # apply binary opening and closing to the surviving pixels
+            # expand the shape by 1 in all directions to correct for edge
+            # effects of binary opening/closing
             twoD_indices = [np.unravel_index(x, shape) for x in roi_indices]
-            mask = np.zeros(shape)
-            for x in twoD_indices:
-                mask[x] = 1
+            mask = np.zeros([x + 2 for x in shape])
+            for indices in twoD_indices:
+                mask[indices[0] + 1, indices[1] + 1] = 1
             mask = ndimage.binary_closing(ndimage.binary_opening(mask))
+            mask = mask[1:-1, 1:-1]
             roi_indices = np.where(mask.flat)[0]
 
             #label blobs in each cut

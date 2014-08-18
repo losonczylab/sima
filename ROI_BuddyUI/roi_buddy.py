@@ -1384,7 +1384,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         if not ok:
             return
-        debug_trace()
 
         try:
             active_tSeries.dataset.import_transformed_ROIs(
