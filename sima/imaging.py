@@ -367,8 +367,9 @@ class ImagingDataset(object):
     def import_transformed_ROIs(self, source_dataset, source_channel=0,
                                 target_channel=0, source_label=None,
                                 target_label=None, copy_properties=True):
-        """Calculate an affine transformation from source to self and import
-           the transformed ROIs.
+        """Calculate an affine transformation that maps the source ImagingDataset
+        onto this ImagingDataset, tranform the source ROIs by this mapping, and
+        then import them into this ImagingDataset.
 
         Parameters
         ----------
