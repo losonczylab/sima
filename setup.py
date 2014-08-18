@@ -3,10 +3,10 @@ from setuptools import setup
 from distutils.extension import Extension
 import numpy
 
-import sys
-if 'setuptools.extension' in sys.modules:
-    m = sys.modules['setuptools.extension']
-    m.Extension.__dict__ = m._Extension.__dict__
+# import sys
+# if 'setuptools.extension' in sys.modules:
+#     m = sys.modules['setuptools.extension']
+#     m.Extension.__dict__ = m._Extension.__dict__
 
 
 extensions = [
@@ -67,10 +67,9 @@ setup(
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules=extensions,
-    setup_requires=['setuptools_cython'],
-    url="http://www.losonczylab.org/sima/",
-
-    platforms=["Linux", "Mac OS-X", "Windows"],
+    #setup_requires=['setuptools_cython'],
+    url = "http://www.losonczylab.org/sima/",
+    platforms = ["Linux", "Mac OS-X", "Windows"],
     #
     #   # could also include long_description, download_url, classifiers, etc.
 )
