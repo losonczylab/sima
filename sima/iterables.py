@@ -36,18 +36,23 @@ common data formats.
 
 from os.path import abspath
 import warnings
+from distutils.version import StrictVersion
 
 import numpy as np
-
 try:
     from libtiff import TIFF
+    libtiff_available = True
 except ImportError:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from sima.misc.tifffile import TiffFile
-    LIBTIFF = False
+    libtiff_available = False
+try:
+    import h5py
+except ImportError:
+    h5py_available = False
 else:
-    LIBTIFF = True
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
 
 
 class MultiPageTIFF(object):
@@ -74,7 +79,7 @@ class MultiPageTIFF(object):
     def __init__(self, path, clip=None):
         self.path = abspath(path)
         self.clip = clip
-        if not LIBTIFF:
+        if not libtiff_available:
             self.stack = TiffFile(self.path)
 
     @property
@@ -90,7 +95,7 @@ class MultiPageTIFF(object):
         return len(self)
 
     def __len__(self):
-        if LIBTIFF:
+        if libtiff_available:
             tiff = TIFF.open(self.path, 'r')
             l = sum(1 for _ in tiff.iter_images())
             tiff.close()
@@ -107,21 +112,18 @@ class MultiPageTIFF(object):
             s = tuple(slice(*[None if x is 0 else x for x in dim])
                       for dim in self.clip)
 
-        if LIBTIFF:
+        if libtiff_available:
             tiff = TIFF.open(self.path, 'r')
             for frame in tiff.iter_images():
                 yield frame[s]
         else:
             for frame in self.stack.pages:
                 yield frame.asarray(colormapped=False)[s]
-        if LIBTIFF:
+        if libtiff_available:
             tiff.close()
 
     def _todict(self):
         return {'path': self.path, 'clip': self.clip}
-
-
-H5PY = False
 
 
 class HDF5(object):
@@ -172,8 +174,8 @@ class HDF5(object):
     """
     def __init__(self, path, dim_order, group=None, key=None, channel=None,
                  clip=None):
-        if not H5PY:
-            import h5py
+        if not h5py_available:
+            raise ImportError('h5py >= 2.3.1 required')
         self.path = abspath(path)
         self._clip = clip
         self._channel = channel

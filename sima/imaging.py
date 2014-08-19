@@ -7,9 +7,15 @@ import csv
 from os.path import dirname, join, normpath, normcase, isfile, relpath, \
     abspath
 import cPickle as pickle
-from h5py import File
+from distutils.version import StrictVersion
 
 import numpy as np
+try:
+    import h5py
+except ImportError:
+    h5py_available = False
+else:
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
 
 import sima
 import sima.segment as segment
@@ -818,7 +824,9 @@ class _ImagingCycle(object):
         if 'TIFF' in fmt:
             output_files = [TiffFileWriter(fn) for fn in filenames]
         elif fmt == 'HDF5':
-            f = File(filenames, 'w')
+            if not h5py_available:
+                raise ImportError('h5py >= 2.3.1 required')
+            f = h5py.File(filenames, 'w')
             output_array = np.empty((self.num_frames, 1,
                                      self.num_rows,
                                      self.num_columns,
@@ -932,7 +940,9 @@ class _CorrectedCycle(_ImagingCycle):
             if 'TIFF' in fmt:
                 output_files = [TiffFileWriter(fn) for fn in filenames]
             elif fmt == 'HDF5':
-                f = File(filenames, 'w')
+                if not h5py_available:
+                    raise ImportError('h5py required')
+                f = h5py.File(filenames, 'w')
                 output_array = np.empty((self.num_frames, 1,
                                          self.num_rows,
                                          self.num_columns,

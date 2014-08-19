@@ -34,8 +34,8 @@ Dependencies
 Optional dependencies
 ---------------------
 
-- OpenCV 2.4 (http://opencv.org), required for segmentation, registration of
-  ROIs across multiple datasets, and the ROI Buddy GUI
+- OpenCV >= 2.4.8 (http://opencv.org), required for segmentation, registration
+  of ROIs across multiple datasets, and the ROI Buddy GUI
 - h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
 - pylibtiff (https://code.google.com/p/pylibtiff/), required for more efficient
   handling of large TIFF files

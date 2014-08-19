@@ -1,6 +1,6 @@
 import os
 import itertools as it
-from warnings import warn
+from distutils.version import StrictVersion
 
 import numpy as np
 from scipy import sparse, ndimage
@@ -9,16 +9,21 @@ from skimage.filter import threshold_otsu
 try:
     import cv2
 except ImportError:
-    warn('OpenCV2 is not installed. Some functionality will not work.')
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
 
-import pyximport
-pyximport.install(setup_args={"include_dirs": np.get_include()},
-                  reload_support=True)
-import sima._opca as _opca
+try:
+    import sima._opca as _opca
+except ImportError:
+    import pyximport
+    pyximport.install(setup_args={"include_dirs": np.get_include()},
+                      reload_support=True)
+    import sima._opca as _opca
 
 
 def _rois_from_cuts_full(cuts):
@@ -322,6 +327,8 @@ class dataset_iterable():
 def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
                   sigma_y=10):
     """Perform unsharp masking on an image.."""
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
     return cv2.addWeighted(_to8bit(image), image_weight,
                            cv2.GaussianBlur(_to8bit(image), (0, 0), sigma_x,
                                             sigma_y),
@@ -330,7 +337,8 @@ def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
 
 def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
     """Perform contrast limited adaptive histogram equalization (CLAHE)."""
-
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
     transform = cv2.createCLAHE(clipLimit=clip_limit,
                                 tileGridSize=(
                                     int(image.shape[1] / float(x_tile_size)),
