@@ -7,7 +7,7 @@ Reference
     IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,
     VOL. 22, NO. 8, AUGUST 2000.
 """
-from warnings import warn
+from distutils.version import StrictVersion
 
 import numpy as np
 from scipy.sparse.linalg import eigsh
@@ -17,7 +17,9 @@ from scipy import ndimage
 try:
     import cv2
 except ImportError:
-    warn('OpenCV2 is not installed. Some functionality will not work.')
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 
 def normcut_vectors(affinity_matrix, k):
@@ -112,6 +114,8 @@ class CutRegion():
         float
             The normalized cut cost.
         """
+        if not cv2_available:
+            raise ImportError('OpenCV >= 2.4.8 required')
         tmp_im = np.zeros(self.shape[0]*self.shape[1])
         tmp_im[self.indices] = 1
         labeled_array, num_features = ndimage.label(tmp_im.reshape(self.shape))

@@ -1,14 +1,15 @@
 import os
 import itertools as it
 import errno
-from warnings import warn
+from distutils.version import StrictVersion
 
 from numpy import nanmax
-
 try:
     import cv2
 except ImportError:
-    warn('OpenCV2 is not installed. Some functionality will not work.')
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 
 def lazyprop(fn):
@@ -111,6 +112,8 @@ def affine_transform(source, target):
     --------
     cv2.estimateRigidTransform
     """
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
 
     class TransformError(Exception):
         pass
