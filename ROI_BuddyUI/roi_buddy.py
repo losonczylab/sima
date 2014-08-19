@@ -764,15 +764,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         label, ok = QInputDialog.getText(
             self, 'Edit Label', 'Enter the label to be associated with each ' +
@@ -800,15 +791,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         tags, ok = QInputDialog.getText(
             self, 'Add Tags', 'Enter the tag strings:')
@@ -838,15 +820,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         for roi in rois:
             # If two separate polygons have the same id (same ROI),
@@ -1345,16 +1318,17 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             for roi in tSeries.roi_list:
                 if roi.id is not None:
                     if roi.id in tags_dict:
-                        tags_dict[roi.id].add(roi.tags.intersection(
-                            tags_to_propagate))
+                        tags_dict[roi.id] = tags_dict[roi.id].union(
+                            roi.tags.intersection(tags_to_propagate))
                     else:
-                        tags_dict[roi.id] = set(roi.tags.intersection(
-                            tags_to_propagate))
+                        tags_dict[roi.id] = roi.tags.intersection(
+                            tags_to_propagate)
 
         for tSeries in tSeries_list:
             for roi in tSeries.roi_list:
                 if roi.id is not None:
-                    roi.tags.add(tags_dict[roi.id])
+                    roi.tags = roi.tags.union(tags_dict[roi.id])
+                    roi.update_name()
 
     def import_rois(self):
 
