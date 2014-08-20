@@ -621,8 +621,13 @@ class _MCImagingDataset(ImagingDataset):
                         if corr > max_corr:
                             max_corr = corr
                             refinement = small_shift
-                    shifts[:, i] = shift + refinement
-                    correlations[i] = max_corr
+                    if max_corr == 0:
+                        shifts[:, i] = np.nan
+                        correlations[i] = np.nan
+                        continue
+                    else:
+                        shifts[:, i] = shift + refinement
+                        correlations[i] = max_corr
 
                     #enlarge storage arrays if necessary
                     l = - np.minimum(0, shifts[:, i] + offset).astype(int)
