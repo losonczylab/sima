@@ -208,6 +208,7 @@ def _lookup_tables(d_min, d_max, log_markov_matrix,
     slice_tbl : array
         Lookup table for the indices to use for slicing image arrays.
     """
+
     position_tbl = []
     for j in range(d_min[1], d_max[1] + 1):
         for i in range(d_min[0], d_max[0] + 1):
@@ -243,7 +244,7 @@ def _lookup_tables(d_min, d_max, log_markov_matrix,
 
 
 def _backtrace(start_idx, backpointer, states, position_tbl):
-    """Perform the backtracing stop of the Viterbi algorithm.
+    """Perform the backtracing step of the Viterbi algorithm.
 
     Parameters
     ----------
@@ -409,12 +410,38 @@ class _MCImagingDataset(ImagingDataset):
         """
         channels = [] if channels is None else channels
         ret = {}
+        
         for channel in channels:
             row_intensities = []
+            row_sums = []
             for frame in chain(*self):
                 im = frame[channel].astype('float')
                 row_intensities.append(im.mean(axis=1))
             row_intensities = np.array(row_intensities)
+
+
+            #####################
+            
+            points = {}
+            for i,row in enumerate(row_intensities.T):
+                for found in np.where(row-np.mean(row)<-4*np.std(row))[0]:
+                    if found not in points.keys():
+                        points[found] = [i]
+                    else:
+                        points[found].append(i)
+
+            for key in points.keys():
+                if len(points[key]) == 1:
+                    del points[key]
+                elif len(np.where(points[key]-np.roll(points[key],1) == 1)[0]) == 0:
+                    del points[key]
+
+            print "identified dropped frames: "
+            print points
+
+            #######################
+
+
             for i in range(row_intensities.shape[1]):
                 row_intensities[:, i] += -row_intensities[:, i].mean() + \
                     row_intensities.mean()  # remove periodic component
@@ -910,6 +937,7 @@ class _MCCycle(_ImagingCycle):
         T = self.num_rows * self.num_frames  # determine number of timesteps
         backpointer = []
         states = []
+        probs = {}
 
         # store outputs of various functions applied to the reference images
         # for later use
@@ -932,6 +960,8 @@ class _MCCycle(_ImagingCycle):
         frame_row = 0
         tmp_states = []
         tmp_log_p = []
+        probs[0] = []
+        row_sums = []
         for index, position in enumerate(position_tbl):  # TODO parallelize
             # check that the displacement is allowable
             if np.all(min_displacements <= position) and np.all(
@@ -957,11 +987,15 @@ class _MCCycle(_ImagingCycle):
             if frame_row == 0:  # load new image data if frame time has changed
                 im, log_im_fac, log_im_p = next(iter_processed)
                 frame_number += 1
+                probs[frame_number] = []
+                row_sums.append(np.sum(im,axis=2)[0])
+
             tmp_states, tmp_log_p, tmp_backpointer = mc.transitions(
                 states[t - 1], log_markov_matrix_tbl, log_p_old,
                 position_tbl, transition_tbl)
             #observation probabilities
             if frame_number not in invalid_frames:
+
                 if all(x[t] for x in valid_rows.itervalues()):
                     mc.log_observation_probabilities(
                         tmp_log_p, tmp_states, im, log_im_p, log_im_fac,
@@ -980,12 +1014,14 @@ class _MCCycle(_ImagingCycle):
                 # Keep only num_retained most likely states
                 ix = np.argsort(-tmp_log_p)[0:num_retained]
                 states.append(tmp_states[ix])
+                probs[frame_number].append(tmp_log_p[ix])
                 log_p_old = tmp_log_p[ix] - tmp_log_p[ix[0]]
                 backpointer.append(tmp_backpointer[ix])
             else:
                 # if no finite observation probabilities, then use previous
                 # timesteps states
                 states.append(states[t - 1])
+                probs[frame_number].append([np.nan])
                 backpointer.append(np.arange(num_retained))
                 warnings.warn('No finite observation probabilities.')
             if verbose and (t * 10) % T < 10:
@@ -995,6 +1031,22 @@ class _MCCycle(_ImagingCycle):
         displacements = _backtrace(np.argmax(log_p_old), backpointer, states,
                                    position_tbl)
         assert displacements.dtype == int
+        """
+        import matplotlib.pyplot as plt
+        plt.figure()
+        mins = [[],[],[],[],[]]
+        for frame in probs:
+            mins[0].append(probs[frame][5][0])
+            mins[1].append(probs[frame][10][0])
+            mins[2].append(probs[frame][20][0])
+            mins[3].append(probs[frame][50][0])
+            mins[4].append(probs[frame][100][0])
+
+        plt.plot(np.array(mins).T,'o-')
+        plt.show()
+        """
+        #import pudb; pudb.set_trace()
+
         return displacements
 
 

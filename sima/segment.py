@@ -7,6 +7,14 @@ from scipy.ndimage.measurements import label
 from skimage.filter import threshold_otsu
 import cv2
 
+####
+import matplotlib.pyplot as plt
+from scipy import nanmean
+from sklearn.decomposition import FastICA
+from axonROI import AxonROI
+from descartes import PolygonPatch
+####
+
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
@@ -550,3 +558,211 @@ def ca1pc(
     return _rois_from_cuts(cuts, 'ca1pc', dataset, circularity_threhold,
                            min_roi_size, min_cut_size, channel, x_diameter,
                            y_diameter)
+
+
+def findStComponents(space_pcs,time_pcs,mu=0.01,storeFile=None,force=False):
+    data=None
+    """
+    if os.path.isfile(storeFile+'.npz') and not force:
+        try:
+            print "recovering stICA data from %s" %storeFile
+            data = np.load(storeFile+'.npz')['attrs'].item()
+            st_components = data['st_components']
+            return st_components
+        except:
+            print "failed to recover saved data"
+    """
+
+    if data is None or 'st_components' not in data.keys():
+        print "calculating stICA data..."
+
+        for i in range(space_pcs.shape[2]):
+            space_pcs[:,:,i] = mu*(space_pcs[:,:,i]-nanmean(space_pcs[:,:,i]))/np.max(space_pcs)
+        for i in range(time_pcs.shape[1]):
+            time_pcs[:,i] = (1-mu)*(time_pcs[:,i]-nanmean(time_pcs[:,i]))/np.max(time_pcs)
+
+        y = np.concatenate((space_pcs.reshape(space_pcs.shape[0]*space_pcs.shape[1],space_pcs.shape[2]),time_pcs))
+        
+        print "using Fast ICA..."
+        ica = FastICA(n_components=50)
+        st_components = np.real(np.array(ica.fit_transform(y)))
+
+        st_components = st_components[:(space_pcs.shape[0]*space_pcs.shape[1]),:]
+        st_components = st_components.reshape(space_pcs.shape[0],space_pcs.shape[1],st_components.shape[1])
+
+        n_components = np.zeros(st_components.shape)
+        for i in range(st_components.shape[2]):
+            st_component = st_components[:,:,i]
+            st_component = abs(st_component-np.mean(st_component))
+            st_component[np.where(st_component<0)]=0
+            st_components[:,:,i] = st_component
+
+        if False:
+            plt.imshow(st_components[:,:,0])
+            plt.title("Example stICA Component")
+            plt.show()
+
+        if storeFile is not None:
+
+            try:
+                data = np.load(storeFile+'.npz')['attrs'].item()
+            except:
+                data = {}
+
+            data['st_components'] = st_components
+            np.savez(storeFile,attrs=data)
+
+    return st_components
+
+
+def findUsefulFrames(st_components,threshold,x_smoothing=4):
+    
+    accepted = []
+    accepted_components = []
+    rejected = []
+
+    for i in xrange(st_components.shape[2]):
+        frame = st_components[:,:,i].copy()
+        frame[frame<2*np.std(frame)] = 0
+
+        for n in range(x_smoothing):
+            check = frame[1:-1,:-2]+frame[1:-1,2:]+frame[:-2,1:-1]+frame[2,1:-1]
+            z = np.zeros(frame.shape)
+            z[1:-1,1:-1] = check;
+            frame[np.logical_not(z)] = 0
+
+            blurred = ndimage.gaussian_filter(frame, sigma=1)
+            frame = blurred+frame
+
+            frame = frame/np.max(frame)
+            frame[frame<2*np.std(frame)] = 0
+
+        static = np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,1:-1])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,1:-1])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[1:-1,:-2])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[1:-1,2:])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,2:])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,2:])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,:-2])) + \
+                            np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,:-2]))
+        
+        static = static*0.8/(frame.shape[0]*frame.shape[1])
+        
+        print static
+        print "\n"
+
+        if np.sum(static) < threshold:
+            accepted.append(frame)
+            accepted_components.append(st_components[:,:,i])
+
+            if False:
+                plt.figure(figsize=(6,6))
+                plt.text(20,20,static,fontsize=12)
+                plt.imshow(frame);
+                plt.title("Sum(  | Pixel Gradients |  ) = %f" %static)
+                plt.show();
+        else:
+            rejected.append(frame)
+
+    return accepted,accepted_components,rejected
+
+
+def fndpts(p,arr,frame,i=0,recursion_limit=5000):
+    
+    if p[0]<0 or p[0]>=frame.shape[0] or p[1]<0 or p[1]>=frame.shape[1] or frame[p[0],p[1]] == 0:
+        return []
+
+    if i == -1:
+        return []
+    
+    frame[p[0],p[1]]=0
+
+    arr = fndpts([p[0]-1,p[1]-1],arr,frame,i=i+1)+ \
+            fndpts([p[0]-1,p[1]],arr,frame,i=i+1)+ \
+            fndpts([p[0]-1,p[1]+1],arr,frame,i=i+1)+ \
+            fndpts([p[0],p[1]-1],arr,frame,i=i+1)+ \
+            fndpts([p[0],p[1]+1],arr,frame,i=i+1)+ \
+            fndpts([p[0]+1,p[1]-1],arr,frame,i=i+1)+ \
+            fndpts([p[0]+1,p[1]],arr,frame,i=i+1)+ \
+            fndpts([p[0]+1,p[1]+1],arr,frame,i=i+1)
+    arr.append(p)
+    return arr
+
+
+def extractRois(frames,storeFile=None,min_area=50,force=False,spatial_sep=True,overlap_per=0):
+    
+    rois = []
+    for frame_no in range(len(frames)):
+        print frame_no
+        image_index = frame_no
+        img = np.array(frames[frame_no])
+        component_mask = np.zeros(img.shape)
+        pts = np.where(img>0)
+
+        while pts[0].shape[0]>0:
+            p = [pts[0][0],pts[1][0]]
+            arr = []
+            arr = fndpts(p,arr,img)
+            thisroi = np.zeros(img.shape,'bool')
+            
+            for p in arr:
+                thisroi[p[0],p[1]] = True
+
+            img[thisroi>0]=0
+
+            thisarea = len(np.where(thisroi>0)[0])
+            if thisarea > min_area:
+                if spatial_sep:
+                    rois.append(ROI(mask=thisroi,im_shape=thisroi.shape))
+                component_mask[np.where(thisroi)] = True
+            
+            pts = np.where(img>0)
+
+        if not spatial_sep and np.any(component_mask):
+            rois.append(ROI(mask=component_mask,im_shape=thisroi.shape))
+
+        frame_no = frame_no+1
+
+    if overlap_per > 0 and overlap_per < 1:
+        print 'removing duplicates'
+        for i in xrange(len(rois)):
+            for j in [j for j in xrange(len(rois)) if j != i]:
+                if rois[i] is not None and rois[j] is not None:
+                    overlap = np.logical_and(rois[i].mask.toarray(),rois[j].mask.toarray())
+                    small_area = np.min((len(np.where(rois[i].mask.toarray())[0]),len(np.where(rois[j].mask.toarray())[0])))
+
+                    if len(np.where(overlap)[0]) > overlap_per*small_area:
+                        new_shape = np.logical_or(rois[i].mask.toarray(),rois[j].mask.toarray())
+
+                        rois[i] = ROI(mask=new_shape.astype('bool'),im_shape=rois[i].mask.shape)
+                        rois[j] = None
+        rois = [roi for roi in rois if roi is not None]
+
+    return rois
+
+
+def stica(dataset,channel=0,num_ica_components=50,num_pcs=75,static_threshold=0.1,min_area=75, force_pca=False):
+    if not force_pca and dataset.savedir is not None:
+        path = os.path.join(
+            dataset.savedir, 'opca_' + str(channel) + '.npz')
+    else:
+        path = None
+    
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_pcs, path=path)
+    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,num_pcs))
+
+    st_components = findStComponents(space_pcs,time_pcs)
+    accepted,accepted_components,_ = findUsefulFrames(st_components,static_threshold)
+    rois = extractRois(accepted,min_area=min_area,overlap_per=0)
+
+    BLUE = '#6699cc'
+    plt.figure()
+    ax = plt.subplot(111)
+    for roi in rois:
+        polys = roi.polygons
+            
+        for poly in polys:
+            patch = PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=1)
+            ax.add_patch(patch)
+        plt.axis([0,st_components.shape[1],0,st_components.shape[0]])
+    plt.show()
