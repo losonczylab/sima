@@ -38,6 +38,7 @@ import sima.misc
 
 np.seterr(invalid='ignore', divide='ignore')
 
+
 def _discrete_transition_prob(r, r0, transition_probs, n):
     """Calculate the transition probability between two discrete position
     states.
@@ -509,11 +510,133 @@ class _MCImagingDataset(ImagingDataset):
             (num_frames*num_cycles)-array giving the correlation of
             each shifted frame with the reference
         """
+        def refine_alignment(shift, reference, im, offset):
+            num_channels = len(im)
+            search_space = np.array(
+                [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 0],
+                 [0, 1], [1, -1], [1, 0], [1, 1]])
+            max_corr = 0.
+            for small_shift in search_space:
+                ref_indices = [
+                    np.maximum(0, offset + shift + small_shift),
+                    np.minimum(reference[0].shape, offset +
+                               shift + small_shift + im[0].shape)
+                ]
+                im_min_indices = np.maximum(
+                    0, - offset - shift - small_shift)
+                im_max_indices = im_min_indices + ref_indices[1] - \
+                    ref_indices[0]
+                tmp_ref = reference[
+                    :, ref_indices[0][0]:ref_indices[1][0],
+                    ref_indices[0][1]:ref_indices[1][1]
+                ].copy()
+                tmp_im = im[:, im_min_indices[0]:im_max_indices[0],
+                            im_min_indices[1]:im_max_indices[1]].copy()
+                for channel in range(num_channels):
+                    tmp_im[channel] -= tmp_im[channel].mean()
+                    tmp_ref[channel] -= tmp_ref[channel][
+                        np.isfinite(tmp_ref[channel])].mean()
+                tmp_ref[np.logical_not(np.isfinite(
+                        tmp_ref))] = 0  # equivalent to nancorr
+                corr = sum([(tmp_im[c] * tmp_ref[c]).sum() / np.sqrt((
+                    tmp_ref[c] ** 2).sum() * (tmp_im[c] ** 2).sum())
+                    for c in range(num_channels)]
+                ) / num_channels
+                if corr > max_corr:
+                    max_corr = corr
+                    refinement = small_shift
+            return max_corr, shift + refinement
+
+        def resize_arrays(shift, pixel_sums, pixel_counts, offset):
+            """Enlarge storage arrays if necessary."""
+            l = - np.minimum(0, shift + offset).astype(int)
+            r = np.maximum(0, shift + offset + im[0].shape -
+                           pixel_sums[0].shape).astype(int)
+            if np.any(l > 0) or np.any(r > 0):
+                pixel_sums = np.concatenate([np.zeros([
+                    pixel_sums.shape[0], l[0], pixel_sums.shape[2]]),
+                    pixel_sums, np.zeros([pixel_sums.shape[0], r[0],
+                                         pixel_sums.shape[2]])],
+                    axis=1)
+                pixel_sums = np.concatenate([np.zeros([
+                    pixel_sums.shape[0], pixel_sums.shape[1], l[1]]),
+                    pixel_sums, np.zeros([pixel_sums.shape[0],
+                                         pixel_sums.shape[1], r[1]])],
+                    axis=2)
+                pixel_counts = np.concatenate([np.zeros([
+                    pixel_counts.shape[0], l[0],
+                    pixel_counts.shape[2]]), pixel_counts,
+                    np.zeros([pixel_counts.shape[0], r[0],
+                              pixel_counts.shape[2]])], axis=1)
+                pixel_counts = np.concatenate([np.zeros([
+                    pixel_counts.shape[0], pixel_counts.shape[1],
+                    l[1]]), pixel_counts,
+                    np.zeros([pixel_counts.shape[0],
+                             pixel_counts.shape[1], r[1]])], axis=2)
+                offset += l
+            assert np.prod(pixel_sums[0].shape) < 4 * np.prod(im[0].shape)
+            return pixel_sums, pixel_counts, offset
+
+        def update_sums_and_counts(pixel_sums, pixel_counts, offset, shift,
+                                   im, valid_channels):
+            ref_indices = [offset + shift, offset + shift + im[0].shape]
+            pixel_counts[valid_channels,
+                         ref_indices[0][0]:ref_indices[1][0],
+                         ref_indices[0][1]:ref_indices[1][1]] += 1
+            pixel_sums[valid_channels,
+                       ref_indices[0][0]:ref_indices[1][0],
+                       ref_indices[0][1]:ref_indices[1][1]] += im
+
+        def course_alignment(reference, im):
+            """Refine alignment using the full image data."""
+            num_channels = len(im)
+            small_ref = 0.25 * (
+                reference[:, :-1:2, :-1:2] +
+                reference[:, :-1:2, 1::2] + reference[:, 1::2, :-1:2] +
+                reference[:, 1::2, 1::2])
+            small_im = 0.25 * (
+                im[:, :-1:2, 0:-1:2] + im[:, :-1:2, 1::2] +
+                im[:, 1::2, :-1:2] + im[:, 1::2, 1::2])
+            for c in range(num_channels):
+                small_im[c] -= small_im[c].mean()
+                small_ref[c] -= small_ref[c][np.isfinite(small_ref[c])
+                                             ].mean()
+            # zeroing nans is equivalent to nancorr
+            small_ref[np.logical_not(np.isfinite(small_ref))] = 0
+            corrs = np.array([
+                fftconvolve(small_ref[ch], small_im[ch][::-1, ::-1])
+                for ch in range(num_channels)]).sum(axis=0)
+            if max_displacement is None:
+                max_idx = np.array(np.unravel_index(np.argmax(corrs),
+                                                    corrs.shape))
+            else:
+                min_i = np.maximum(
+                    (np.nanmax(shifts, 1) - max_displacement + offset)
+                    / 2 + np.array(small_im[0].shape) - 1, 0)
+                max_i = (
+                    np.ceil(
+                        (np.nanmin(shifts, 1) + max_displacement +
+                         offset).astype(float) / 2. +
+                        np.array(small_im[0].shape) - 1)
+                ).astype(int)
+                if max_displacement[0] < 0:
+                    min_i[0] = 0
+                else:
+                    #restrict to allowable displacements
+                    corrs = corrs[min_i[0]:(max_i[0] + 1), :]
+                if max_displacement[1] < 0:
+                    min_i[1] = 0
+                else:
+                    #restrict to allowable displacements
+                    corrs = corrs[:, min_i[1]:(max_i[1] + 1)]
+                max_idx = min_i + np.array(
+                    np.unravel_index(np.argmax(corrs), corrs.shape))
+            #shift that maximizes correlation
+            return 2 * (max_idx - small_im[0].shape + 1) - offset
+
         shifts = np.zeros([2, self.num_frames], dtype='float')
         correlations = np.empty(self.num_frames, dtype='float')
         offset = np.zeros(2, dtype='int')
-        search_space = np.array([[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 0],
-                                [0, 1], [1, -1], [1, 0], [1, 1]])
         i = 0
         started = False
         for cyc_idx, cycle in enumerate(self):
@@ -532,132 +655,30 @@ class _MCImagingDataset(ImagingDataset):
                     shifts[:, i] = 0
                     started = True
                 else:
-                    im = np.concatenate(
-                        [np.expand_dims(x, 0) for x in frame], axis=0
-                    ).astype('float64')
-                    for channel, rows in valid_rows.iteritems():
-                        # ignore frames in which there are invalid rows
-                        if not all(
-                                rows[cyc_idx][frame_idx * self.num_rows:
-                                              (frame_idx + 1) * self.num_rows]
-                        ):
-                            im[channel] = 0
                     # recompute reference using all aligned images
                     with warnings.catch_warnings():  # ignore divide by 0
                         warnings.simplefilter("ignore")
                         reference = pixel_sums / pixel_counts
                     reference[np.equal(0, pixel_counts)] = np.nan
-                    # coarse alignment
-                    small_ref = 0.25 * (
-                        reference[:, :-1:2, :-1:2] +
-                        reference[:, :-1:2, 1::2] + reference[:, 1::2, :-1:2] +
-                        reference[:, 1::2, 1::2])
-                    small_im = 0.25 * (
-                        im[:, :-1:2, 0:-1:2] + im[:, :-1:2, 1::2] +
-                        im[:, 1::2, :-1:2] + im[:, 1::2, 1::2])
-                    for c in range(self.num_channels):
-                        small_im[c] -= small_im[c].mean()
-                        small_ref[c] -= small_ref[c][np.isfinite(small_ref[c])
-                                                     ].mean()
-                    # zeroing nans is equivalent to nancorr
-                    small_ref[np.logical_not(np.isfinite(small_ref))] = 0
-                    corrs = np.array([
-                        fftconvolve(small_ref[ch], small_im[ch][::-1, ::-1])
-                        for ch in range(self.num_channels)]).sum(axis=0)
-                    if max_displacement is None:
-                        max_idx = np.array(np.unravel_index(np.argmax(corrs),
-                                                            corrs.shape))
-                    else:
-                        min_i = np.maximum(
-                            (np.nanmax(shifts, 1) - max_displacement + offset) /
-                            2 + np.array(small_im[0].shape) - 1, 0)
-                        max_i = (
-                            np.ceil(
-                                (np.nanmin(shifts, 1) + max_displacement +
-                                 offset).astype(float) / 2. +
-                                np.array(small_im[0].shape) - 1)
-                        ).astype(int)
-                        if max_displacement[0] < 0:
-                            min_i[0] = 0
-                        else:
-                            #restrict to allowable displacements
-                            corrs = corrs[min_i[0]:(max_i[0] + 1), :]
-                        if max_displacement[1] < 0:
-                            min_i[1] = 0
-                        else:
-                            #restrict to allowable displacements
-                            corrs = corrs[:, min_i[1]:(max_i[1] + 1)]
-                        max_idx = min_i + np.array(
-                            np.unravel_index(np.argmax(corrs), corrs.shape))
-                    #shift that maximizes correlation
-                    shift = 2 * (max_idx - small_im[0].shape + 1) - offset
-
-                    #refine using the full image
-                    max_corr = 0.
-                    for small_shift in search_space:
-                        ref_indices = [
-                            np.maximum(0, offset + shift + small_shift),
-                            np.minimum(reference[0].shape, offset +
-                                       shift + small_shift + im[0].shape)
-                        ]
-                        im_min_indices = np.maximum(
-                            0, - offset - shift - small_shift)
-                        im_max_indices = im_min_indices + ref_indices[1] - \
-                            ref_indices[0]
-                        tmp_ref = reference[
-                            :, ref_indices[0][0]:ref_indices[1][0],
-                            ref_indices[0][1]:ref_indices[1][1]
-                        ].copy()
-                        tmp_im = im[:, im_min_indices[0]:im_max_indices[0],
-                                    im_min_indices[1]:im_max_indices[1]].copy()
-                        for channel in range(self.num_channels):
-                            tmp_im[channel] -= tmp_im[channel].mean()
-                            tmp_ref[channel] -= tmp_ref[channel][
-                                np.isfinite(tmp_ref[channel])].mean()
-                        tmp_ref[np.logical_not(np.isfinite(
-                                tmp_ref))] = 0  # equivalent to nancorr
-                        corr = sum([(tmp_im[c] * tmp_ref[c]).sum() / np.sqrt((
-                            tmp_ref[c] ** 2).sum() * (tmp_im[c] ** 2).sum())
-                            for c in range(self.num_channels)]) / 2.
-                        if corr > max_corr:
-                            max_corr = corr
-                            refinement = small_shift
-                    shifts[:, i] = shift + refinement
-                    correlations[i] = max_corr
-
-                    #enlarge storage arrays if necessary
-                    l = - np.minimum(0, shifts[:, i] + offset).astype(int)
-                    r = np.maximum(0, shifts[:, i] + offset + im[0].shape -
-                                   reference[0].shape).astype(int)
-                    if np.any(l > 0) or np.any(r > 0):
-                        pixel_sums = np.concatenate([np.zeros([
-                            pixel_sums.shape[0], l[0], pixel_sums.shape[2]]),
-                            pixel_sums, np.zeros([pixel_sums.shape[0], r[0],
-                                                 pixel_sums.shape[2]])],
-                            axis=1)
-                        pixel_sums = np.concatenate([np.zeros([
-                            pixel_sums.shape[0], pixel_sums.shape[1], l[1]]),
-                            pixel_sums, np.zeros([pixel_sums.shape[0],
-                                                 pixel_sums.shape[1], r[1]])],
-                            axis=2)
-                        pixel_counts = np.concatenate([np.zeros([
-                            pixel_counts.shape[0], l[0],
-                            pixel_counts.shape[2]]), pixel_counts,
-                            np.zeros([pixel_counts.shape[0], r[0],
-                                      pixel_counts.shape[2]])], axis=1)
-                        pixel_counts = np.concatenate([np.zeros([
-                            pixel_counts.shape[0], pixel_counts.shape[1],
-                            l[1]]), pixel_counts,
-                            np.zeros([pixel_counts.shape[0],
-                                     pixel_counts.shape[1], r[1]])], axis=2)
-                        offset += l
-                    ref_indices = [offset + shifts[:, i],
-                                   offset + shifts[:, i] + im[0].shape]
-                    pixel_counts[:, ref_indices[0][0]:ref_indices[1][0],
-                                 ref_indices[0][1]:ref_indices[1][1]] += 1
-                    pixel_sums[:, ref_indices[0][0]:ref_indices[1][0],
-                               ref_indices[0][1]:ref_indices[1][1]] += im
-                    assert np.prod(pixel_sums[0].shape) < 4 * np.prod(im[0].shape)
+                    valid_channels = [c for c in range(len(frame)) if not (
+                        c in valid_rows and not all(
+                            valid_rows[c][cyc_idx][
+                                frame_idx * self.num_rows:
+                                (frame_idx + 1) * self.num_rows])
+                    )]
+                    im = np.concatenate(
+                        [np.expand_dims(chan, 0) for chan_idx, chan in
+                         enumerate(frame) if chan_idx in valid_channels],
+                        axis=0
+                    ).astype('float64')
+                    ref = reference[valid_channels]
+                    shift = course_alignment(ref, im)
+                    correlations[i], shifts[:, i] = refine_alignment(
+                        shift, ref, im, offset)
+                    pixel_sums, pixel_counts, offset = resize_arrays(
+                        shifts[:, i], pixel_sums, pixel_counts, offset)
+                    update_sums_and_counts(pixel_sums, pixel_counts, offset,
+                                           shifts[:, i], im, valid_channels)
                 i += 1
         return shifts.astype('float'), correlations.astype('float')
 
