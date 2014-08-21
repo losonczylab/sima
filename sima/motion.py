@@ -659,7 +659,6 @@ class _MCImagingDataset(ImagingDataset):
                         warnings.simplefilter("ignore")
                         reference = pixel_sums / pixel_counts
                     reference[np.equal(0, pixel_counts)] = np.nan
-
                     valid_channels = [c for c in range(len(frame)) if not (
                         c in valid_rows and not all(
                             valid_rows[c][cyc_idx][
