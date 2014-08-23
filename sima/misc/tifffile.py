@@ -511,60 +511,6 @@ def imsave_iter(filename, data, photometric=None, planarconfig=None,
 
     """
 
-def imread(files, *args, **kwargs):
-    """Return image data from TIFF file(s) as numpy array.
-
-    The first image series is returned if no arguments are provided.
-
-    Parameters
-    ----------
-    files : str or list
-        File name, glob pattern, or list of file names.
-    key : int, slice, or sequence of page indices
-        Defines which pages to return as array.
-    series : int
-        Defines which series of pages in file to return as array.
-    multifile : bool
-        If True (default), OME-TIFF data may include pages from multiple files.
-    pattern : str
-        Regular expression pattern that matches axes names and indices in
-        file names.
-
-    Examples
-    --------
-    >>> im = imread('test.tif', 0)
-    >>> im.shape
-    (256, 256, 4)
-    >>> ims = imread(['test.tif', 'test.tif'])
-    >>> ims.shape
-    (2, 256, 256, 4)
-
-    """
-    kwargs_file = {}
-    if 'multifile' in kwargs:
-        kwargs_file['multifile'] = kwargs['multifile']
-        del kwargs['multifile']
-    else:
-        kwargs_file['multifile'] = True
-    kwargs_seq = {}
-    if 'pattern' in kwargs:
-        kwargs_seq['pattern'] = kwargs['pattern']
-        del kwargs['pattern']
-
-    if isinstance(files, basestring) and any(i in files for i in '?*'):
-        files = glob.glob(files)
-    if not files:
-        raise ValueError('no files found')
-    if len(files) == 1:
-        files = files[0]
-
-    if isinstance(files, basestring):
-        with TiffFile(files, **kwargs_file) as tif:
-            return tif.asarray(*args, **kwargs)
-    else:
-        with TiffSequence(files, **kwargs_seq) as imseq:
-            return imseq.asarray(*args, **kwargs)
-
 
 def imsave(filename, data, photometric=None, planarconfig=None,
            resolution=None, description=None, software='tifffile.py',
@@ -921,9 +867,6 @@ def imread(files, *args, **kwargs):
     >>> im = imread(example_tiff(), 0)
     >>> im.shape
     (128, 256)
-    >>> ims = imread([example_tiff(), example_tiff()])
-    >>> ims.shape
-    (2, 20, 128, 256)
 
     """
     kwargs_file = {}
