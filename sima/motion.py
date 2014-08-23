@@ -703,7 +703,7 @@ class _MCImagingDataset(ImagingDataset):
             The displacement to add to each shift to align the minimal shift
             with the edge of the corrected image.
         """
-        good_corr = correlations > np.nanmean(correlations) - \
+        good_corr = correlations >= np.nanmean(correlations) - \
             2 * nanstd(correlations)
         # only include image frames with sufficiently high correlation
         min_shifts = np.nanmin(shifts[:, good_corr], axis=1).astype(int)
