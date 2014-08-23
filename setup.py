@@ -55,7 +55,7 @@ setup(
                  'tests/data/example.sima/*',
                  'tests/data/example.tif',
                  'tests/data/example.h5',
-                 'tests/data/imageJ_ROIs',
+                 'tests/data/imageJ_ROIs.zip',
                  ]
     },
     #
