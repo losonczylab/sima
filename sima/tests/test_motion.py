@@ -1,5 +1,5 @@
 # Unit tests for sima/motion.py
-# Tests follow conventions for NumPy/SciPy avialble at 
+# Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
 
 # use assert_() and related functions over the built in assert to ensure tests
@@ -29,9 +29,9 @@ def setup():
     # setup ensures that a temporary directory is established either locally
     # or in the most secure location possible.
 
-    global tmp_dir   
+    global tmp_dir
     tmp_dir = os.path.join(os.path.dirname(__file__),'tmp')
-    
+
     try:
         os.mkdir(tmp_dir)
     except:
@@ -43,7 +43,7 @@ def setup():
 def teardown():
     # teardown is executed after all of the tests in this file have comlpeted
 
-    # remove any files remaining in the temporyary directory and delete the 
+    # remove any files remaining in the temporyary directory and delete the
     # folder
 
     global tmp_dir
@@ -64,17 +64,17 @@ def test_descrete_transition_prob():
     transition_probs = lambda x, x0: 1. / np.sqrt(
         2 * np.pi * det(cov_matrix)) * np.exp(
         -np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)) / 2.)
-    
-    assert_almost_equal(motion._discrete_transition_prob(np.array([1., 1.]), 
+
+    assert_almost_equal(motion._discrete_transition_prob(np.array([1., 1.]),
         np.array([0., 0.]),transition_probs, 8), 0)
-    assert_almost_equal(motion._discrete_transition_prob(np.array([0., 0.]), 
+    assert_almost_equal(motion._discrete_transition_prob(np.array([0., 0.]),
         np.array([0., 0.]),transition_probs, 8), 3.09625122)
 
 
 def test_estimate_movement_model():
     shifts = np.array([[ 0.,  0., -1., -1., -1., -1.],
                        [ 0.,  7.,  5.,  6.,  6.,  5.]])
-    expected = (np.array([[ 0.02 ,  0.075],[ 0.075,  1.25 ]]), 
+    expected = (np.array([[ 0.02 ,  0.075],[ 0.075,  1.25 ]]),
                 np.array([[ 0.83364924,  0.00700411],
                           [ 0.00700411,  0.87939634]]),
                 np.array([[-0.1555321 , -0.52939923],
@@ -99,7 +99,7 @@ def test_threshold_gradient():
 
 def test_initial_distribution():
     initial_dist = motion._initial_distribution(
-        np.diag([0.9,0.9]), 
+        np.diag([0.9,0.9]),
         10*np.ones((2,2)), np.array([-1,1]))
     assert_almost_equal(initial_dist(0),0.00754154839)
 
@@ -153,14 +153,14 @@ def test_hmm():
 
 
 class Test_MCImagingDataset(object):
-    # Tests related to the MCImagingDataset class are grouped together in a 
+    # Tests related to the MCImagingDataset class are grouped together in a
     # class. Test classes can have their own setup/teardown methods
 
     def setup(self):
         for frame in MultiPageTIFF(example_tiff()):
             break
         self.frame_shifts = np.array([[0,-5],[0,-10]])
-        self.correlations = np.array([1,0.5])
+        self.correlations = np.array([1,1])
 
         shifted = frame.copy()
         shifted = np.roll(shifted,-self.frame_shifts[1,1],axis=1)
@@ -182,12 +182,12 @@ class Test_MCImagingDataset(object):
         assert_almost_equal(
             self.mc_ds._pixel_distribution(),([ 1110.20196533],[ 946000.05906352]))
 
-    def test_correlation_based_correction(self):        
+    def test_correlation_based_correction(self):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore",category=DeprecationWarning)
             shifts,corrections = \
                 self.mc_ds._correlation_based_correction(self.valid_rows)
-        
+
         assert_array_equal(shifts,self.frame_shifts)
         assert_array_equal(corrections,self.correlations)
 
