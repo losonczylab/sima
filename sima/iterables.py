@@ -16,18 +16,16 @@ Examples of valid iterables include:
 
 * numpy arrays of shape (num_frames, num_rows, num_columns)
 
-  >>> from sima import ImagingDataset
+  >>> import sima
   >>> from numpy import ones
   >>> frames = ones((100, 128, 128))
-  >>> ImagingDataset([[frames]], None)
+  >>> sima.ImagingDataset([[frames]], None)
   <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128, num_frames=100>
 
 * lists of numpy arrays of shape (num_rows, num_columns)
 
-  >>> from sima import ImagingDataset
-  >>> from numpy import ones
   >>> frames = [ones((128, 128)) for _ in range(100)]
-  >>> ImagingDataset([[frames]], None)
+  >>> sima.ImagingDataset([[frames]], None)
   <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128, num_frames=100>
 
 For convenience, we have created iterable objects that can be used with
