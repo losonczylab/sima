@@ -1,0 +1,4 @@
+[run]
+branch = True
+include = */sima/*
+omit = */sima/misc/tifffile.py
