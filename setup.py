@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-from setuptools import setup
+import sys
+
+if 'setuptools' in sys.modules:
+    from setuptools import setup as setup
+else:
+    from distutils.core import setup as setup
+
 from distutils.extension import Extension
 import numpy
-
-# import sys
-# if 'setuptools.extension' in sys.modules:
-#     m = sys.modules['setuptools.extension']
-#     m.Extension.__dict__ = m._Extension.__dict__
-
 
 extensions = [
     Extension(
