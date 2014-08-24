@@ -105,12 +105,12 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
             mask = mask[1:-1, 1:-1]
             roi_indices = np.where(mask.flat)[0]
 
-            #label blobs in each cut
+            # label blobs in each cut
             labeled_array, num_features = label(mask)
             for feat in range(num_features):
                 blob_inds = np.where(labeled_array.flat == feat + 1)[0]
 
-                #Apply min ROI size threshold
+                # Apply min ROI size threshold
                 if len(blob_inds) > min_roi_size:
                     twoD_indices = [np.unravel_index(x, shape)
                                     for x in blob_inds]
@@ -118,7 +118,7 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
                     for x in twoD_indices:
                         mask[x] = 1
 
-                    #APPLY CIRCULARITY THRESHOLD
+                    # APPLY CIRCULARITY THRESHOLD
                     poly_pts = np.array(mask2poly(mask)[0].exterior.coords)
                     p = 0
                     for x in range(len(poly_pts) - 1):
@@ -291,7 +291,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
         return {
             ((u, v), (w, x)): np.dot(D[u, v, :], D[w, x, :])
             for u, v, w, x in pixel_pairs
-            }
+        }
     elif method == 'fast':
         ostdevs, correlations, pixels = _opca._fast_ocorr(
             dataset, pixel_pairs, channel)
@@ -311,6 +311,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
 
 
 class dataset_iterable():
+
     def __init__(self, dataset, channel):
         self.dataset = dataset
         self.channel = channel

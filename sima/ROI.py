@@ -31,6 +31,7 @@ class NonBooleanMask(Exception):
 
 
 class ROI(object):
+
     """Structure used to store ROIs
 
     Parameters
@@ -105,6 +106,7 @@ class ROI(object):
         of the mask.
 
     """
+
     def __init__(self, mask=None, polygons=None, label=None, tags=None,
                  id=None, im_shape=None):
 
@@ -248,6 +250,7 @@ class ROI(object):
 
 
 class ROIList(list):
+
     """A list-like container for storing multiple ROIs.
 
     This class retains all the functionality inherited from Python's built-in
@@ -271,6 +274,7 @@ class ROIList(list):
         The timestamp for when the ROIList was created.
 
     """
+
     def __init__(self, rois, timestamp=None):
         def convert(roi):
             if isinstance(roi, dict):

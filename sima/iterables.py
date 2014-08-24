@@ -20,13 +20,15 @@ Examples of valid iterables include:
   >>> from numpy import ones
   >>> frames = ones((100, 128, 128))
   >>> sima.ImagingDataset([[frames]], None)
-  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128, num_frames=100>
+  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
+  num_frames=100>
 
 * lists of numpy arrays of shape (num_rows, num_columns)
 
   >>> frames = [ones((128, 128)) for _ in range(100)]
   >>> sima.ImagingDataset([[frames]], None)
-  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128, num_frames=100>
+  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
+  num_frames=100>
 
 For convenience, we have created iterable objects that can be used with
 common data formats.
@@ -54,6 +56,7 @@ else:
 
 
 class MultiPageTIFF(object):
+
     """
     Iterable for a multi-page TIFF file in which the pages
     correspond to sequentially acquired image frames.
@@ -74,6 +77,7 @@ class MultiPageTIFF(object):
     such that they retain the same relative position.
 
     """
+
     def __init__(self, path, clip=None):
         self.path = abspath(path)
         self.clip = clip
@@ -125,6 +129,7 @@ class MultiPageTIFF(object):
 
 
 class HDF5(object):
+
     """
     Iterable for an HDF5 file containing imaging data.
 
@@ -170,6 +175,7 @@ class HDF5(object):
     such that they retain the same relative position.
 
     """
+
     def __init__(self, path, dim_order, group=None, key=None, channel=None,
                  clip=None):
         if not h5py_available:
