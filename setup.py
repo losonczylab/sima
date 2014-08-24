@@ -12,13 +12,13 @@ import numpy
 extensions = [
     Extension(
         'sima._motion',
-        include_dirs = [numpy.get_include()],
-        sources = ['sima/_motion.c']
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_motion.c']
     ),
     Extension(
         'sima._opca',
-        include_dirs = [numpy.get_include()],
-        sources = ['sima/_opca.c']
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_opca.c']
     )
 ]
 
@@ -33,14 +33,14 @@ Operating System :: MacOS
 
 """
 setup(
-    name = "sima",
-    version = "1.0",
-    packages = ['sima', 'sima.misc'],
+    name="sima",
+    version="1.0",
+    packages=['sima', 'sima.misc'],
     #   scripts = [''],
     #
-    #   # Project uses reStructuredText, so ensure that the docutils get
-    #   # installed or upgraded on the target machine
-    install_requires = [
+    # Project uses reStructuredText, so ensure that the docutils get
+    # installed or upgraded on the target machine
+    install_requires=[
         'numpy>=1.6.2',
         'scipy>=0.13.0',
         'matplotlib>=1.2.1',
@@ -58,17 +58,17 @@ setup(
                  ]
     },
     #
-    #   # metadata for upload to PyPI
-    author = "Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
-    author_email = "software@losonczylab.org",
-    description = "Software for analysis of sequential imaging data",
-    license = "GNU GPLv2",
-    keywords = "imaging microscopy neuroscience segmentation",
+    # metadata for upload to PyPI
+    author="Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
+    author_email="software@losonczylab.org",
+    description="Software for analysis of sequential imaging data",
+    license="GNU GPLv2",
+    keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-    ext_modules = extensions,
-    #setup_requires=['setuptools_cython'],
-    url = "http://www.losonczylab.org/sima/",
-    platforms = ["Linux", "Mac OS-X", "Windows"],
+    ext_modules=extensions,
+    # setup_requires=['setuptools_cython'],
+    url="http://www.losonczylab.org/sima/",
+    platforms=["Linux", "Mac OS-X", "Windows"],
     #
-    #   # could also include long_description, download_url, classifiers, etc.
+    # could also include long_description, download_url, classifiers, etc.
 )
