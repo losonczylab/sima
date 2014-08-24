@@ -33,13 +33,15 @@ before_install:
   - sudo pip install conda
   - sudo conda init
   - sudo conda update conda --yes
-  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image' #scikits-image'
+  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8' #scikits-image'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   # - pip install --upgrade scikits-image h5py
   - python -V
-script: python runtests.py --doctests -m $TESTMODE $COVERAGE
+script: 
+    - python runtests.py --doctests -m $TESTMODE $COVERAGE
+    - pep8 *.py sima --exclude tifffile.py
 branches:
   only:
     - master
