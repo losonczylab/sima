@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/losonczylab/sima.svg?branch=master
+   :target: https://travis-ci.org/losonczylab/sima/
+
 Overview
 --------
 The SIMA (Sequential IMage Analysis) package facilitates
