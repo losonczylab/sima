@@ -62,22 +62,39 @@ from argparse import ArgumentParser, REMAINDER
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
+
 def main(argv):
     parser = ArgumentParser(usage=__doc__.lstrip())
     parser.add_argument("--verbose", "-v", action="count", default=1,
                         help="more verbosity")
-    parser.add_argument("--no-build", "-n", action="store_true", default=False,
-                        help="do not build the project (use system installed version)")
-    parser.add_argument("--build-only", "-b", action="store_true", default=False,
-                        help="just build, do not run any tests")
+    parser.add_argument(
+        "--no-build",
+        "-n",
+        action="store_true",
+        default=False,
+        help="do not build the project (use system installed version)")
+    parser.add_argument(
+        "--build-only",
+        "-b",
+        action="store_true",
+        default=False,
+        help="just build, do not run any tests")
     parser.add_argument("--doctests", action="store_true", default=False,
                         help="Run doctests in module")
-    parser.add_argument("--coverage", action="store_true", default=False,
-                        help=("report coverage of project code. HTML output goes "
-                              "under build/coverage"))
-    parser.add_argument("--gcov", action="store_true", default=False,
-                        help=("enable C code coverage via gcov (requires GCC). "
-                              "gcov output goes to build/**/*.gc*"))
+    parser.add_argument(
+        "--coverage",
+        action="store_true",
+        default=False,
+        help=(
+            "report coverage of project code. HTML output goes "
+            "under build/coverage"))
+    parser.add_argument(
+        "--gcov",
+        action="store_true",
+        default=False,
+        help=(
+            "enable C code coverage via gcov (requires GCC). "
+            "gcov output goes to build/**/*.gc*"))
     parser.add_argument("--lcov-html", action="store_true", default=False,
                         help=("produce HTML for C code coverage information "
                               "from a previous run with --gcov. "
@@ -85,8 +102,11 @@ def main(argv):
     parser.add_argument("--mode", "-m", default="fast",
                         help="'fast', 'full', or something that could be "
                              "passed to nosetests -A [default: fast]")
-    parser.add_argument("--submodule", "-s", default=None,
-                        help="Submodule whose tests to run (cluster, constants, ...)")
+    parser.add_argument(
+        "--submodule",
+        "-s",
+        default=None,
+        help="Submodule whose tests to run (cluster, constants, ...)")
     parser.add_argument("--pythonpath", "-p", default=None,
                         help="Paths to prepend to PYTHONPATH")
     parser.add_argument("--tests", "-t", action='append',
@@ -162,7 +182,7 @@ def main(argv):
         if os.path.isdir(dst_dir) and os.path.isfile(fn):
             shutil.rmtree(dst_dir)
         extra_argv += ['--cover-html',
-                       '--cover-html-dir='+dst_dir]
+                       '--cover-html-dir=' + dst_dir]
 
     test_dir = os.path.join(ROOT_DIR, 'build', 'test')
 
@@ -263,7 +283,8 @@ def build_project(args):
     cmd = [sys.executable, 'setup.py']
 
     # Always use ccache, if installed
-    env['PATH'] = os.pathsep.join(EXTRA_PATH + env.get('PATH', '').split(os.pathsep))
+    env['PATH'] = os.pathsep.join(
+        EXTRA_PATH + env.get('PATH', '').split(os.pathsep))
 
     if args.debug or args.gcov:
         # assume everyone uses gcc/gfortran
@@ -279,7 +300,8 @@ def build_project(args):
             env['F77'] = 'gfortran --coverage '
             env['F90'] = 'gfortran --coverage '
             env['LDSHARED'] = cvars['LDSHARED'] + ' --coverage'
-            env['LDFLAGS'] = " ".join(cvars['LDSHARED'].split()[1:]) + ' --coverage'
+            env['LDFLAGS'] = " ".join(
+                cvars['LDSHARED'].split()[1:]) + ' --coverage'
         cmd += ["build"]
 
     cmd += ['install', '--prefix=' + dst_dir]
@@ -346,11 +368,16 @@ def gcov_reset_counters():
 LCOV_OUTPUT_FILE = os.path.join(ROOT_DIR, 'build', 'lcov.out')
 LCOV_HTML_DIR = os.path.join(ROOT_DIR, 'build', 'lcov')
 
+
 def lcov_generate():
-    try: os.unlink(LCOV_OUTPUT_FILE)
-    except OSError: pass
-    try: shutil.rmtree(LCOV_HTML_DIR)
-    except OSError: pass
+    try:
+        os.unlink(LCOV_OUTPUT_FILE)
+    except OSError:
+        pass
+    try:
+        shutil.rmtree(LCOV_HTML_DIR)
+    except OSError:
+        pass
 
     print("Capturing lcov info...")
     subprocess.call(['lcov', '-q', '-c',

@@ -6,6 +6,7 @@ python:
 # command to run tests
 env:
   - TESTMODE=full
+    COVERAGE=--coverage
 before_install:
   - uname -a
   - free -m
@@ -38,8 +39,10 @@ before_install:
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   # - pip install --upgrade scikits-image h5py
   - python -V
-script: python runtests.py --doctests
+script: python runtests.py --doctests -m $TESTMODE $COVERAGE
 branches:
   only:
     - master
     - 0.2.x
+after_success:
+    - if [ "${TESTMODE}" == "full" ]; then cp build/test/.coverage . && coveralls; fi

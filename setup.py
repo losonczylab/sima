@@ -36,11 +36,10 @@ setup(
     name="sima",
     version="0.2.1",
     packages=['sima', 'sima.misc'],
-    #
     #   scripts = [''],
     #
-    #   # Project uses reStructuredText, so ensure that the docutils get
-    #   # installed or upgraded on the target machine
+    # Project uses reStructuredText, so ensure that the docutils get
+    # installed or upgraded on the target machine
     install_requires=[
         'numpy>=1.6.2',
         'scipy>=0.13.0',
@@ -59,7 +58,7 @@ setup(
                  ]
     },
     #
-    #   # metadata for upload to PyPI
+    # metadata for upload to PyPI
     author="Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson",
     author_email="software@losonczylab.org",
     description="Software for analysis of sequential imaging data",
@@ -67,9 +66,9 @@ setup(
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules=extensions,
-    #setup_requires=['setuptools_cython'],
-    url = "http://www.losonczylab.org/sima/",
-    platforms = ["Linux", "Mac OS-X", "Windows"],
+    # setup_requires=['setuptools_cython'],
+    url="http://www.losonczylab.org/sima/",
+    platforms=["Linux", "Mac OS-X", "Windows"],
     #
-    #   # could also include long_description, download_url, classifiers, etc.
+    # could also include long_description, download_url, classifiers, etc.
 )

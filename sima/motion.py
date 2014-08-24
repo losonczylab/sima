@@ -38,7 +38,6 @@ import sima.misc
 
 np.seterr(invalid='ignore', divide='ignore')
 
-
 def _discrete_transition_prob(r, r0, transition_probs, n):
     """Calculate the transition probability between two discrete position
     states.
@@ -169,7 +168,7 @@ def _initial_distribution(decay, noise_cov, mean_shift):
                                   noise_cov.newbyteorder('>').byteswap())
     for _ in range(1000):
         initial_cov = decay * initial_cov * decay.T + noise_cov
-    ## don't let C be singular
+    # don't let C be singular
     initial_cov[0, 0] = max(initial_cov[0, 0], 0.1)
     initial_cov[1, 1] = max(initial_cov[1, 1], 0.1)
 
@@ -217,7 +216,7 @@ def _lookup_tables(d_min, d_max, log_markov_matrix,
             position_tbl.append([i, j])
     position_tbl = np.array(position_tbl, dtype=int)
 
-    ## create transition lookup and create lookup for transition probability
+    # create transition lookup and create lookup for transition probability
     transition_tbl = []
     log_markov_matrix_tbl = []
     for k in range(9):
@@ -271,6 +270,7 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
 
 
 class _MCImagingDataset(ImagingDataset):
+
     """ImagingDataset sub-classed with motion correction functionality"""
 
     def __init__(self, iterables, invalid_frames=None):
@@ -424,7 +424,7 @@ class _MCImagingDataset(ImagingDataset):
             row_intensities = row_intensities.reshape(-1)
             # Separate row means into 2 clusters
             [centroid, labels] = kmeans2(row_intensities, 2)
-            #only discard rows if clusters are substantially separated
+            # only discard rows if clusters are substantially separated
             if max(centroid) / min(centroid) > 3 and \
                     max(centroid) - min(centroid) > 2 * np.sqrt(sum([np.var(
                     row_intensities[np.equal(labels, i)]) for i in [0, 1]])):
@@ -556,12 +556,12 @@ class _MCImagingDataset(ImagingDataset):
                 pixel_sums = np.concatenate([np.zeros([
                     pixel_sums.shape[0], l[0], pixel_sums.shape[2]]),
                     pixel_sums, np.zeros([pixel_sums.shape[0], r[0],
-                                         pixel_sums.shape[2]])],
+                                          pixel_sums.shape[2]])],
                     axis=1)
                 pixel_sums = np.concatenate([np.zeros([
                     pixel_sums.shape[0], pixel_sums.shape[1], l[1]]),
                     pixel_sums, np.zeros([pixel_sums.shape[0],
-                                         pixel_sums.shape[1], r[1]])],
+                                          pixel_sums.shape[1], r[1]])],
                     axis=2)
                 pixel_counts = np.concatenate([np.zeros([
                     pixel_counts.shape[0], l[0],
@@ -572,7 +572,7 @@ class _MCImagingDataset(ImagingDataset):
                     pixel_counts.shape[0], pixel_counts.shape[1],
                     l[1]]), pixel_counts,
                     np.zeros([pixel_counts.shape[0],
-                             pixel_counts.shape[1], r[1]])], axis=2)
+                              pixel_counts.shape[1], r[1]])], axis=2)
                 offset += l
             assert np.prod(pixel_sums[0].shape) < 4 * np.prod(im[0].shape)
             return pixel_sums, pixel_counts, offset
@@ -622,16 +622,16 @@ class _MCImagingDataset(ImagingDataset):
                 if max_displacement[0] < 0:
                     min_i[0] = 0
                 else:
-                    #restrict to allowable displacements
+                    # restrict to allowable displacements
                     corrs = corrs[min_i[0]:(max_i[0] + 1), :]
                 if max_displacement[1] < 0:
                     min_i[1] = 0
                 else:
-                    #restrict to allowable displacements
+                    # restrict to allowable displacements
                     corrs = corrs[:, min_i[1]:(max_i[1] + 1)]
                 max_idx = min_i + np.array(
                     np.unravel_index(np.argmax(corrs), corrs.shape))
-            #shift that maximizes correlation
+            # shift that maximizes correlation
             return 2 * (max_idx - small_im[0].shape + 1) - offset
 
         shifts = np.zeros([2, self.num_frames], dtype='float')
@@ -808,7 +808,7 @@ class _MCImagingDataset(ImagingDataset):
                         np.nansum(scaling_estimates, axis=2), axis=1)
                     sum_square_estimates += np.nansum(np.nansum(
                         scaling_estimates ** 2, axis=2), axis=1)
-                    #Keep track of which indices provide valid estimates
+                    # Keep track of which indices provide valid estimates
                     valid_matrix = np.isfinite(scaling_estimates) * (
                         x0 > x1) * shifted_thresholds
                     # update the count of the number of estimates
@@ -824,6 +824,7 @@ class _MCImagingDataset(ImagingDataset):
 
 
 class _MCCycle(_ImagingCycle):
+
     """_ImagingCycle sub-classed with motion correction methods.
 
     Parameters
@@ -983,7 +984,7 @@ class _MCCycle(_ImagingCycle):
             tmp_states, tmp_log_p, tmp_backpointer = mc.transitions(
                 states[t - 1], log_markov_matrix_tbl, log_p_old,
                 position_tbl, transition_tbl)
-            #observation probabilities
+            # observation probabilities
             if frame_number not in invalid_frames:
                 if all(x[t] for x in valid_rows.itervalues()):
                     mc.log_observation_probabilities(
