@@ -124,9 +124,9 @@ class CutRegion():
             labeled_array = labeled_array.reshape(-1)[self.indices]
             segments = []
             for i in range(1, num_features + 1):
-                x = np.nonzero(labeled_array == i)[0]
-                segments.append(CutRegion(self.affinity_matrix[x, :][:, x],
-                                          self.indices[x], self.shape))
+                idx = np.nonzero(labeled_array == i)[0]
+                segments.append(CutRegion(self.affinity_matrix[idx, :][:, idx],
+                                          self.indices[idx], self.shape))
             return segments, 0.0
 
         C = normcut_vectors(self.affinity_matrix, 1)
@@ -159,9 +159,11 @@ class CutRegion():
         a = cut.nonzero()[0]
         b = np.logical_not(cut).nonzero()[0]
 
-        return [CutRegion(self.affinity_matrix[x, :][:, x], self.indices[x],
-                          self.shape) for x in [a, b] if len(x)], \
+        return (
+            [CutRegion(self.affinity_matrix[x, :][:, x], self.indices[x],
+                       self.shape) for x in [a, b] if len(x)],
             self._normalized_cut_cost(cut)
+        )
 
 
 def itercut(affinity_matrix, shape, max_pen=0.01, min_size=40, max_size=200):
