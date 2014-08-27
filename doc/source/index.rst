@@ -2,7 +2,7 @@ SIMA: sequential image analysis
 ===============================
 
 :Release: |release|
-:Date: |today|
+:Date: August 19, 2014
 :Developers: Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson
 :Email: software@losonczylab.org
 :Forum: https://groups.google.com/forum/#!forum/sima-users
