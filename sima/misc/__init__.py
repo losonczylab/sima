@@ -1,8 +1,15 @@
 import os
 import itertools as it
 import errno
+from distutils.version import StrictVersion
 
 from numpy import nanmax
+try:
+    import cv2
+except ImportError:
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 
 def lazyprop(fn):
@@ -63,10 +70,65 @@ def copy_label_to_id(rois):
         roi.id = roi.label
 
 
+def resolve_channels(chan, channel_names, num_channels=None):
+    """Return the index corresponding to the channel."""
+    if chan is None:
+        return None
+    if num_channels is None:
+        num_channels = len(channel_names)
+    if isinstance(chan, int):
+        if chan >= num_channels:
+            raise ValueError('Invalid channel index.')
+        return chan
+    else:
+        try:
+            return channel_names.index(chan)
+        except ValueError:
+            raise ValueError('No channel exists with the specified name.')
+
+
 def pairwise(iterable):
     a, b = it.tee(iterable)
     next(b, None)
     return it.izip(a, b)
+
+
+def affine_transform(source, target):
+    """Calculates an affine transformation from source to target
+
+    Parameters
+    ----------
+    source : array
+        The image to transform
+    target : array
+        The image used as the template for the transformation
+
+    Returns
+    -------
+    transform : array
+        A 2x3 array of the affine transformation from source to target
+
+    See Also
+    --------
+    cv2.estimateRigidTransform
+    """
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
+
+    class TransformError(Exception):
+        pass
+
+    slice_ = tuple(slice(0, min(source.shape[i], target.shape[i]))
+                   for i in range(2))
+    transform = cv2.estimateRigidTransform(
+        to8bit(source[slice_]),
+        to8bit(target[slice_]), True)
+
+    if transform is None:
+        raise TransformError('Cannot calculate affine transformation from' +
+                             'source to target')
+    else:
+        return transform
 
 
 def example_tiff():

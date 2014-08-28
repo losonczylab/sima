@@ -31,6 +31,7 @@ class NonBooleanMask(Exception):
 
 
 class ROI(object):
+
     """Structure used to store ROIs
 
     Parameters
@@ -105,6 +106,7 @@ class ROI(object):
         of the mask.
 
     """
+
     def __init__(self, mask=None, polygons=None, label=None, tags=None,
                  id=None, im_shape=None):
 
@@ -248,10 +250,11 @@ class ROI(object):
 
 
 class ROIList(list):
+
     """A list-like container for storing multiple ROIs.
 
     This class retains all the functionality inherited from Python's built-in
-    `set <http://docs.python.org/2/library/stdtypes.html#set>`_ class.
+    `list <https://docs.python.org/2/library/functions.html#list>`_ class.
 
     Parameters
     ----------
@@ -271,6 +274,7 @@ class ROIList(list):
         The timestamp for when the ROIList was created.
 
     """
+
     def __init__(self, rois, timestamp=None):
         def convert(roi):
             if isinstance(roi, dict):
@@ -317,6 +321,39 @@ class ROIList(list):
             return cls(rois=sima.misc.imagej.read_imagej_roi_zip(path))
         else:
             raise ValueError('Unrecognized file format.')
+
+    def transform(self, transform, copy_properties=True):
+        """Apply a 2x3 affine transformation to the ROIs
+
+        Parameters
+        ----------
+        transform : 2x3 Numpy array
+            The affine transformation to be applied to the ROIs.
+
+        copy_properties : bool, optional
+            Copy the label, id, tags, and im_shape properties from the source
+            ROIs to the transformed ROIs
+
+        Returns
+        -------
+        sima.ROI.ROIList
+            Returns an ROIList consisting of the transformed ROI objects.
+        """
+        transformed_rois = []
+        for roi in self:
+            transformed_polygons = []
+            for coords in roi.coords:
+                transformed_coords = [np.dot(transform, np.hstack([vert, 1]))
+                                      for vert in coords]
+                transformed_polygons.append(transformed_coords)
+            transformed_roi = ROI(polygons=transformed_polygons)
+            if copy_properties:
+                transformed_roi.label = roi.label
+                transformed_roi.id = roi.id
+                transformed_roi.tags = roi.tags
+                transformed_roi.im_shape = roi.im_shape
+            transformed_rois.append(transformed_roi)
+        return ROIList(rois=transformed_rois)
 
     def __str__(self):
         return ("<ROI set: nROIs={nROIs}, timestamp={timestamp}>").format(

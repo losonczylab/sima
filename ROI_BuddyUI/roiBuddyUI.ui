@@ -154,7 +154,7 @@
           <item>
            <widget class="QLabel" name="label">
             <property name="text">
-             <string>ROI Set:</string>
+             <string>ROI List:</string>
             </property>
            </widget>
           </item>
@@ -197,7 +197,7 @@
          </layout>
         </widget>
        </item>
-       <item row="6" column="0">
+       <item row="5" column="0">
         <widget class="QWidget" name="show_rois_widget" native="true">
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
@@ -249,9 +249,16 @@
          </layout>
         </widget>
        </item>
-       <item row="6" column="2">
+       <item row="5" column="2">
         <widget class="QWidget" name="save_rois_widget" native="true">
          <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QPushButton" name="import_rois_button">
+            <property name="text">
+             <string>import ROIs</string>
+            </property>
+           </widget>
+          </item>
           <item>
            <widget class="QPushButton" name="save_current_rois_button">
             <property name="text">
@@ -338,7 +345,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>22</height>
+     <height>15</height>
     </rect>
    </property>
   </widget>

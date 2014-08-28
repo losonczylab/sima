@@ -14,6 +14,7 @@ import itertools as it
 from random import shuffle
 
 from roiBuddyUI import Ui_ROI_Buddy
+from importROIsWidget import Ui_importROIsWidget
 
 import sima
 from sima.imaging import ImagingDataset
@@ -308,8 +309,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #Propagate tags
         self.propagate_tags_button.clicked.connect(self.propagate_tags)
 
+        #Import transformed ROIs
+        self.import_rois_button.clicked.connect(self.import_rois)
+
     def closeEvent(self, event):
-        
+
         reply = QMessageBox.question(
             self, 'Message', "Do you want to save all ROIs?",
             QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
@@ -431,7 +435,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if self.mode == 'edit':
             self.show_all_checkbox.setEnabled(False)
             self.register_rois_button.setEnabled(False)
-            self.propagate_tags_button.setEnabled(True)
+            self.propagate_tags_button.setEnabled(False)
+            self.import_rois_button.setEnabled(enabled)
 
     def remove_rois(self, roi_list):
         self.freeform_tool.shape = None
@@ -493,6 +498,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.show_all_checkbox.setEnabled(True)
             self.register_rois_button.setEnabled(True)
             self.propagate_tags_button.setEnabled(True)
+            self.import_rois_button.setEnabled(False)
 
             self.mode = 'align'
             self.toggle_roi_editing_state(False)
@@ -520,6 +526,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.show_all_checkbox.setEnabled(False)
             self.register_rois_button.setEnabled(False)
             self.propagate_tags_button.setEnabled(False)
+            self.import_rois_button.setEnabled(True)
 
             self.mode = 'edit'
             self.toggle_roi_editing_state(True)
@@ -668,7 +675,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.remove_rois(rois_to_remove)
             active_tSeries.dataset.delete_ROIs(active_tSeries.active_rois)
             active_tSeries.roi_sets.remove(active_tSeries.active_rois)
-            active_tSeries.active_rois = None  # will this work?
+            active_tSeries.active_rois = None
             self.initialize_roi_set_list(active_tSeries)
 
             if len(active_tSeries.roi_sets) == 0:
@@ -757,15 +764,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         label, ok = QInputDialog.getText(
             self, 'Edit Label', 'Enter the label to be associated with each ' +
@@ -793,15 +791,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         tags, ok = QInputDialog.getText(
             self, 'Add Tags', 'Enter the tag strings:')
@@ -831,15 +820,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not len(rois):
             self.plot.unselect_all()
             return
-        # for idx, r in enumerate(rois):
-        #     if isinstance(r, PolygonShape) and not isinstance(r, UI_ROI):
-        #         new_roi = UI_ROI.convert_polygon(r, active_tSeries)
-        #         if new_roi is None:
-        #             self.plot.unselect_all()
-        #             return
-        #         rois[idx] = new_roi
-        #         active_tSeries.roi_list.append(new_roi)
-        # active_tSeries.update_rois()
 
         for roi in rois:
             # If two separate polygons have the same id (same ROI),
@@ -1338,16 +1318,66 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             for roi in tSeries.roi_list:
                 if roi.id is not None:
                     if roi.id in tags_dict:
-                        tags_dict[roi.id].add(roi.tags.intersection(
-                            tags_to_propagate))
+                        tags_dict[roi.id] = tags_dict[roi.id].union(
+                            roi.tags.intersection(tags_to_propagate))
                     else:
-                        tags_dict[roi.id] = set(roi.tags.intersection(
-                            tags_to_propagate))
+                        tags_dict[roi.id] = roi.tags.intersection(
+                            tags_to_propagate)
 
         for tSeries in tSeries_list:
             for roi in tSeries.roi_list:
                 if roi.id is not None:
-                    roi.tags.add(tags_dict[roi.id])
+                    roi.tags = roi.tags.union(tags_dict[roi.id])
+                    roi.update_name()
+
+    def import_rois(self):
+
+        tSeries_list = [self.tSeries_list.item(i) for i in
+                        range(self.tSeries_list.count())]
+        if len(tSeries_list) < 2:
+            QMessageBox.warning(self,
+                                'Import Error',
+                                'At least two imaging datasets must be ' +
+                                'loaded in order to import ROIs.',
+                                QMessageBox.Ok)
+            return
+
+        active_tSeries = self.tSeries_list.currentItem()
+        active_tSeries.update_rois()
+        if active_tSeries.active_rois is not None:
+            save = QMessageBox.question(
+                self, 'Save Changes', 'Save changes to the current rois?',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+
+            if save == QMessageBox.Yes:
+                self.save([self.tSeries_list.currentItem()])
+
+        source_dataset, source_channel, target_channel, source_label, \
+            target_label, copy_properties, ok = \
+            ImportROIsWidget.getParams(self)
+
+        if not ok:
+            return
+
+        try:
+            active_tSeries.dataset.import_transformed_ROIs(
+                source_dataset=source_dataset.dataset,
+                source_channel=source_channel,
+                target_channel=target_channel,
+                source_label=source_label,
+                target_label=target_label,
+                copy_properties=copy_properties)
+        except:
+            #TODO: IMPORT AND ACCEPT TRANSFORM ERROR
+            return
+        else:
+            self.remove_rois(active_tSeries.roi_list)
+            active_tSeries.roi_sets.append(target_label)
+            active_tSeries.active_rois = target_label
+            self.initialize_roi_set_list(active_tSeries)
+            active_tSeries.initialize_rois()
+            self.show_rois(active_tSeries, show_in_list=True)
+            self.plot.replot()
 
     def next_id(self):
         """Return the next valid unused id across all tSeries"""
@@ -1575,7 +1605,7 @@ class UI_tSeries(QListWidgetItem):
         If no items in keep_list, returns the same list, otherwise returns the
         list with old items replaced by their new roi.
         """
-        
+
         if keep_list is None:
             keep_list = []
 
@@ -1805,6 +1835,78 @@ class lockROIsWidget(QDialog):
 
     def cancel(self):
         self.reject()
+
+
+class ImportROIsWidget(QDialog, Ui_importROIsWidget):
+    """Instance of the ROI Buddy Qt interface."""
+    def __init__(self, parent=None):
+        """
+        Initialize the application
+        """
+        QDialog.__init__(self)
+        self.setupUi(self)
+        self.setWindowTitle('Import ROIs')
+
+        self.parent = parent
+
+        #initialize source imaging datasets
+        self.initialize_form()
+
+    def initialize_form(self):
+        active_dataset = self.parent.tSeries_list.currentItem()
+        self.source_datasets = [self.parent.tSeries_list.item(i) for i in
+                                range(self.parent.tSeries_list.count())]
+        self.source_datasets.remove(active_dataset)
+
+        self.sourceDataset.addItems([QString(x.dataset.savedir) for x in
+                                     self.source_datasets])
+
+        target_channels = active_dataset.dataset.channel_names
+        self.targetChannel.addItems([QString(x) for x in target_channels])
+
+        self.sourceDataset.currentIndexChanged.connect(
+            self.initialize_source_options)
+
+        self.acceptButton.clicked.connect(self.accept)
+        self.cancelButton.clicked.connect(self.reject)
+        self.sourceDataset.setCurrentIndex(0)
+        self.initialize_source_options()
+
+    def initialize_source_options(self):
+        self.source_dataset = self.source_datasets[
+            self.sourceDataset.currentIndex()]
+
+        source_channels = self.source_dataset.dataset.channel_names
+        self.sourceChannel.clear()
+        self.sourceChannel.addItems([QString(x) for x in source_channels])
+
+        source_labels = self.source_dataset.dataset.ROIs.keys()
+        self.sourceLabel.clear()
+        self.sourceLabel.addItems([QString(x) for x in source_labels])
+
+    @staticmethod
+    def getParams(parent=None):
+        dialog = ImportROIsWidget(parent)
+        result = dialog.exec_()
+
+        source_dataset = dialog.source_dataset
+        source_channel = str(dialog.sourceChannel.itemText(
+            dialog.sourceChannel.currentIndex()))
+        source_label = str(dialog.sourceLabel.itemText(
+            dialog.sourceLabel.currentIndex()))
+        target_channel = str(dialog.targetChannel.itemText(
+            dialog.targetChannel.currentIndex()))
+        target_label = str(dialog.targetLabel.text())
+        copy_properties = dialog.copyRoiProperties.isChecked()
+
+        return \
+            source_dataset, \
+            source_channel, \
+            target_channel, \
+            source_label, \
+            target_label, \
+            copy_properties, \
+            result == QDialog.Accepted
 
 
 def next_int(sequence):

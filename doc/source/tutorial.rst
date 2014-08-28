@@ -14,20 +14,18 @@ please consult the `SIMA API <api/index.html>`_.
 
 Importing SIMA
 --------------
-
 Like all Python packages, the SIMA package must be imported prior to use.
-Here we show a simple example of importing the SIMA package and then
-printing its docstring to view basic information about the package.
+Here we show a simple example of importing the SIMA package, which results
+in printing the docstring containing view basic information about the package.
 
 
     >>> import sima
-    >>> print sima.__doc__
     SIMA: Python package for sequential image analysis.
     Developed by Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson.
     Copyright (C) 2014 The Trustees of Columbia University in the City of New York.
     Licensed under the GNU GPL version 2 or later.
     Documentation: http://www.losonczylab.org/sima
-    Version 0.1.2-alpha
+    Version 0.2.0
 
 In all future examples, we assume that the SIMA package has been
 imported as shown above.
@@ -46,10 +44,25 @@ TIFF files with the following command:
 For more details on importing, consult the `Python documentation
 <https://docs.python.org/2.7/>`_.
 
+Example data
+------------
+The SIMA package comes with a small amount of example data that, although
+insufficient to allow for reasonable results from the motion correction and
+segmentation algorithms, can at least be used to run the functions.  For the
+purposes of this tutorial, we copy the example data into the current working
+directory.
+
+    >>> from shutil import copy, copytree
+    >>> import sima.misc
+    >>> copytree(sima.misc.example_data(), 'example.sima')
+    >>> copy(sima.misc.example_tiff(), 'example.tif')
+    >>> copy(sima.misc.example_tiff(), 'example_Ch1.tif')
+    >>> copy(sima.misc.example_tiff(), 'example_Ch2.tif')
+    >>> copy(sima.misc.example_hdf5(), 'example.h5')
+    >>> copy(sima.misc.example_imagej_rois(), 'imageJ_ROIs.zip')
 
 Creating an ImagingDataset object
 ---------------------------------
-
 The SIMA package is centers around the :obj:`ImagingDataset` object class.  A
 single :obj:`ImagingDataset` object can contain imaging data from multiple
 simultaneously recorded optical channels, as well as from multiple cycles (i.e.
@@ -66,10 +79,8 @@ with extension .sima) specified during initialization.  Results of
 segmentation, signal extraction, and other alterations to the
 :obj:`ImagingDataset` object are automatically saved to this location. 
 
-
 Numpy arrays
 ............
-
 To begin with, we create some Numpy arrays containing random data.
 
     >>> import numpy as np
@@ -81,45 +92,36 @@ To begin with, we create some Numpy arrays containing random data.
 Once we have the Numpy arrays containing the imaging data, we create the
 ImagingDataset object as follows.
 
-    >>> path = 'example.sima'
     >>> iterables = [
-    ...     [cycle1_channel1, cycle1_channel2]
+    ...     [cycle1_channel1, cycle1_channel2],
     ...     [cycle2_channel1, cycle2_channel2]
     ... ]
     >>> dataset = sima.ImagingDataset(
-    ...     iterables, path, channel_names=['green', 'red'])
+    ...     iterables, 'example_np.sima', channel_names=['green', 'red'])
 
 Multipage TIFF files
 ....................
-
 For simplicity, we consider the case of only a single cycle and channel.
 
-    >>> import sima.misc
     >>> from sima.iterables import MultiPageTIFF
-    >>> tiff_path = sima.misc.example_tiff()  # path to the TIFF file
-    >>> iterables = [[MultiPageTIFF(tiff_path)]]
+    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
     >>> dataset = sima.ImagingDataset(iterables, 'example_TIFF.sima')
 
 HDF5 files
 ..........
+The argument 'yxt' specifies that the first index of the HDF5 array corresponds
+to the row, the second to the column, and the third to the time.
 
-The argument 'tyx' specifies that the first index of the HDF5 array corresponds
-to the time, the second to the row, and the third to the column.
-
-    >>> import sima.misc
     >>> from sima.iterables import HDF5
-    >>> hdf5_path = sima.misc.example_hdf5()  # path to the HDF5 file
-    >>> iterables = [[HDF5(hdf5_path, 'tyx')]]
+    >>> iterables = [[HDF5('example.h5', 'yxt')]]
     >>> dataset = sima.ImagingDataset(iterables, 'example_HDF5.sima')
 
 
 Loading ImagingDataset objects
 ------------------------------
-
 A dataset object can also be loaded from a saved path with the .sima extension.
 
-    >>> path = sima.misc.example_data()  # path ending with .sima extension
-    >>> dataset = sima.ImagingDataset.load(path)
+    >>> dataset = sima.ImagingDataset.load('example.sima')
 
 
 Motion correction 
@@ -132,17 +134,35 @@ is used to indicate that the maximum possible displacement is 20 rows and 30
 columns.
 
     >>> import sima.motion
-    >>> import sima.misc
     >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF(sima.misc.example_tiff())]]
+    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
     >>> dataset = sima.motion.hmm(iterables, 'example_mc.sima',
-    ...                           max_displacement=[20,30])
+    ...                           max_displacement=[20,30], verbose=False)
 
+When the signal is of interest is very sparse or highly dynamic, it is sometimes
+helpful to use a second static channel to estimate the displacements for motion
+correction. The example below is for the case where the first channel contains
+a dynamic GCaMP signal whose large variations would confuse the motion correction
+alogorithm, and the second channel contains a static tdTomato signal that provides
+a stable reference.
 
+    >>> import sima.motion
+    >>> from sima.iterables import MultiPageTIFF
+    >>> iterables = [[MultiPageTIFF('example_Ch1.tif'), 
+    ...               MultiPageTIFF('example_Ch2.tif')]]
+    >>> dataset = sima.motion.hmm(
+    ...     iterables, 'example_mc2.sima', max_displacement=[20,30], 
+    ...     channel_names=['GCaMP', 'tdTomato'],
+    ...     correction_channels=['tdTomato'], verbose=False)
 
+When motion correction is invoked as above, only the tdTomato channel is used
+for estimating the displacements, which are then applied to both channels.
 
 Segmentation and ROIs
 ---------------------
+
+Automated segmentation
+......................
 An :class:`ImagingDataset` object can be automatically segmented with a call to
 its :func:`segment` method.  The arguments of the :func:`segment` method
 specify the segmentation approach to be used, an optional label for the
@@ -151,34 +171,75 @@ segmentation approach.  In the example below, an imaging dataset object is
 segmented with the ``'ca1pc'`` method designed for segmenting CA1 pyramidal
 cells.
 
-    >>> dataset = sima.ImagingDataset.load('example_mc.sima')
-    >>> rois = dataset.segment('ca1pc', 'auto_ROIS')
+    >>> dataset = sima.ImagingDataset.load('example.sima')
+    >>> rois = dataset.segment('ca1pc', 'auto_ROIs', num_pcs=5)
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
+    ['auto_ROIs']
 
-In addition to being returned by the :func:`segment` method, the resulting ROIs
-are also permanently stored as part of the :class:`ImagingDataset` object. They
-can be recovered at any time using the label specified at the time of
-specification.
 
-    >>> dataset = sima.ImagingDataset.load('example_mc.sima')
-    >>> dataset.ROIs.keys()  # view the labels of the available ROI sets
-    ['auto_ROIs', 'manually_edited_ROIS']
-    >>> rois = dataset.ROIs['manually_edited_ROIS']
-
-ROIS can also be imported from ImageJ, as shown in the following example.
-
-    >>> import sima.misc
-    >>> from sima.ROI import ROIList
-    >>> roi_path = sima.misc.example_imagej_rois()
-    >>> dataset = sima.ImagingDataset.load('example_mc.sima')
-    >>> rois = ROIList.load(example_imagej_rois(), fmt='ImageJ')
-    >>> dataset.add_ROIs(rois, 'from_ImageJ')
-    >>> dataset.ROIs.keys()
-    ['auto_ROIs', 'manually_edited_ROIS', 'from_ImageJ']
-
+Editing, creating, and registering ROIs with ROI Buddy
+......................................................
 Note that the an :class:`ImagingDataset` object can be loaded with the `ROI
 Buddy <roi_buddy.html>`_ graphical user interface (GUI) for manual editing of
-existing the ROI sets, creation of new ROI sets, or registration of ROI sets
-across multiple experiments in which the same field of view is imaged.
+existing the ROI lists, creation of new ROI lists, or registration of ROI lists
+across multiple experiments in which the same field of view is imaged.  For
+more details, consult the `ROI Buddy documentation <roi_buddy.html>`_.
+
+
+Importing ROIs from ImageJ
+..........................
+ROIS can also be imported from ImageJ, as shown in the following example.
+
+    >>> from sima.ROI import ROIList
+    >>> dataset = sima.ImagingDataset.load('example.sima')
+    >>> rois = ROIList.load('imageJ_ROIs.zip', fmt='ImageJ')
+    >>> dataset.add_ROIs(rois, 'from_ImageJ')
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
+    ['from_ImageJ', 'auto_ROIs']
+
+Mapping ROIs between datasets
+.............................
+Sometimes, for example when imaging the same field of view over multiple days,
+one wishes to segment the same structures in separate :class:`ImagingDataset`
+objects.  If all of the :class:`ImagingDataset` objects have been segmented,
+then the results of the segmentations can be registered with the `ROI Buddy GUI
+<roi_buddy.html>`_ as mentioned previously. If, however, only one of the
+datasets has been segmented, the results of the segmentation can be applied to
+the other datasets by applying to each ROI the affine transformation necessary
+to map one imaged field of view onto the other.  This can be done either with
+the `ROI Buddy GUI <roi_buddy.html>`_ or with a call to the
+:func:`import_transformed_ROIs` method, whose arguments allow for specification
+of the channels used to align the two datasets, the label of the :`obj`:ROIList
+to be transformed from one dataset to the other, the label that will be applied
+to the new :obj:`ROIList`, and whether to copy the properties of the ROIs as
+well as their shapes.
+
+    >>> source_dataset = sima.ImagingDataset.load('example.sima')
+    >>> target_dataset = sima.ImagingDataset.load('example_mc2.sima')
+    >>> target_dataset.ROIs.keys()
+    []
+    >>> target_dataset.import_transformed_ROIs(
+    ...     source_dataset, source_channel='green', target_channel='GCaMP',
+    ...     source_label='from_ImageJ', target_label='transformed',
+    ...     copy_properties='True')
+    >>> target_dataset.ROIs.keys()
+    ['transformed']
+
+This approach allows the user to focus on careful manual curation of the
+segmentation for a single :class:`ImagingDataset`, with the results of this
+segmentation then applied to all datasets acquired at the same field of view.
+
+Accessing stored ROIs
+.....................
+Whenever ROIs are created or imported, they are permanently stored as part of
+the :class:`ImagingDataset` object.  The ROIs can be recovered at any time
+using the label specified at the time when the ROIs were created.
+
+    >>> dataset = sima.ImagingDataset.load('example.sima')
+    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
+    ['from_ImageJ', 'auto_ROIs']
+    >>> rois = dataset.ROIs['auto_ROIs']
+
 
 Extraction
 ----------
@@ -187,10 +248,9 @@ then dynamic fluorescence signals can be extracted from the ROIs with the
 :func:`extract` method.
 
 
-    >>> import sima.misc
-    >>> dataset = sima.ImagingDataset.load(sima.misc.example_data())
+    >>> dataset = sima.ImagingDataset.load('example.sima')
     >>> dataset.ROIs.keys()
-    ['from_ImageJ']
+    ['from_ImageJ', 'auto_ROIs']
     >>> rois = dataset.ROIs['from_ImageJ']
     >>> dataset.channel_names
     ['red', 'green']
@@ -200,8 +260,7 @@ then dynamic fluorescence signals can be extracted from the ROIs with the
 The extracted signals are permanently saved with the :obj:`ImagingDataset`
 object and can be accessed at any time with the command :func:`signals` method.
 
-    >>> import sima.misc
-    >>> dataset = sima.ImagingDataset.load(sima.misc.example_data())
+    >>> dataset = sima.ImagingDataset.load('example.sima')
     >>> signals = dataset.signals(channel='green')['green_signal']
 
 Exporting data
@@ -222,11 +281,10 @@ can be used to view the results of motion correction, as shown in the following
 example.
 
     >>> import sima.motion
-    >>> import sima.misc
     >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF(sima.misc.example_tiff())]]
-    >>> dataset = sima.motion.hmm(iterables, 'example_mc.sima',
-    ...                           max_displacement=[20,30])
+    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
+    >>> dataset = sima.motion.hmm(iterables, 'example_mc3.sima',
+    ...                           max_displacement=[20,30], verbose=False)
     >>> dataset.export_averages(['exported_frames.tif'], fmt='TIFF16')
     >>> dataset.export_frames([['exported_frames.tif']], fmt='TIFF16')
 
@@ -245,8 +303,8 @@ Signal data
 For users wishing to analyze the extracted signals with an external program,
 these signals can be exported to a CSV file.
 
-    >>> dataset = sima.ImagingDataset.load('example_mc.sima')
-    >>> dataset.export_signals('example_signals.csv')
+    >>> dataset = sima.ImagingDataset.load('example.sima')
+    >>> dataset.export_signals('example_signals.csv', channel='green')
 
 The resulting CSV file contains the :obj:`id`, :obj:`label`, and :obj:`tags`
 for each ROI, and the extracted signal from each ROI at each frame time.
@@ -254,7 +312,7 @@ for each ROI, and the extracted signal from each ROI at each frame time.
 Complete example
 ----------------
 Below are the contents of workflow.py in the examples directory provided with
-the sima source code.
+the SIMA source code.
 
 .. include:: ../../examples/workflow.py
     :code: python

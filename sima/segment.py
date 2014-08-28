@@ -1,11 +1,17 @@
 import os
 import itertools as it
+from distutils.version import StrictVersion
 
 import numpy as np
 from scipy import sparse, ndimage
 from scipy.ndimage.measurements import label
 from skimage.filter import threshold_otsu
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 ####
 import matplotlib.pyplot as plt
@@ -18,10 +24,13 @@ from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
 
-import pyximport
-pyximport.install(setup_args={"include_dirs": np.get_include()},
-                  reload_support=True)
-import sima._opca as _opca
+try:
+    import sima._opca as _opca
+except ImportError:
+    import pyximport
+    pyximport.install(setup_args={"include_dirs": np.get_include()},
+                      reload_support=True)
+    import sima._opca as _opca
 
 
 def _rois_from_cuts_full(cuts):
@@ -82,7 +91,7 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
     ROIs = ROIList([])
     for cut in cuts:
         if len(cut.indices) > min_cut_size:
-            #pixel values in the cut
+            # pixel values in the cut
             vals = processed_im.flat[cut.indices]
 
             # indices of those values below the otsu threshold
@@ -92,20 +101,23 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
             except ValueError:
                 continue
 
-            #apply binary opening and closing to the surviving pixels
+            # apply binary opening and closing to the surviving pixels
+            # expand the shape by 1 in all directions to correct for edge
+            # effects of binary opening/closing
             twoD_indices = [np.unravel_index(x, shape) for x in roi_indices]
-            mask = np.zeros(shape)
-            for x in twoD_indices:
-                mask[x] = 1
+            mask = np.zeros([x + 2 for x in shape])
+            for indices in twoD_indices:
+                mask[indices[0] + 1, indices[1] + 1] = 1
             mask = ndimage.binary_closing(ndimage.binary_opening(mask))
+            mask = mask[1:-1, 1:-1]
             roi_indices = np.where(mask.flat)[0]
 
-            #label blobs in each cut
+            # label blobs in each cut
             labeled_array, num_features = label(mask)
             for feat in range(num_features):
                 blob_inds = np.where(labeled_array.flat == feat + 1)[0]
 
-                #Apply min ROI size threshold
+                # Apply min ROI size threshold
                 if len(blob_inds) > min_roi_size:
                     twoD_indices = [np.unravel_index(x, shape)
                                     for x in blob_inds]
@@ -113,7 +125,7 @@ def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
                     for x in twoD_indices:
                         mask[x] = 1
 
-                    #APPLY CIRCULARITY THRESHOLD
+                    # APPLY CIRCULARITY THRESHOLD
                     poly_pts = np.array(mask2poly(mask)[0].exterior.coords)
                     p = 0
                     for x in range(len(poly_pts) - 1):
@@ -286,7 +298,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
         return {
             ((u, v), (w, x)): np.dot(D[u, v, :], D[w, x, :])
             for u, v, w, x in pixel_pairs
-            }
+        }
     elif method == 'fast':
         ostdevs, correlations, pixels = _opca._fast_ocorr(
             dataset, pixel_pairs, channel)
@@ -306,6 +318,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
 
 
 class dataset_iterable():
+
     def __init__(self, dataset, channel):
         self.dataset = dataset
         self.channel = channel
@@ -322,6 +335,8 @@ class dataset_iterable():
 def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
                   sigma_y=10):
     """Perform unsharp masking on an image.."""
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
     return cv2.addWeighted(_to8bit(image), image_weight,
                            cv2.GaussianBlur(_to8bit(image), (0, 0), sigma_x,
                                             sigma_y),
@@ -330,7 +345,8 @@ def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
 
 def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
     """Perform contrast limited adaptive histogram equalization (CLAHE)."""
-
+    if not cv2_available:
+        raise ImportError('OpenCV >= 2.4.8 required')
     transform = cv2.createCLAHE(clipLimit=clip_limit,
                                 tileGridSize=(
                                     int(image.shape[1] / float(x_tile_size)),
