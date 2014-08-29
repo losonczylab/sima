@@ -13,12 +13,13 @@ except ImportError:
 else:
     cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
-####
 import matplotlib.pyplot as plt
 from scipy import nanmean
 from sklearn.decomposition import FastICA
 import sys
-####
+from descartes import PolygonPatch
+import scipy.stats as stats
+
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
@@ -962,6 +963,315 @@ def _smoothROI(roi):
     return roi, False
 
 
+def patchGradient(img):
+
+    bstICA = np.array(img)
+    bstICA = bstICA-np.min(bstICA)
+    bstICA = bstICA/np.max(bstICA)
+    
+    bstICA[bstICA>np.std(bstICA)] = 1
+    bstICA[bstICA<1] = 0
+
+    n = 3
+    patch_static = np.zeros(bstICA.shape)
+    for y in range(bstICA.shape[0]):
+        for x in range(bstICA.shape[1]):
+            rx = (max((0,x-n)),min(x+n,bstICA.shape[1]))
+            ry = (max(0,y-n),min(y+n,bstICA.shape[0]))
+        
+            patch = bstICA[ry[0]:ry[1],rx[0]:rx[1]]
+            patch_val = np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,1:-1])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,1:-1])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[1:-1,:-2])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[1:-1,2:])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,2:])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,2:])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,:-2])) + \
+                            np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,:-2]))
+
+            patch_static[y,x] = patch_val*1.0/len(patch.ravel())
+
+    patch_static = patch_static-np.min(patch_static)
+    patch_static = 1-patch_static/np.max(patch_static)
+    
+    #plt.imshow(patch_static)
+    #plt.show()
+
+    return patch_static,bstICA
+
+
+def classify(accepted, st_components,storeFile=None,frames=None,force=False):
+    print "calculating pixel classifications"
+
+    x_vals=np.linspace(-1,1,4000)
+
+    patch_roi_params = []
+    patch_static_params = []
+
+    roi_params = []
+    static_params = []
+
+    frame_rois = []
+    if frames is None:
+        frames = range(len(accepted))
+
+    for frame_no in frames:
+        print frame_no
+        if frame_no >= len(accepted):
+            print "index excedes available frames"
+            continue
+   
+        rois = _extractStRois([accepted[frame_no]])
+        
+        frame_rois.append(rois)
+
+        fig = plt.figure(figsize=(12,6))
+        BLUE = '#32cd32'
+        ax = plt.subplot(121)
+        plt.imshow(st_components[frame_no])
+        for roi in rois:
+            for poly in roi.polygons:
+                patch = PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=2)
+                ax.add_patch(patch)
+        
+        plt.subplot(122)
+        plt.imshow(accepted[frame_no])
+        plt.show()
+
+        patch_static,bstICA = patchGradient(st_components[frame_no])
+
+        allmasks = np.sum(np.array([roi.mask.todense() for roi in rois]),axis=0)
+    
+        patch_vals1 = patch_static[np.where(allmasks)]
+        patch_roi_params.append(stats.rayleigh.fit(patch_vals1))
+
+        patch_vals2 = patch_static[np.where(np.logical_not(allmasks))]
+        patch_static_params.append(stats.norm.fit(patch_vals2))
+    
+        stICA_img = np.array(st_components[frame_no])/np.max(st_components[frame_no])
+        vals1 = stICA_img[np.where(np.logical_and(allmasks,stICA_img>0))]
+        roi_params.append(stats.rayleigh.fit(vals1))
+    
+        vals2 = stICA_img[np.where(np.logical_and(np.logical_not(allmasks),stICA_img>0))]
+        vals2 = np.concatenate((vals2,-vals2))
+        static_params.append(stats.norm.fit(vals2))
+
+        
+        if frame_no in range(1):
+
+            fig = plt.figure(figsize=(12,6))
+            plt.title("Training ROIs Frame")
+            BLUE = '#32cd32'
+            ax = plt.subplot(121)
+            plt.imshow(st_components[frame_no])
+            for roi in rois:
+                for poly in roi.polygons:
+                    patch = PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=2)
+                    ax.add_patch(patch)
+            plt.axis([0,rois[0].im_shape[1],0,rois[0].im_shape[0]])
+
+            ####
+            """
+            fig = plt.figure()
+
+            plt.imshow(patch_static)
+            plt.title("Patch Gradients")
+            for roi in rois:
+                roi.plotROI(fig,linewidth=2,color='k')
+            plt.axis([0,rois[0]._imsize[1],0,rois[0]._imsize[0]])
+
+            plt.figure(figsize=(16,8))
+            plt.subplot(121)
+            patch_roi_p = patch_roi_params[-1]
+            plt.hist(patch_vals1,bins=100,normed=1)
+            patch_roi_fitted = stats.rayleigh.pdf(x_vals,loc=patch_roi_p[0],scale=patch_roi_p[1])
+            plt.plot(x_vals,patch_roi_fitted,linewidth=2.0,color='r')
+            plt.title("Patch Gradient ROI Histogram and fitted rayleigh")
+            plt.xlim((0,1))
+
+            plt.subplot(122)
+            patch_static_p = patch_static_params[-1]
+            plt.hist(patch_vals2,bins=100,normed=1)
+            patch_static_fitted = stats.norm.pdf(x_vals,loc=patch_static_p[0],scale=patch_static_p[1])
+            plt.plot(x_vals,patch_static_fitted,linewidth=2.0,color='r')
+            plt.title("Patch Gradient Static Histogram and fitted normal")
+            plt.xlim((0,1))
+            
+            fig = plt.figure(figsize=(16,8))
+            plt.subplot(121)
+            plt.hist(vals1,bins=100,normed=1)
+            fitted1 = stats.rayleigh.pdf(x_vals,loc=roi_params[-1][0],scale=roi_params[-1][1])
+            plt.plot(x_vals,fitted1,linewidth=3.0,color='r')
+            plt.xlim((0,1))
+            plt.title("ROI pixel value histogram and fitted rayleigh")
+
+            plt.subplot(122)
+            plt.hist(vals2,bins=150,normed=1)
+            fitted2 = stats.norm.pdf(x_vals,loc=static_params[-1][0],scale=static_params[-1][1])
+            plt.plot(x_vals,fitted2,linewidth=3.0,color='r')
+            plt.xlim((0,1))
+            plt.title("non-ROI pixel value histogram and fitted normal")
+
+            """
+            ###
+
+
+            fig = plt.figure(figsize=(12,10))
+            plt.subplot(221)
+            plt.imshow(patch_static)
+            plt.title("Sum of gradients r=4")
+            plt.subplot(222)
+            plt.imshow(bstICA)
+            plt.title("stICA component, converted to binary")
+
+            plt.subplot(223)
+            patch_roi_p = patch_roi_params[-1]
+            plt.hist(patch_vals1,bins=100,normed=1)
+            patch_roi_fitted = stats.rayleigh.pdf(x_vals,loc=patch_roi_p[0],scale=patch_roi_p[1])
+            plt.plot(x_vals,patch_roi_fitted,linewidth=2.0,color='r')
+            plt.title("Patch Gradient ROI Histogram and fitted rayleigh")
+            plt.xlim((0,1))
+
+            plt.subplot(224)
+            patch_static_p = patch_static_params[-1]
+            plt.hist(patch_vals2,bins=100,normed=1)
+            patch_static_fitted = stats.norm.pdf(x_vals,loc=patch_static_p[0],scale=patch_static_p[1])
+            plt.plot(x_vals,patch_static_fitted,linewidth=2.0,color='r')
+            plt.title("Patch Gradient Static Histogram and fitted normal")
+            plt.xlim((0,1))
+
+
+            fig = plt.figure(figsize=(16,8))
+            plt.subplot(121)
+            plt.hist(vals1,bins=100,normed=1)
+            fitted1 = stats.rayleigh.pdf(x_vals,loc=roi_params[-1][0],scale=roi_params[-1][1])
+            plt.plot(x_vals,fitted1,linewidth=3.0,color='r')
+            plt.xlim((0,1))
+            plt.title("ROI pixel value histogram and fitted rayleigh")
+
+            plt.subplot(122)
+            plt.hist(vals2,bins=150,normed=1)
+            fitted2 = stats.norm.pdf(x_vals,loc=static_params[-1][0],scale=static_params[-1][1])
+            plt.plot(x_vals,fitted2,linewidth=3.0,color='r')
+            plt.xlim((0,1))
+            plt.title("non-ROI pixel value histogram and fitted normal")
+
+            plt.show()
+
+    static_avg = np.mean(static_params,axis=0)
+    roi_avg = np.mean(roi_params,axis=0)
+
+    plt.figure()
+    x=np.linspace(-1,1,1000)
+    fitted1 = stats.rayleigh.pdf(x,loc=roi_avg[0],scale=roi_avg[1])
+    fitted2 = stats.norm.pdf(x,loc=static_avg[0],scale=static_avg[1])
+    plt.plot(x,fitted1,color="green",linewidth=2)
+    plt.plot(x,fitted2,color="red",linewidth=2)
+    plt.xlim((0,1))
+    plt.title("Average ROI and static pixel intensity distributions")
+
+
+    plt.figure()
+    x=np.linspace(-1,1,1000)
+    patch_roi_avg = np.mean(patch_roi_params,axis=0)
+    patch_static_avg = np.mean(patch_static_params,axis=0)
+
+    fitted1 = stats.rayleigh.pdf(x,loc=patch_roi_avg[0],scale=patch_roi_avg[1])
+    fitted2 = stats.norm.pdf(x,loc=patch_static_avg[0],scale=patch_static_avg[1])
+    plt.plot(x,fitted1,color="green",linewidth=2)
+    plt.plot(x,fitted2,color="red",linewidth=2)
+    plt.xlim((0,1))
+    plt.title("Average ROI and static patch gradient distributions")
+
+    plt.show()
+    
+    return static_avg,roi_avg,patch_static_avg,patch_roi_avg,frame_rois
+
+def evalPixels(st_components,static_params,roi_params,patch_static_params,patch_roi_params,frame_rois,storeFile=None,force=False):
+
+    print "evaluating pixels"
+    
+    x=np.linspace(-1,1,1000)
+
+    fitted1 = stats.rayleigh.pdf(x,loc=roi_params[0],scale=roi_params[1])
+
+    fitted2 = stats.norm.pdf(x,loc=static_params[0],scale=static_params[1])
+
+    x=np.linspace(-1,1,1000)
+    fitted1 = stats.rayleigh.pdf(x,loc=patch_roi_params[0],scale=patch_roi_params[1])
+
+    fitted2 = stats.norm.pdf(x,loc=patch_static_params[0],scale=patch_static_params[1])
+
+    results = []
+    for i in range(st_components.shape[0]):
+        print i
+        stFrame = st_components[i]
+        #plt.imshow(stFrame)
+        #plt.show()
+        #stFrame = stFrame[::-1,:]
+        #bstICA = np.array(stFrame)
+
+        patch_static,bstICA = patchGradient(stFrame)
+        #plt.figure(figsize=(12,6))
+        #plt.subplot(121)
+        #plt.imshow(patch_static)
+        #plt.subplot(122)
+        #plt.imshow(bstICA)
+
+
+        stFrame = ndimage.gaussian_filter(stFrame, sigma=1)
+        #stFrame = stFrame - np.min(stFrame)
+        stFrame = stFrame/np.max(stFrame)
+        static_prob = stats.norm.pdf(stFrame,loc=static_params[0],scale=static_params[1])
+        roi_probs = stats.rayleigh.pdf(stFrame,loc=roi_params[0],scale=roi_params[1])
+
+        patch_static_prob = stats.norm.pdf(patch_static,loc=patch_static_params[0],scale=patch_static_params[1])
+        patch_roi_probs = stats.rayleigh.pdf(patch_static,loc=patch_roi_params[0],scale=patch_roi_params[1])
+
+        
+        sp = static_prob+patch_static_prob
+        rp = roi_probs+patch_roi_probs
+        print "sp: %f, rp %f" %(np.max(sp),np.max(rp))
+
+        result = rp>sp
+
+        frame= result
+        check = frame[1:-1,:-2]+frame[1:-1,2:]+frame[:-2,1:-1]+frame[2,1:-1]
+        z = np.zeros(frame.shape)
+        z[1:-1,1:-1] = check;
+        frame[np.logical_not(z)] = 0
+
+        results.append(frame)
+
+        if i in range(1):
+            plt.figure()
+            plt.imshow(stFrame)
+            plt.title("Current Frame")
+
+            plt.figure(figsize=(12,6))
+            plt.subplot(121)
+            plt.imshow(static_prob)
+            plt.title("Fluorescence static prob")
+            plt.subplot(122)
+            plt.imshow(roi_probs)
+            plt.title("Fluorescence ROI prob")
+
+            plt.figure(figsize=(12,6))
+            plt.subplot(121)
+            plt.imshow(patch_static_prob)
+            plt.title("patch gradient static prob")
+            plt.subplot(122)
+            plt.imshow(patch_roi_probs)
+            plt.title("patch gradient roi prob")
+
+            plt.figure()
+            plt.imshow(frame)
+            plt.title("prob roi > prob static")
+            plt.show()
+
+    return results
+
+
 def stica(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
           static_threshold=0.1,min_area=75,overlap_per=0,smooth_rois=True):
     """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
@@ -1012,5 +1322,71 @@ def stica(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
         rois = [_smoothROI(roi)[0] for roi in rois]
 
     rois = _remove_overlapping(rois,percent_overlap=0.75)
+
+    return rois
+
+
+def stica_class(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
+          static_threshold=0.1,min_area=75,overlap_per=0,smooth_rois=True):
+    """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
+
+    Parameters
+    ----------
+    dataset : sima.ImagingDataset
+        dataset to be segmented
+    channel : int, optional
+        The index of the channel to be used. Default: 0
+    mu : float, optional
+        Weighting parameter for the trade off between spatial and temporal
+        information. Must be between 0 and 1. Low values give higher weight 
+        to temporal information. Default: 0.01
+
+    
+    Returns
+    -------
+    rois : list
+        A list of sima.ROI ROI objects which have been smoothed
+    """
+
+    if dataset.savedir is not None:
+        pca_path = os.path.join(
+            dataset.savedir, 'opca_' + str(channel) + '.npz')
+    else:
+        pca_path = None
+
+    if dataset.savedir is not None:
+        ica_path = os.path.join(
+            dataset.savedir, 'ica_' + str(channel) + '.npz')
+    else:
+        ica_path = None
+    
+    if dataset.savedir is not None:
+        res_path = os.path.join(
+            dataset.savedir, 'res_' + str(channel) + '.npz')
+    else:
+        res_path = None
+    
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_pcs, path=pca_path)
+    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,
+                                          num_pcs))
+
+    st_components = _stICA(space_pcs,time_pcs,mu=mu,path=ica_path,
+                           n_components=num_ica_components)
+
+    accepted,accepted_components,_ = _findUsefulComponents(
+            st_components,static_threshold)
+
+    static_params,roi_params,patch_static_params,patch_roi_params,frame_rois = classify(accepted[:5],accepted_components[:5])
+
+    results = evalPixels(np.array(accepted_components),static_params,roi_params,patch_static_params,patch_roi_params,frame_rois)
+    
+    np.savez(res_path,results=results)
+    rois = _extractStRois(results,min_area=min_area)
+   
+    print 'smoothing ROIs'
+    if smooth_rois:
+        rois = [_smoothROI(roi)[0] for roi in rois]
+
+    #rois = _remove_overlapping(rois,percent_overlap=0.75)
 
     return rois
