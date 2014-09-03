@@ -155,15 +155,10 @@ class ImagingDataset(object):
                 except AttributeError:
                     return sequence
 
-            sequences = [[unpack(channel) for channel in sequence]
-                         for sequence in data.pop('sequences')]
+            self._sequences = [[unpack(channel) for channel in sequence]
+                               for sequence in data.pop('sequences')]
 
-            self.trim_criterion = data.pop('trim_criterion', None)
             self._channel_names = data.pop('channel_names', None)
-            try:
-                self._lazy__trim_coords = data.pop('_lazy__trim_coords')
-            except KeyError:
-                pass
             try:
                 self.num_frames = data.pop('num_frames')
             except KeyError:
@@ -180,21 +175,18 @@ class ImagingDataset(object):
                         raise Exception(
                             'Cannot overwrite existing ImagingDataset.'
                         )
+            self._sequences = sequences
             self._channel_names = channel_names
 
         # initialize sequences
-        self._sequences = sequences
         self.num_sequences = len(self._sequences)
-        self.num_channels = self._sequences[0].num_channels
-        if not np.all([sequence.num_channels == self.num_channels
+        if not np.all([sequence.shape[1:] == sequences[0].shape[1:]
                        for sequence in self._sequences]):
             raise ValueError(
-                'All sequences must have the same number of channels.')
-        self.frame_shape = self._sequences[0].shape[1:]
-        if not np.all([sequence.shape[1:] == self.frame_shape
-                       for sequence in self._sequences]):
-            raise ValueError(
-                'All sequences must have images of the same size.')
+                'All sequences must have images of the same size ' +
+                'and the same number of channels.')
+        self.num_channels = self._sequences[0].shape[4]
+        self.frame_shape = self._sequences[0].shape[1:4]
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(len(c) for c in self)
 
@@ -207,18 +199,17 @@ class ImagingDataset(object):
     def __getitem__(self, indices):
 
         seq_indices = indices.pop(0)
-
         sequences = [
             [seq[indices] for seq in self][seq_indices]
         ]
         return ImagingDataset(sequences, None, info=self.info)
 
-    @lazyprop
-    def _max_displacement(self):
-        displacements = self._displacements
-        if displacements:
-            return np.amax([x.max(axis=0) for x in self._displacements],
-                           axis=0).astype(int)
+    # @lazyprop
+    # def _max_displacement(self):
+    #     displacements = self._displacements
+    #     if displacements:
+    #         return np.amax([x.max(axis=0) for x in self._displacements],
+    #                        axis=0).astype(int)
 
     # @property
     # def _displacements(self):
@@ -237,7 +228,8 @@ class ImagingDataset(object):
     #                 to_fix = True
     #         if to_fix:
     #             print('Updated old displacements file')
-    #             with open(join(self.savedir, 'displacements.pkl'), 'wb') as f:
+    #             with open(
+    #                   join(self.savedir, 'displacements.pkl'), 'wb') as f:
     #                 pickle.dump(displacements, f, pickle.HIGHEST_PROTOCOL)
     #         return displacements
 
@@ -310,19 +302,16 @@ class ImagingDataset(object):
                 d['__class__'] = sequence.__class__
                 return d
 
-        sequences = [[pack(channel) for channel in sequence.channels]
-                     for sequence in self]
+        sequences = [sequence._todict() for sequence in self]
         d = {
             'sequences': sequences,
+            'savedir': abspath(self.savedir),
             'channel_names': self.channel_names,
-            'trim_criterion': self.trim_criterion,
             'num_frames': self.num_frames,
             '__version__': sima.__version__
         }
         if hasattr(self, '_lazy__trim_coords'):
             d['_lazy__trim_coords'] = self._trim_coords
-        if hasattr(self, '_invalid_frames'):
-            d['_invalid_frames'] = self._invalid_frames
         return d
 
     def add_ROIs(self, ROIs, label=None):
@@ -493,7 +482,7 @@ class ImagingDataset(object):
         """
         for sequence, fns in it.izip(self, filenames):
             sequence._export_frames(fns, fmt, fill_gaps, scale_values,
-                                 self.channel_names)
+                                    self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extrated signals to a file.
@@ -526,7 +515,8 @@ class ImagingDataset(object):
                 [''.join(t + ',' for t in sorted(r['tags']))[:-1]
                  for r in rois]
             )
-            for sequence_idx, sequence in enumerate(signals[signals_label]['raw']):
+            for sequence_idx, sequence in enumerate(
+                    signals[signals_label]['raw']):
                 for frame_idx, frame in enumerate(sequence.T):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
 
