@@ -148,8 +148,8 @@ def log_observation_probabilities(
             tmpLogP[i] += logp
 
 def _align_frame(
-        np.ndarray[FLOAT_TYPE_t, ndim=2] frame,
-        np.ndarray[INT_TYPE_t, ndim=2] displacements,
+        np.ndarray[FLOAT_TYPE_t, ndim=3] frame,
+        np.ndarray[INT_TYPE_t, ndim=3] displacements,
         corrected_frame_size):
     """Correct a frame based on previously estimated displacements.
 
@@ -166,17 +166,18 @@ def _align_frame(
     array : float32
         The corrected frame, with unobserved locations indicated as NaN.
     """
-    cdef np.ndarray[FLOAT_TYPE_t, ndim=2] corrected_frame = np.zeros(
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=3] corrected_frame = np.zeros(
         corrected_frame_size)
-    cdef np.ndarray[INT_TYPE_t, ndim=2] count = np.zeros(corrected_frame_size, dtype=int)
-    cdef int num_cols, i, j, x, y
-    num_cols = frame.shape[1]
-    for i in range(frame.shape[0]):
-        y = i + displacements[i, 0]
-        for j in range(num_cols):
-            x = displacements[i, 1] + j
-            count[y, x] += 1
-            corrected_frame[y, x] += frame[i, j]
+    cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(corrected_frame_size, dtype=int)
+    cdef int num_cols, plane_idx, i, j, x, y
+    num_cols = frame.shape[2]
+    for plane_idx in range(frame.shape[0]):
+        for i in range(frame.shape[0]):
+            y = i + displacements[plane_idx, i, 0]
+            for j in range(num_cols):
+                x = displacements[plane_idx, i, 1] + j
+                count[plane_idx, y, x] += 1
+                corrected_frame[plane_idx, y, x] += frame[plane_idx, i, j]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return corrected_frame / count
