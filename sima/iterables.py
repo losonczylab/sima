@@ -35,21 +35,21 @@ common data formats.
 """
 
 from os.path import abspath, dirname
+import itertools
 import warnings
-import copy
 from distutils.version import StrictVersion
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
 
-try:
-    from libtiff import TIFF
-    libtiff_available = True
-except ImportError:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from sima.misc.tifffile import TiffFile
-    libtiff_available = False
+# try:
+#     from libtiff import TIFF
+#     libtiff_available = True
+# except ImportError:
+#     with warnings.catch_warnings():
+#         warnings.simplefilter("ignore")
+#         from sima.misc.tifffile import TiffFile
+#     libtiff_available = False
 try:
     import h5py
 except ImportError:
@@ -63,8 +63,18 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from sima.misc.tifffile import TiffFileWriter
 
+
 class Sequence(object):
+
     """A sequence contains the data.
+
+    Sequences are created with a call to the create method.
+
+    >>> import sima # doctest: +ELLIPSIS
+    ...
+    >>> from sima.iterables import Sequence
+    >>> Sequence.create('HDF5', '', 'tzyxc')
+
 
     Attributes
     ----------
@@ -78,7 +88,7 @@ class Sequence(object):
 
     def __getitem__(self, indices):
         """Create a new Sequence by slicing this Sequence."""
-        return _IndexedIterable(self, indices)
+        return _IndexedSequence(self, indices)
 
     @abstractmethod
     def __iter__(self):
@@ -87,7 +97,10 @@ class Sequence(object):
         The yielded structures are numpy arrays of the shape (num_planes,
         num_rows, num_columns, num_channels).
         """
-        pass
+        raise NotImplementedError
+
+    def _get_frame(self, t):
+        raise NotImplementedError
 
     def __len__(self):
         return sum(1 for _ in self)
@@ -116,8 +129,7 @@ class Sequence(object):
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
 
-
-    def export(self, filenames, fmt='TIFF16', fill_gaps=True,
+    def export(self, filenames, fmt='TIFF16', fill_gaps=False,
                scale_values=False, channel_names=None):
         """Save frames to the indicated filenames.
 
@@ -140,7 +152,11 @@ class Sequence(object):
         else:
             raise('Not Implemented')
 
-        for f_idx, frame in enumerate(self):
+        if fill_gaps:
+            save_frames = _fill_gaps(iter(self), iter(self))
+        else:
+            save_frames = iter(self)
+        for f_idx, frame in enumerate(save_frames):
             for ch_idx, channel in enumerate(frame):
                 if fmt == 'TIFF16':
                     f = output_files[ch_idx]
@@ -171,7 +187,8 @@ class Sequence(object):
             f.close()
 
 
-class IndexableSequence(Sequence):
+class _IndexableSequence(Sequence):
+
     """Iterable whose underlying structure supports indexing."""
     __metaclass__ = ABCMeta
 
@@ -215,7 +232,7 @@ class IndexableSequence(Sequence):
 #             self.stack = TiffFile(self.path)
 #
 #     def __len__(self):
-#         # TODO: remove this and just use
+# TODO: remove this and just use
 #         if libtiff_available:
 #             tiff = TIFF.open(self.path, 'r')
 #             l = sum(1 for _ in tiff.iter_images())
@@ -239,7 +256,7 @@ class IndexableSequence(Sequence):
 #         return {'path': self.path, 'clip': self._clip}
 
 
-class _Sequence_HDF5(IndexableSequence):
+class _Sequence_HDF5(_IndexableSequence):
 
     """
     Iterable for an HDF5 file containing imaging data.
@@ -339,45 +356,72 @@ class _Sequence_HDF5(IndexableSequence):
         }
 
 
-# class _MotionSequence(Sequence):  # TODO: Use a decorator to make this appear
-#                                   # as a sequence instead of inheriting??
-#     """Wraps any other sequence to apply motion correction.
-#
-#     Parameters
-#     ----------
-#     base : Sequence
-#
-#     displacements : array
-#         The _D displacement of each row in the image cycle.
-#         Shape: (num_rows * num_frames, 2).
-#
-#     This object has the same attributes and methods as the class it wraps."""
-#     # TODO: check clipping and output frame size
-#     def __init__(self, base, displacements):
-#         self._base = base
-#         self.displacements = displacements
-#
-#     def __len__(self):
-#         return len(self._base)  # Faster to calculate len without aligning
-#
-#     def __iter__(self)
-#         for frame, displacement in it.izip(self._base, displacements):
-#             yield _align(frame, displacement)
-#
-#     def __getitem__(self, *index)
-#         # TODO: make this work for slicing
-#         return _align(self._base[index[0]], displacements[index[0]])[index[1:]
-#
-#     def __getattr__(self, name):
-#         return getattr(self._base, name)
-#
-#     def __dir__(self):
-#         """Customize how attributes are reported, e.g. for tab completion"""
-#         heritage = dir(super(self.__class__, self)) # inherited attributes
-#         return sorted(heritage + self.__class__.__dict__.keys() +
-#                       self.__dict__.keys())
+class _MotionSequence(Sequence):
 
-class _IndexedIterable(Sequence):
+    """Wraps any other sequence to apply motion correction.
+
+    Parameters
+    ----------
+    base : Sequence
+
+    displacements : array
+        The _D displacement of each row in the image cycle.
+        Shape: (num_rows * num_frames, 2).
+
+    This object has the same attributes and methods as the class it wraps."""
+    # TODO: check clipping and output frame size
+
+    def __init__(self, base, displacements, frame_shape):
+        self._base = base
+        self.displacements = displacements
+        self._frame_shape = frame_shape  # (planes, rows, columns)
+
+    def __len__(self):
+        return len(self._base)  # Faster to calculate len without aligning
+
+    def __iter__(self):
+        for frame, displacement in itertools.izip(self._base,
+                                                  self.displacements):
+            yield _align_frame(frame, displacement, self._frame_shape)
+
+    def _get_frame(self, t):
+        _align_frame(self._base._get_frame(t), self.displacements[t],
+                     self._frame_shape)
+
+    def __getitem__(self, indices):
+        if len(indices) > 5:
+            raise ValueError
+        indices = indices if isinstance(indices, tuple) else (indices,)
+        times = indices[0]
+        if indices[0] not in (None, slice(None)):
+            new_indices = (None,) + indices[1:]
+            return _MotionSequence(
+                self._base[times],
+                self.displacements[times],
+                self._frame_shape
+            )[new_indices]
+        if len(indices) == 5:
+            chans = indices[5]
+            return _MotionSequence(
+                self._base[:, :, :, :, chans],
+                self.displacements[:, :, :, chans],
+                self._frame_shape
+            )[indices[:5]]
+        # TODO: similar for planes ???
+        return _IndexedSequence(self, indices)
+
+    def __getattr__(self, name):
+        try:
+            getattr(super(_MotionSequence, self), name)
+        except AttributeError as err:
+            if err.args[0] == \
+                    "'super' object has no attribute '_" + name + "'":
+                return getattr(self._base, name)
+            else:
+                raise err
+
+
+class _IndexedSequence(Sequence):
 
     def __init__(self, base, indices):
         self._base = base
@@ -408,11 +452,12 @@ class _IndexedIterable(Sequence):
     def __len__(self):
         return len(range(len(self._base))[self._indices[0]])
 
-    def __getattr__(self, name):  # TODO: switch to get-attribute???
+    def __getattr__(self, name):
         try:
-            getattr(super(_IndexedIterable, self), name)
-        except AttributeError as err:  # TODO: more specific check
-            if err.args[0] == "'super' object has no attribute '_" + name + "'":
+            getattr(super(_IndexedSequence, self), name)
+        except AttributeError as err:
+            if err.args[0] == \
+                    "'super' object has no attribute '_" + name + "'":
                 return getattr(self._base, name)
             else:
                 raise err
@@ -424,3 +469,32 @@ class _IndexedIterable(Sequence):
     #     heritage = dir(super(self.__class__, self)) # inherited attributes
     #     return sorted(heritage + self.__class__.__dict__.keys() +
     #                   self.__dict__.keys())
+
+
+def _fill_gaps(frame_iter1, frame_iter2):
+    """Fill missing rows in the corrected images with data from nearby times.
+
+    Parameters
+    ----------
+    frame_iter1 : iterator of list of array
+        The corrected frames (one list entry per channel).
+    frame_iter2 : iterator of list of array
+        The corrected frames (one list entry per channel).
+
+    Yields
+    ------
+    list of array
+        The corrected and filled frames.
+    """
+    first_obs = next(frame_iter1)
+    for frame in frame_iter1:
+        for frame_chan, fobs_chan in zip(frame, first_obs):
+            fobs_chan[np.isnan(fobs_chan)] = frame_chan[np.isnan(fobs_chan)]
+        if all(np.all(np.isfinite(chan)) for chan in first_obs):
+            break
+    most_recent = [x * np.nan for x in first_obs]
+    for frame in frame_iter2:
+        for fr_chan, mr_chan in zip(frame, most_recent):
+            mr_chan[np.isfinite(fr_chan)] = fr_chan[np.isfinite(fr_chan)]
+        yield [np.nan_to_num(mr_ch) + np.isnan(mr_ch) * fo_ch
+               for mr_ch, fo_ch in zip(most_recent, first_obs)]
