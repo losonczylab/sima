@@ -1,9 +1,14 @@
+.. image:: https://travis-ci.org/losonczylab/sima.svg?branch=master
+   :target: https://travis-ci.org/losonczylab/sima/
+
+.. image:: https://coveralls.io/repos/losonczylab/sima/badge.png 
+   :target: https://coveralls.io/r/losonczylab/sima 
+
 Overview
 --------
-The SIMA (Sequential IMage Analysis) package facilitates
+SIMA (Sequential IMage Analysis) is an Open Source package for 
 analysis of time-series imaging data arising from fluorescence
-microscopy.
-The functionality of this package includes:
+microscopy.  The functionality of this package includes:
 
 - correction of motion artifacts
 - segmentation of imaging fields into regions of interest (ROIs)
@@ -12,6 +17,7 @@ The functionality of this package includes:
 The included ROI Buddy software provides a graphical user interface
 (GUI) supporting the following functionality:
 
+- manual creation of ROIs
 - editing of ROIs resulting from automated segmentation
 - registration of ROIs across separate imaging sessions
 
@@ -34,13 +40,24 @@ Dependencies
 Optional dependencies
 ---------------------
 
-- OpenCV 2.4 (http://opencv.org), required for segmentation, registration of
-  ROIs across multiple datasets, and the ROI Buddy GUI
+- OpenCV >= 2.4.8 (http://opencv.org), required for segmentation, registration
+  of ROIs across multiple datasets, and the ROI Buddy GUI
 - h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
 - pylibtiff (https://code.google.com/p/pylibtiff/), required for more efficient
   handling of large TIFF files
-- mdp (http://mdp-toolkit.sourceforge.net), required for ICA demixing of channels
+- mdp (http://mdp-toolkit.sourceforge.net), required for ICA demixing of
+  channels
 
+
+Citing SIMA
+-----------
+If you use SIMA for your research, please cite the following paper in any 
+resulting publications:
+
+  `Kaifosh P, Zaremba J, Danielson N, and Losonczy A. SIMA: Python software for
+  analysis of dynamic fluorescence imaging data. Frontiers in Neuroinformatics.
+  2014 Aug 27; 8:77. doi: 10.3389/fninf.2014.00077.
+  <http://journal.frontiersin.org/Journal/101928>`_
 
 License
 -------

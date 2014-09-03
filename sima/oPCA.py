@@ -7,10 +7,13 @@ from scipy.linalg import eig, eigh, inv, norm
 from scipy.sparse.linalg import eigsh, eigs
 import warnings
 
-import pyximport
-pyximport.install(setup_args={"include_dirs": np.get_include()},
-                  reload_support=True)
-import sima._opca as _opca
+try:
+    import sima._opca as _opca
+except ImportError:
+    import pyximport
+    pyximport.install(setup_args={"include_dirs": np.get_include()},
+                      reload_support=True)
+    import sima._opca as _opca
 
 
 def _method_1(data, num_pcs=None):

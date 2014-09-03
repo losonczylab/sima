@@ -7,9 +7,15 @@ import csv
 from os.path import dirname, join, normpath, normcase, isfile, relpath, \
     abspath
 import cPickle as pickle
-from h5py import File
+from distutils.version import StrictVersion
 
 import numpy as np
+try:
+    import h5py
+except ImportError:
+    h5py_available = False
+else:
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
 
 import sima
 import sima.segment as segment
@@ -24,6 +30,7 @@ from sima._motion import _align_frame
 
 
 class ImagingDataset(object):
+
     """A multiple cycle imaging dataset.
 
     Imaging data sets can be iterated over to generate cycles, which
@@ -43,16 +50,6 @@ class ImagingDataset(object):
     ...             for row in channel:
     ...                 for column in row:
     ...                         pass
-
-    Datasets can also be indexed and sliced.
-    >>> dataset[0].num_cycles
-
-    The following slices are all equivalent.
-    >>> slice0 = dataset[channel='GCaMP']
-    >>> slice1 = dataset[channel=1]
-    >>> slice2 = dataset[:, :, :, :, 1]
-
-    The resulting sliced datasets are not saved by default.
 
     Parameters
     ----------
@@ -110,6 +107,7 @@ class ImagingDataset(object):
         The indices of the invalid frames in each cycle.
 
     """
+
     def __init__(self, iterables, savedir, channel_names=None,
                  metadata=None, displacements=None, trim_criterion=None,
                  invalid_frames=None):
@@ -216,11 +214,11 @@ class ImagingDataset(object):
                 'All cycles must have the same number of channels.')
         self.num_rows = self._cycles[0].num_rows
         if not np.all([cycle.num_rows == self.num_rows
-                      for cycle in self._cycles]):
+                       for cycle in self._cycles]):
             raise ValueError('All cycles must have images of the same size.')
         self.num_columns = self._cycles[0].num_columns
         if not np.all([cycle.num_columns == self.num_columns
-                      for cycle in self._cycles]):
+                       for cycle in self._cycles]):
             raise ValueError('All cycles must have images of the same size.')
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(c.num_frames for c in self)
@@ -323,7 +321,7 @@ class ImagingDataset(object):
         def pack(iterable):
             try:
                 d = iterable._todict()
-            #TODO: is this necessary?
+            # TODO: is this necessary?
             except AttributeError:
                 return iterable
             else:
@@ -338,7 +336,7 @@ class ImagingDataset(object):
             'channel_names': self.channel_names,
             'trim_criterion': self.trim_criterion,
             'num_frames': self.num_frames,
-            '__version__' : sima.__version__
+            '__version__': sima.__version__
         }
         if hasattr(self, '_lazy__trim_coords'):
             d['_lazy__trim_coords'] = self._trim_coords
@@ -377,9 +375,9 @@ class ImagingDataset(object):
     def import_transformed_ROIs(self, source_dataset, source_channel=0,
                                 target_channel=0, source_label=None,
                                 target_label=None, copy_properties=True):
-        """Calculate an affine transformation that maps the source ImagingDataset
-        onto this ImagingDataset, tranform the source ROIs by this mapping, and
-        then import them into this ImagingDataset.
+        """Calculate an affine transformation that maps the source
+        ImagingDataset onto this ImagingDataset, tranform the source ROIs
+        by this mapping, and then import them into this ImagingDataset.
 
         Parameters
         ----------
@@ -653,7 +651,7 @@ class ImagingDataset(object):
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
         """
-        if kwargs.has_key('channel'):
+        if 'channel' in kwargs:
             kwargs['channel'] = self._resolve_channel(kwargs['channel'])
         if method is 'normcut':
             rois = segment.normcut(self, **kwargs)
@@ -761,6 +759,7 @@ class ImagingDataset(object):
 
 
 class _ImagingCycle(object):
+
     """Object for the imaging data from a continuous time interval.
 
     Parameters
@@ -773,6 +772,7 @@ class _ImagingCycle(object):
     ----------
     num_frames, num_channels, num_rows, num_columns : int
     """
+
     def __init__(self, channels):
         self.channels = channels
         self._invalid_frames = []
@@ -828,7 +828,9 @@ class _ImagingCycle(object):
         if 'TIFF' in fmt:
             output_files = [TiffFileWriter(fn) for fn in filenames]
         elif fmt == 'HDF5':
-            f = File(filenames, 'w')
+            if not h5py_available:
+                raise ImportError('h5py >= 2.3.1 required')
+            f = h5py.File(filenames, 'w')
             output_array = np.empty((self.num_frames, 1,
                                      self.num_rows,
                                      self.num_columns,
@@ -868,6 +870,7 @@ class _ImagingCycle(object):
 
 
 class _CorrectedCycle(_ImagingCycle):
+
     """A multiple cycle imaging dataset that has been motion corrected.
 
     Parameters
@@ -884,6 +887,7 @@ class _CorrectedCycle(_ImagingCycle):
         the returned frames. If set to None, no trimming occurs.
 
     """
+
     def __init__(self, iterables, displacements, untrimmed_frame_size,
                  trim_coords):
         self._raw_num_rows, self._raw_num_columns = next(
@@ -942,7 +946,9 @@ class _CorrectedCycle(_ImagingCycle):
             if 'TIFF' in fmt:
                 output_files = [TiffFileWriter(fn) for fn in filenames]
             elif fmt == 'HDF5':
-                f = File(filenames, 'w')
+                if not h5py_available:
+                    raise ImportError('h5py required')
+                f = h5py.File(filenames, 'w')
                 output_array = np.empty((self.num_frames, 1,
                                          self.num_rows,
                                          self.num_columns,

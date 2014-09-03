@@ -178,7 +178,7 @@ def read_roi(roi_obj):
         mask = np.zeros((bottom, right), dtype=bool)
         for y, x in product(np.arange(top, bottom), np.arange(left, right)):
             mask[y, x] = ((x - x_mid) ** 2 / (width / 2.0) ** 2 +
-                         (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
+                          (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
         return {'mask': mask}
     elif roi_type == 7:
         # Freehand

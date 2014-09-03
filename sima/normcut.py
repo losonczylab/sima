@@ -7,7 +7,7 @@ Reference
     IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,
     VOL. 22, NO. 8, AUGUST 2000.
 """
-from warnings import warn
+from distutils.version import StrictVersion
 
 import numpy as np
 from scipy.sparse.linalg import eigsh
@@ -17,7 +17,9 @@ from scipy import ndimage
 try:
     import cv2
 except ImportError:
-    warn('OpenCV2 is not installed. Some functionality will not work.')
+    cv2_available = False
+else:
+    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 
 def normcut_vectors(affinity_matrix, k):
@@ -41,16 +43,17 @@ def normcut_vectors(affinity_matrix, k):
         The normcut vectors.  Shape (num_nodes, k).
     """
     node_degrees = np.array(affinity_matrix.sum(axis=0)).flatten()
-    transformation_matrix = diags(np.sqrt(1./node_degrees), 0)
+    transformation_matrix = diags(np.sqrt(1. / node_degrees), 0)
     normalized_affinity_matrix = transformation_matrix * affinity_matrix * \
         transformation_matrix
-    _, vects = eigsh(normalized_affinity_matrix, k+1, sigma=1.001,
+    _, vects = eigsh(normalized_affinity_matrix, k + 1, sigma=1.001,
                      which='LM')  # Get the largest eigenvalues.
     cuts = transformation_matrix * vects
     return cuts
 
 
 class CutRegion():
+
     """A subgraph of an affinity matrix used for iteratively cutting with the
     normalized cut procedure.
 
@@ -97,7 +100,7 @@ class CutRegion():
         node_degrees = self.affinity_matrix.sum(axis=0)
         k = node_degrees[:, cut].sum() / node_degrees.sum()
         node_degrees = diags(np.array(node_degrees).flatten(), 0)
-        b = k / (1-k)
+        b = k / (1 - k)
         y = np.matrix(cut - b * np.logical_not(cut)).T
         return float(y.T * (node_degrees - self.affinity_matrix) * y) / (
             y.T * node_degrees * y)
@@ -112,30 +115,32 @@ class CutRegion():
         float
             The normalized cut cost.
         """
-        tmp_im = np.zeros(self.shape[0]*self.shape[1])
+        if not cv2_available:
+            raise ImportError('OpenCV >= 2.4.8 required')
+        tmp_im = np.zeros(self.shape[0] * self.shape[1])
         tmp_im[self.indices] = 1
         labeled_array, num_features = ndimage.label(tmp_im.reshape(self.shape))
         if num_features > 1:
             labeled_array = labeled_array.reshape(-1)[self.indices]
             segments = []
             for i in range(1, num_features + 1):
-                x = np.nonzero(labeled_array == i)[0]
-                segments.append(CutRegion(self.affinity_matrix[x, :][:, x],
-                                          self.indices[x], self.shape))
+                idx = np.nonzero(labeled_array == i)[0]
+                segments.append(CutRegion(self.affinity_matrix[idx, :][:, idx],
+                                          self.indices[idx], self.shape))
             return segments, 0.0
 
         C = normcut_vectors(self.affinity_matrix, 1)
         im = C[:, -2]
         im -= im.min()
         im /= im.max()
-        markers = -np.ones(self.shape[0]*self.shape[1]).astype('uint16')
+        markers = -np.ones(self.shape[0] * self.shape[1]).astype('uint16')
         markers[self.indices] = 0
         markers[self.indices[im < 0.02]] = 1
         markers[self.indices[im > 0.98]] = 2
         markers = markers.reshape(self.shape)
-        vis2 = 0.5 * np.ones(self.shape[0]*self.shape[1])
+        vis2 = 0.5 * np.ones(self.shape[0] * self.shape[1])
         vis2[self.indices] = im
-        vis2 *= (2**8 - 1)
+        vis2 *= (2 ** 8 - 1)
         vis2 = cv2.cvtColor(np.uint8(vis2.reshape(self.shape)),
                             cv2.COLOR_GRAY2BGR)
         markers = np.int32(markers)
@@ -154,9 +159,11 @@ class CutRegion():
         a = cut.nonzero()[0]
         b = np.logical_not(cut).nonzero()[0]
 
-        return [CutRegion(self.affinity_matrix[x, :][:, x], self.indices[x],
-                          self.shape) for x in [a, b] if len(x)], \
+        return (
+            [CutRegion(self.affinity_matrix[x, :][:, x], self.indices[x],
+                       self.shape) for x in [a, b] if len(x)],
             self._normalized_cut_cost(cut)
+        )
 
 
 def itercut(affinity_matrix, shape, max_pen=0.01, min_size=40, max_size=200):
