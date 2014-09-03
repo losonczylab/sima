@@ -73,15 +73,13 @@ class Sequence(object):
     >>> import sima # doctest: +ELLIPSIS
     ...
     >>> from sima.iterables import Sequence
-    >>> Sequence.create('HDF5', '', 'tzyxc')
+    >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
 
 
     Attributes
     ----------
     shape : tuple
         (num_frames, num_planes, num_rows, num_columns, num_channels)
-    channel_names : list of str -- or just at the dataset level???
-    invalid_frames/clear_frame
 
     """
     __metaclass__ = ABCMeta
@@ -100,6 +98,10 @@ class Sequence(object):
         raise NotImplementedError
 
     def _get_frame(self, t):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _todict(self):
         raise NotImplementedError
 
     def __len__(self):
@@ -196,10 +198,10 @@ class _IndexableSequence(Sequence):
         for t in xrange(len(self)):
             yield self._get_frame(t)
 
-    @abstractmethod
-    def _get_frame(self, t):
-        """Return frame with index t."""
-        pass
+    # @abstractmethod
+    # def _get_frame(self, t):
+    #     """Return frame with index t."""
+    #     pass
 
 
 # class _SequenceMultipageTIFF(_BaseSequence):
@@ -349,14 +351,36 @@ class _Sequence_HDF5(_IndexableSequence):
 
     def _todict(self):
         return {
-            'path': self.path,
+            '__class__': self.__class__,
+            'path': abspath(self.path),
             'dim_order': self._dim_order,
             'group': self._group.name,
             'key': self._key,
         }
 
 
-class _MotionSequence(Sequence):
+class _WrapperSequence(Sequence):
+    "Abstract class for wrapping a Sequence to modify its functionality"""
+    __metaclass__ = ABCMeta
+
+    def __init__(self, base):
+        self._base = base
+
+    def __getattr__(self, name):
+        try:
+            getattr(super(_WrapperSequence, self), name)
+        except AttributeError as err:
+            if err.args[0] == \
+                    "'super' object has no attribute '_" + name + "'":
+                return getattr(self._base, name)
+            else:
+                raise err
+
+    def _todict(self):
+        raise NotImplementedError
+
+
+class _MotionSequence(_WrapperSequence):
 
     """Wraps any other sequence to apply motion correction.
 
@@ -372,7 +396,7 @@ class _MotionSequence(Sequence):
     # TODO: check clipping and output frame size
 
     def __init__(self, base, displacements, frame_shape):
-        self._base = base
+        super(_MotionSequence, self).__init__(base)
         self.displacements = displacements
         self._frame_shape = frame_shape  # (planes, rows, columns)
 
@@ -410,21 +434,23 @@ class _MotionSequence(Sequence):
         # TODO: similar for planes ???
         return _IndexedSequence(self, indices)
 
-    def __getattr__(self, name):
-        try:
-            getattr(super(_MotionSequence, self), name)
-        except AttributeError as err:
-            if err.args[0] == \
-                    "'super' object has no attribute '_" + name + "'":
-                return getattr(self._base, name)
-            else:
-                raise err
+    def _todict(self):
+        return {
+            '__class__': self.__class__,
+            'base': self._base._todict(),
+            'displacements': self.displacements,
+            'frame_shape': self._frame_shape,
+        }
 
 
-class _IndexedSequence(Sequence):
+class _InvalidFramesSequence(_WrapperSequence):
+    pass
+
+
+class _IndexedSequence(_WrapperSequence):
 
     def __init__(self, base, indices):
-        self._base = base
+        super(_IndexedSequence, self).__init__(base)
         self._base_len = len(base)
         self._indices = \
             indices if isinstance(indices, tuple) else (indices,)
@@ -452,15 +478,16 @@ class _IndexedSequence(Sequence):
     def __len__(self):
         return len(range(len(self._base))[self._indices[0]])
 
-    def __getattr__(self, name):
-        try:
-            getattr(super(_IndexedSequence, self), name)
-        except AttributeError as err:
-            if err.args[0] == \
-                    "'super' object has no attribute '_" + name + "'":
-                return getattr(self._base, name)
-            else:
-                raise err
+    def _todict(self):
+        return {
+            '__class__': self.__class__,
+            'base': self._base._todict(),
+            'indices': self._indices
+        }
+
+    @classmethod
+    def _from_dict(cls, d, reldir=None):
+        raise NotImplementedError
 
     # def __dir__(self):
     #     """Customize how attributes are reported, e.g. for tab completion.
