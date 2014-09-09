@@ -614,7 +614,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
         else:
             print 'loaded ica components from savefile'
             if data['st_components'].shape[2] == n_components and \
-                    data['mu'] == mu and data['num_pcs'] == time_pcs.shape[1]:
+                    data['mu'].item() == mu and data['num_pcs'] == time_pcs.shape[1]:
                 ret = data['st_components']
             data.close()
 
@@ -635,7 +635,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
             space_pcs.shape[2]),time_pcs))
         
     print "using Fast ICA..."
-    ica = FastICA(n_components=n_components)
+    ica = FastICA(n_components=n_components,max_iter=1500)
     st_components = np.real(np.array(ica.fit_transform(y)))
 
     st_components = \
@@ -652,6 +652,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
         st_components[:,:,i] = st_component
 
     if path is not None:
+        print 'saving ica'
         np.savez(path, st_components=st_components, mu=mu, 
                  num_pcs=time_pcs.shape[1])
 
@@ -853,8 +854,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                     overlap = np.logical_and(rois[i].mask.toarray(),
                                              rois[j].mask.toarray())
                     small_area = np.min(
-                        (len(np.where(rois[i].mask.toarray())[0]),
-                         len(np.where(rois[j].mask.toarray())[0])))
+                        (rois[i].mask.size,rois[j].mask.size))
 
                     if len(np.where(overlap)[0]) > percent_overlap*small_area:
                         new_shape = np.logical_or(rois[i].mask.toarray(),
@@ -863,7 +863,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                         rois[i] = ROI(mask=new_shape.astype('bool'),
                                       im_shape=rois[i].mask.shape)
                         rois[j] = None
-        return [roi for roi in rois if roi is not None]
+    return [roi for roi in rois if roi is not None]
 
 
 
@@ -925,14 +925,15 @@ def _smoothROI(roi):
         if len(np.where(np.roll(vals,1) == 0)[0]) == 0 or \
                 len(np.where(vals>0)[0]) == 0:
             # "confusion failure"
+            print 'failure - 1 '
             return roi,False
 
         idx = np.intersect1d(np.where(vals>0)[0], 
                              np.where(np.roll(vals,1) == 0)[0])[0]
         p = [x[idx],y[idx]]
-
-        if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < radius and len(b) > 3:
-            newRoi = ROI(polygons=np.array(b),im_shape=roi.im_shape)
+        
+        if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 2*radius and len(b) > 3:
+            newRoi = ROI(polygons=[np.array(b)],im_shape=roi.im_shape)
             if newRoi.mask.size != 0:
                 # "well formed ROI"
                 return newRoi,True
@@ -960,19 +961,21 @@ def _smoothROI(roi):
             radius = 3
 
     # "terminal failure"
+    print 'terminal failure'
+    print ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 
+    print ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < radius
     return roi, False
 
 
-def patchGradient(img):
-
+def patchGradient(img,n=5):
     bstICA = np.array(img)
-    bstICA = bstICA-np.min(bstICA)
-    bstICA = bstICA/np.max(bstICA)
-    
-    bstICA[bstICA>np.std(bstICA)] = 1
-    bstICA[bstICA<1] = 0
+    #bstICA = bstICA-np.min(bstICA)
+    #bstICA = bstICA/np.max(bstICA)
+    bstICA = np.abs(bstICA-np.mean(bstICA))
 
-    n = 3
+    bstICA[bstICA<np.std(bstICA)] = 0
+    bstICA[bstICA>np.std(bstICA)] = 1
+
     patch_static = np.zeros(bstICA.shape)
     for y in range(bstICA.shape[0]):
         for x in range(bstICA.shape[1]):
@@ -988,14 +991,20 @@ def patchGradient(img):
                             np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,2:])) + \
                             np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,:-2])) + \
                             np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,:-2]))
-
-            patch_static[y,x] = patch_val*1.0/len(patch.ravel())
+            
+            patch_static[y,x] = (patch_val*(1.0/(patch.size**(np.sqrt(2)))))
 
     patch_static = patch_static-np.min(patch_static)
     patch_static = 1-patch_static/np.max(patch_static)
     
-    #plt.imshow(patch_static)
-    #plt.show()
+    """
+    plt.imshow(patch_static)
+    plt.figure()
+    plt.imshow(img)
+    plt.figure()
+    plt.imshow(bstICA)
+    plt.show()
+    """
 
     return patch_static,bstICA
 
@@ -1014,6 +1023,8 @@ def classify(accepted, st_components,storeFile=None,frames=None,force=False):
     frame_rois = []
     if frames is None:
         frames = range(len(accepted))
+    
+    
 
     for frame_no in frames:
         print frame_no
@@ -1025,18 +1036,19 @@ def classify(accepted, st_components,storeFile=None,frames=None,force=False):
         
         frame_rois.append(rois)
 
-        fig = plt.figure(figsize=(12,6))
-        BLUE = '#32cd32'
-        ax = plt.subplot(121)
-        plt.imshow(st_components[frame_no])
-        for roi in rois:
-            for poly in roi.polygons:
-                patch = PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=2)
-                ax.add_patch(patch)
+        if False:
+            fig = plt.figure(figsize=(12,6))
+            BLUE = '#32cd32'
+            ax = plt.subplot(121)
+            plt.imshow(st_components[frame_no])
+            for roi in rois:
+                for poly in roi.polygons:
+                    patch = PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=2)
+                    ax.add_patch(patch)
         
-        plt.subplot(122)
-        plt.imshow(accepted[frame_no])
-        plt.show()
+            plt.subplot(122)
+            plt.imshow(accepted[frame_no])
+            plt.show()
 
         patch_static,bstICA = patchGradient(st_components[frame_no])
 
@@ -1057,7 +1069,7 @@ def classify(accepted, st_components,storeFile=None,frames=None,force=False):
         static_params.append(stats.norm.fit(vals2))
 
         
-        if frame_no in range(1):
+        if frame_no in range(10) and False:
 
             fig = plt.figure(figsize=(12,6))
             plt.title("Training ROIs Frame")
@@ -1160,34 +1172,37 @@ def classify(accepted, st_components,storeFile=None,frames=None,force=False):
 
     static_avg = np.mean(static_params,axis=0)
     roi_avg = np.mean(roi_params,axis=0)
-
-    plt.figure()
-    x=np.linspace(-1,1,1000)
-    fitted1 = stats.rayleigh.pdf(x,loc=roi_avg[0],scale=roi_avg[1])
-    fitted2 = stats.norm.pdf(x,loc=static_avg[0],scale=static_avg[1])
-    plt.plot(x,fitted1,color="green",linewidth=2)
-    plt.plot(x,fitted2,color="red",linewidth=2)
-    plt.xlim((0,1))
-    plt.title("Average ROI and static pixel intensity distributions")
-
-
-    plt.figure()
-    x=np.linspace(-1,1,1000)
+    
     patch_roi_avg = np.mean(patch_roi_params,axis=0)
     patch_static_avg = np.mean(patch_static_params,axis=0)
 
-    fitted1 = stats.rayleigh.pdf(x,loc=patch_roi_avg[0],scale=patch_roi_avg[1])
-    fitted2 = stats.norm.pdf(x,loc=patch_static_avg[0],scale=patch_static_avg[1])
-    plt.plot(x,fitted1,color="green",linewidth=2)
-    plt.plot(x,fitted2,color="red",linewidth=2)
-    plt.xlim((0,1))
-    plt.title("Average ROI and static patch gradient distributions")
+    if False:
+        plt.figure()
+        x=np.linspace(-1,1,1000)
+        fitted1 = stats.rayleigh.pdf(x,loc=roi_avg[0],scale=roi_avg[1])
+        fitted2 = stats.norm.pdf(x,loc=static_avg[0],scale=static_avg[1])
+        plt.plot(x,fitted1,color="green",linewidth=2)
+        plt.plot(x,fitted2,color="red",linewidth=2)
+        plt.xlim((0,1))
+        plt.title("Average ROI and static pixel intensity distributions")
 
-    plt.show()
+
+        plt.figure()
+        x=np.linspace(-1,1,1000)
+
+        fitted1 = stats.rayleigh.pdf(x,loc=patch_roi_avg[0],scale=patch_roi_avg[1])
+        fitted2 = stats.norm.pdf(x,loc=patch_static_avg[0],scale=patch_static_avg[1])
+        plt.plot(x,fitted1,color="green",linewidth=2)
+        plt.plot(x,fitted2,color="red",linewidth=2)
+        plt.xlim((0,1))
+        plt.title("Average ROI and static patch gradient distributions")
+
+        plt.show()
     
     return static_avg,roi_avg,patch_static_avg,patch_roi_avg,frame_rois
 
-def evalPixels(st_components,static_params,roi_params,patch_static_params,patch_roi_params,frame_rois,storeFile=None,force=False):
+def evalPixels(accepted,st_components,static_params,roi_params,patch_static_params,
+               patch_roi_params,frame_rois,storeFile=None,force=False):
 
     print "evaluating pixels"
     
@@ -1219,16 +1234,13 @@ def evalPixels(st_components,static_params,roi_params,patch_static_params,patch_
         #plt.imshow(bstICA)
 
 
-        stFrame = ndimage.gaussian_filter(stFrame, sigma=1)
         #stFrame = stFrame - np.min(stFrame)
-        stFrame = stFrame/np.max(stFrame)
-        static_prob = stats.norm.pdf(stFrame,loc=static_params[0],scale=static_params[1])
-        roi_probs = stats.rayleigh.pdf(stFrame,loc=roi_params[0],scale=roi_params[1])
+        static_prob = stats.norm.pdf(accepted[i],loc=static_params[0],scale=static_params[1])
+        roi_probs = stats.rayleigh.pdf(accepted[i],loc=roi_params[0],scale=roi_params[1])
 
         patch_static_prob = stats.norm.pdf(patch_static,loc=patch_static_params[0],scale=patch_static_params[1])
         patch_roi_probs = stats.rayleigh.pdf(patch_static,loc=patch_roi_params[0],scale=patch_roi_params[1])
 
-        
         sp = static_prob+patch_static_prob
         rp = roi_probs+patch_roi_probs
         print "sp: %f, rp %f" %(np.max(sp),np.max(rp))
@@ -1243,7 +1255,7 @@ def evalPixels(st_components,static_params,roi_params,patch_static_params,patch_
 
         results.append(frame)
 
-        if i in range(1):
+        if i in range(10) and False:
             plt.figure()
             plt.imshow(stFrame)
             plt.title("Current Frame")
@@ -1272,8 +1284,8 @@ def evalPixels(st_components,static_params,roi_params,patch_static_params,patch_
     return results
 
 
-def stica(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
-          static_threshold=0.1,min_area=75,overlap_per=0,smooth_rois=True):
+def stica(dataset,channel=0,mu=0.01,num_components=30,
+          static_threshold=0.1,min_area=75,x_smoothing=4,overlap_per=0,smooth_rois=True):
     """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
 
     Parameters
@@ -1305,29 +1317,28 @@ def stica(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
             dataset.savedir, 'ica_' + str(channel) + '.npz')
     else:
         ica_path = None
-    
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_pcs, path=pca_path)
-    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,
-                                          num_pcs))
 
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_components, path=pca_path)
+    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,
+                                          num_components))
 
     st_components = _stICA(space_pcs,time_pcs,mu=mu,path=ica_path,
-                           n_components=num_ica_components)
+                           n_components=num_components)
     accepted,accepted_components,_ = _findUsefulComponents(
-            st_components,static_threshold)
+            st_components,static_threshold,x_smoothing=x_smoothing)
     rois = _extractStRois(accepted,min_area=min_area)
 
     print 'smoothing ROIs'
     if smooth_rois:
         rois = [_smoothROI(roi)[0] for roi in rois]
 
-    rois = _remove_overlapping(rois,percent_overlap=0.75)
+    rois = _remove_overlapping(rois,percent_overlap=overlap_per)
 
     return rois
 
 
-def stica_class(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
-          static_threshold=0.1,min_area=75,overlap_per=0,smooth_rois=True):
+def stica_class(dataset,channel=0,mu=0.01,num_components=30,
+                static_threshold=0.1,min_area=75,x_smoothing=4,overlap_per=0,smooth_rois=True):
     """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
 
     Parameters
@@ -1366,19 +1377,22 @@ def stica_class(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
     else:
         res_path = None
     
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_pcs, path=pca_path)
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_components, path=pca_path)
     space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,
-                                          num_pcs))
+                                          num_components))
 
     st_components = _stICA(space_pcs,time_pcs,mu=mu,path=ica_path,
-                           n_components=num_ica_components)
+                           n_components=num_components)
 
     accepted,accepted_components,_ = _findUsefulComponents(
-            st_components,static_threshold)
-
+            st_components,0.12,x_smoothing=5)
+    
     static_params,roi_params,patch_static_params,patch_roi_params,frame_rois = classify(accepted[:5],accepted_components[:5])
 
-    results = evalPixels(np.array(accepted_components),static_params,roi_params,patch_static_params,patch_roi_params,frame_rois)
+    accepted,accepted_components,_ = _findUsefulComponents(
+            st_components,static_threshold,x_smoothing=x_smoothing)
+
+    results = evalPixels(accepted,np.array(accepted_components),static_params,roi_params,patch_static_params,patch_roi_params,frame_rois)
     
     np.savez(res_path,results=results)
     rois = _extractStRois(results,min_area=min_area)
@@ -1389,4 +1403,4 @@ def stica_class(dataset,channel=0,mu=0.01,num_ica_components=30,num_pcs=75,
 
     #rois = _remove_overlapping(rois,percent_overlap=0.75)
 
-    return rois
+    return rois,accepted
