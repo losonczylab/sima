@@ -19,14 +19,9 @@ import warnings
 import numpy as np
 from numpy.linalg import det, svd, pinv
 from scipy.special import gammaln
-from scipy.signal import fftconvolve
-from scipy.cluster.vq import kmeans2
 from scipy.stats import nanstd
 from scipy.stats.mstats import mquantiles
 from scipy.ndimage.filters import gaussian_filter
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    from sima.misc.tifffile import TiffFileWriter
 
 try:
     import sima._motion as mc
@@ -36,8 +31,10 @@ except ImportError as error:
     pyximport.install(setup_args={"include_dirs": np.get_include()},
                       reload_support=True)
     import sima._motion as mc
-from sima.imaging import ImagingDataset, _ImagingCycle
+from sima.imaging import ImagingDataset
+from sima.iterables import _WrapperSequence, _MotionCorrectedSequence
 import sima.misc
+from sima.misc.align import align_cross_correlation
 
 
 def _discrete_transition_prob(r, r0, transition_probs, n):
@@ -275,13 +272,9 @@ class _MCImagingDataset(ImagingDataset):
 
     """ImagingDataset sub-classed with motion correction functionality"""
 
-    def __init__(self, iterables, invalid_frames=None):
-        super(_MCImagingDataset, self).__init__(iterables, None)
-        self.invalid_frames = invalid_frames
-
-    def _create_cycles(self, iterables):
-        """Create _MCCycle objects."""
-        return [_MCCycle(iterable) for iterable in iterables]
+    def __init__(self, sequences):
+        super(_MCImagingDataset, self).__init__(
+            [_MotionSequence(s) for s in sequences], None)
 
     def _neighbor_viterbi(
             self, log_transition_matrix, references, gains, decay_matrix,
@@ -332,6 +325,7 @@ class _MCImagingDataset(ImagingDataset):
             The estimated displacements and partial results of motion
             correction.
         """
+        print "estimate displacements"
         if verbose:
             print 'Estimating model parameters.'
         if max_displacement is not None:
@@ -339,9 +333,10 @@ class _MCImagingDataset(ImagingDataset):
         else:
             max_displacement = np.array([-1, -1])
 
-        valid_rows = self._detect_artifact(artifact_channels)
+        # valid_rows = self._detect_artifact(artifact_channels)
+        print "call _correlation_based_correction"
         shifts, correlations = self._correlation_based_correction(
-            valid_rows, max_displacement=max_displacement)
+            max_displacement=max_displacement)
         references, _, offset = self._whole_frame_shifting(
             shifts, correlations)
         gains = self._estimate_gains(references, offset,
@@ -395,60 +390,6 @@ class _MCImagingDataset(ImagingDataset):
         """
         return displacements
 
-    def _detect_artifact(self, channels=None):
-        """Detect pixels that have been saturated by an external source
-
-        NOTE: this is written to deal with an artifact specific to our lab.
-
-        Parameters
-        ----------
-        channels : list of int
-            The channels in which artifact light is to be detected.
-
-        Returns
-        -------
-        dict of (int, array)
-            Channel indices index boolean arrays indicating whether the rows
-            have valid (i.e. not saturated) data.
-            Array shape: (num_cycles, num_rows*num_timepoints).
-        """
-        channels = [] if channels is None else channels
-        ret = {}
-        for channel in channels:
-            row_intensities = []
-            for frame in chain(*self):
-                im = frame[channel].astype('float')
-                row_intensities.append(im.mean(axis=1))
-            row_intensities = np.array(row_intensities)
-            for i in range(row_intensities.shape[1]):
-                row_intensities[:, i] += -row_intensities[:, i].mean() + \
-                    row_intensities.mean()  # remove periodic component
-            row_intensities = row_intensities.reshape(-1)
-            # Separate row means into 2 clusters
-            [centroid, labels] = kmeans2(row_intensities, 2)
-            # only discard rows if clusters are substantially separated
-            if max(centroid) / min(centroid) > 3 and \
-                    max(centroid) - min(centroid) > 2 * np.sqrt(sum([np.var(
-                    row_intensities[np.equal(labels, i)]) for i in [0, 1]])):
-                # row intensities in the lower cluster are valid
-                valid_rows = np.equal(labels, np.argmin(centroid))
-                # also exclude rows prior to those in the higher cluster
-                valid_rows[:-1] *= valid_rows[1:].copy()
-                # also exclude rows following those in the higher cluster
-                valid_rows[1:] *= valid_rows[:-1].copy()
-            else:
-                valid_rows = np.ones(labels.shape).astype('bool')
-            # Reshape back to a list of arrays, one per cycle
-            row_start = 0
-            valid_rows_by_cycle = []
-            for cycle in self:
-                valid_rows_by_cycle.append(
-                    valid_rows[row_start:
-                               row_start + cycle.num_frames * cycle.num_rows])
-                row_start += cycle.num_frames * cycle.num_rows
-            ret[channel] = valid_rows_by_cycle
-        return ret
-
     def _pixel_distribution(self, tolerance=0.001, min_frames=1000):
         """Estimate the distribution of pixel intensities for each channel.
 
@@ -490,16 +431,11 @@ class _MCImagingDataset(ImagingDataset):
         assert np.all(var_est > 0)
         return mean_est, var_est
 
-    def _correlation_based_correction(self, valid_rows,
-                                      max_displacement=None):
+    def _correlation_based_correction(self, max_displacement=None):
         """Estimate whole-frame displacements based on pixel correlations.
 
         Parameters
         ----------
-        valid_rows : dict of (int, array)
-            Channel indices index boolean arrays indicating whether the rows
-            have valid (i.e. not saturated) data.
-            Array shape: (num_cycles, num_rows*num_timepoints).
         max_displacement : array
             see estimate_displacements
 
@@ -512,177 +448,84 @@ class _MCImagingDataset(ImagingDataset):
             (num_frames*num_cycles)-array giving the correlation of
             each shifted frame with the reference
         """
-        def refine_alignment(shift, reference, im, offset):
-            num_channels = len(im)
-            search_space = np.array(
-                [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 0],
-                 [0, 1], [1, -1], [1, 0], [1, 1]])
-            max_corr = 0.
-            for small_shift in search_space:
-                ref_indices = [
-                    np.maximum(0, offset + shift + small_shift),
-                    np.minimum(reference[0].shape, offset +
-                               shift + small_shift + im[0].shape)
-                ]
-                im_min_indices = np.maximum(
-                    0, - offset - shift - small_shift)
-                im_max_indices = im_min_indices + ref_indices[1] - \
-                    ref_indices[0]
-                tmp_ref = reference[
-                    :, ref_indices[0][0]:ref_indices[1][0],
-                    ref_indices[0][1]:ref_indices[1][1]
-                ].copy()
-                tmp_im = im[:, im_min_indices[0]:im_max_indices[0],
-                            im_min_indices[1]:im_max_indices[1]].copy()
-                for channel in range(num_channels):
-                    tmp_im[channel] -= tmp_im[channel].mean()
-                    tmp_ref[channel] -= tmp_ref[channel][
-                        np.isfinite(tmp_ref[channel])].mean()
-                tmp_ref[np.logical_not(np.isfinite(
-                        tmp_ref))] = 0  # equivalent to nancorr
-                corr = sum([(tmp_im[c] * tmp_ref[c]).sum() / np.sqrt((
-                    tmp_ref[c] ** 2).sum() * (tmp_im[c] ** 2).sum())
-                    for c in range(num_channels)]
-                ) / num_channels
-                if corr > max_corr:
-                    max_corr = corr
-                    refinement = small_shift
-            return max_corr, shift + refinement
-
         def resize_arrays(shift, pixel_sums, pixel_counts, offset):
             """Enlarge storage arrays if necessary."""
             l = - np.minimum(0, shift + offset).astype(int)
-            r = np.maximum(0, shift + offset + im[0].shape -
-                           pixel_sums[0].shape).astype(int)
+            r = np.maximum(
+                0, shift + offset + np.array(self.frame_shape[1:-1]) -
+                np.array(pixel_sums.shape[1:-1])
+            ).astype(int)
+            assert pixel_sums.ndim == 4
             if np.any(l > 0) or np.any(r > 0):
-                pixel_sums = np.concatenate([np.zeros([
-                    pixel_sums.shape[0], l[0], pixel_sums.shape[2]]),
-                    pixel_sums, np.zeros([pixel_sums.shape[0], r[0],
-                                          pixel_sums.shape[2]])],
+                # adjust Y
+                pre_shape = (pixel_sums.shape[0], l[0]) + pixel_sums.shape[2:]
+                post_shape = (pixel_sums.shape[0], r[0]) + pixel_sums.shape[2:]
+                pixel_sums = np.concatenate(
+                    [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
                     axis=1)
-                pixel_sums = np.concatenate([np.zeros([
-                    pixel_sums.shape[0], pixel_sums.shape[1], l[1]]),
-                    pixel_sums, np.zeros([pixel_sums.shape[0],
-                                          pixel_sums.shape[1], r[1]])],
+                pixel_counts = np.concatenate(
+                    [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
+                    axis=1)
+                # adjust X
+                pre_shape = pixel_sums.shape[:2] + (l[1], pixel_sums.shape[3])
+                post_shape = pixel_sums.shape[:2] + (r[1], pixel_sums.shape[3])
+                pixel_sums = np.concatenate(
+                    [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
                     axis=2)
-                pixel_counts = np.concatenate([np.zeros([
-                    pixel_counts.shape[0], l[0],
-                    pixel_counts.shape[2]]), pixel_counts,
-                    np.zeros([pixel_counts.shape[0], r[0],
-                              pixel_counts.shape[2]])], axis=1)
-                pixel_counts = np.concatenate([np.zeros([
-                    pixel_counts.shape[0], pixel_counts.shape[1],
-                    l[1]]), pixel_counts,
-                    np.zeros([pixel_counts.shape[0],
-                              pixel_counts.shape[1], r[1]])], axis=2)
+                pixel_counts = np.concatenate(
+                    [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
+                    axis=2)
                 offset += l
-            assert np.prod(pixel_sums[0].shape) < 4 * np.prod(im[0].shape)
+            assert pixel_sums.ndim == 4
+            assert np.prod(pixel_sums.shape) < 4 * np.prod(self.frame_shape)
             return pixel_sums, pixel_counts, offset
 
         def update_sums_and_counts(pixel_sums, pixel_counts, offset, shift,
-                                   im, valid_channels):
-            ref_indices = [offset + shift, offset + shift + im[0].shape]
-            pixel_counts[valid_channels,
-                         ref_indices[0][0]:ref_indices[1][0],
-                         ref_indices[0][1]:ref_indices[1][1]] += 1
-            pixel_sums[valid_channels,
-                       ref_indices[0][0]:ref_indices[1][0],
-                       ref_indices[0][1]:ref_indices[1][1]] += im
+                                   plane):
+            ref_indices = [offset + shift, offset + shift + frame.shape[1:-1]]
+            assert pixel_sums.ndim == 3
+            pixel_counts[ref_indices[0][0]:ref_indices[1][0],
+                         ref_indices[0][1]:ref_indices[1][1]
+                         ] += np.isfinite(plane)
+            pixel_sums[ref_indices[0][0]:ref_indices[1][0],
+                       ref_indices[0][1]:ref_indices[1][1]
+                       ] += np.nan_to_num(plane)
+            assert pixel_sums.ndim == 3
 
-        def course_alignment(reference, im):
-            """Refine alignment using the full image data."""
-            num_channels = len(im)
-            small_ref = 0.25 * (
-                reference[:, :-1:2, :-1:2] +
-                reference[:, :-1:2, 1::2] + reference[:, 1::2, :-1:2] +
-                reference[:, 1::2, 1::2])
-            small_im = 0.25 * (
-                im[:, :-1:2, 0:-1:2] + im[:, :-1:2, 1::2] +
-                im[:, 1::2, :-1:2] + im[:, 1::2, 1::2])
-            for c in range(num_channels):
-                small_im[c] -= small_im[c].mean()
-                small_ref[c] -= small_ref[c][np.isfinite(small_ref[c])
-                                             ].mean()
-            # zeroing nans is equivalent to nancorr
-            small_ref[np.logical_not(np.isfinite(small_ref))] = 0
-            corrs = np.array([
-                fftconvolve(small_ref[ch], small_im[ch][::-1, ::-1])
-                for ch in range(num_channels)]).sum(axis=0)
-            if max_displacement is None:
-                max_idx = np.array(np.unravel_index(np.argmax(corrs),
-                                                    corrs.shape))
-            else:
-                min_i = np.maximum(
-                    (np.nanmax(shifts, 1) - max_displacement + offset)
-                    / 2 + np.array(small_im[0].shape) - 1, 0)
-                max_i = (
-                    np.ceil(
-                        (np.nanmin(shifts, 1) + max_displacement +
-                         offset).astype(float) / 2. +
-                        np.array(small_im[0].shape) - 1)
-                ).astype(int)
-                if max_displacement[0] < 0:
-                    min_i[0] = 0
-                else:
-                    # restrict to allowable displacements
-                    corrs = corrs[min_i[0]:(max_i[0] + 1), :]
-                if max_displacement[1] < 0:
-                    min_i[1] = 0
-                else:
-                    # restrict to allowable displacements
-                    corrs = corrs[:, min_i[1]:(max_i[1] + 1)]
-                max_idx = min_i + np.array(
-                    np.unravel_index(np.argmax(corrs), corrs.shape))
-            # shift that maximizes correlation
-            return 2 * (max_idx - small_im[0].shape + 1) - offset
-
-        shifts = np.zeros([2, self.num_frames], dtype='float')
-        correlations = np.empty(self.num_frames, dtype='float')
-        offset = np.zeros(2, dtype='int')
-        i = 0
-        started = False
-        for cyc_idx, cycle in enumerate(self):
-            invalid_frames = set(self._invalid_frames[cyc_idx])
-            for frame_idx, frame in enumerate(cycle):
-                if frame_idx in invalid_frames:
-                    correlations[i] = np.nan
-                    shifts[:, i] = np.nan
-                elif not started:
-                    # NOTE: float64 gives nan when divided by 0
-                    pixel_sums = np.concatenate(
-                        [np.expand_dims(x, 0) for x in frame], axis=0
-                    ).astype('float64')
-                    pixel_counts = np.ones(pixel_sums.shape)
-                    correlations[i] = 1.
-                    shifts[:, i] = 0
-                    started = True
-                else:
-                    # recompute reference using all aligned images
-                    with warnings.catch_warnings():  # ignore divide by 0
-                        warnings.simplefilter("ignore")
-                        reference = pixel_sums / pixel_counts
-                    reference[np.equal(0, pixel_counts)] = np.nan
-                    valid_channels = [c for c in range(len(frame)) if not (
-                        c in valid_rows and not all(
-                            valid_rows[c][cyc_idx][
-                                frame_idx * self.num_rows:
-                                (frame_idx + 1) * self.num_rows])
-                    )]
-                    im = np.concatenate(
-                        [np.expand_dims(chan, 0) for chan_idx, chan in
-                         enumerate(frame) if chan_idx in valid_channels],
-                        axis=0
-                    ).astype('float64')
-                    ref = reference[valid_channels]
-                    shift = course_alignment(ref, im)
-                    correlations[i], shifts[:, i] = refine_alignment(
-                        shift, ref, im, offset)
-                    pixel_sums, pixel_counts, offset = resize_arrays(
-                        shifts[:, i], pixel_sums, pixel_counts, offset)
-                    update_sums_and_counts(pixel_sums, pixel_counts, offset,
-                                           shifts[:, i], im, valid_channels)
-                i += 1
-        return shifts.astype('float'), correlations.astype('float')
+        print 'CORR SETUP'
+        shifts = [np.zeros(cycle.shape[:2] + (2,)) for cycle in self]
+        correlations = [np.empty(cycle.shape[:2]) for cycle in self]
+        offset = np.zeros(2, dtype=int)
+        pixel_sums = np.zeros(self.frame_shape).astype('float64')
+        # NOTE: float64 gives nan when divided by 0
+        pixel_counts = np.zeros(pixel_sums.shape)
+        print 'START CORR'
+        for cycle, c_shifts, c_corrs in izip(self, shifts, correlations):
+            for frame, f_shifts, f_corrs in izip(cycle, c_shifts, c_corrs):
+                for p, (plane, p_shifts) in enumerate(izip(frame, f_shifts)):
+                    # if frame_idx in invalid_frames:
+                    #     correlations[i] = np.nan
+                    #     shifts[:, i] = np.nan
+                    if not np.any(np.nonzero(pixel_counts[p])):
+                        f_corrs[p] = 1.
+                        p_shifts[:] = 0
+                        update_sums_and_counts(pixel_sums[p], pixel_counts[p],
+                                               offset, p_shifts, plane)
+                    else:
+                        # recompute reference using all aligned images
+                        with warnings.catch_warnings():  # ignore divide by 0
+                            warnings.simplefilter("ignore")
+                            reference = pixel_sums[p] / pixel_counts[p]
+                        shift, f_corrs[p] = align_cross_correlation(
+                            reference, plane)
+                        p_shifts[:] = shift - offset
+                        print shift, offset, p_shifts, f_corrs[p]
+                        pixel_sums, pixel_counts, offset = resize_arrays(
+                            p_shifts, pixel_sums, pixel_counts, offset)
+                        update_sums_and_counts(pixel_sums[p], pixel_counts[p],
+                                               offset, p_shifts, plane)
+        # TODO: align planes to minimize shifts between them
+        return shifts.astype(float), correlations.astype(float)
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -825,7 +668,7 @@ class _MCImagingDataset(ImagingDataset):
         return sum_estimates / count
 
 
-class _MCCycle(_ImagingCycle):
+class _MotionSequence(_WrapperSequence):
 
     """_ImagingCycle sub-classed with motion correction methods.
 
@@ -839,6 +682,9 @@ class _MCCycle(_ImagingCycle):
     ----------
     num_frames, num_channels, num_rows, num_columns : int
     """
+
+    def __iter__(self):
+        return iter(self._base)
 
     def _iter_processed(self, gains, pixel_means, pixel_variances):
         """Generator of preprocessed frames for efficient computation.
@@ -1024,17 +870,17 @@ class _MCCycle(_ImagingCycle):
         return displacements.reshape(self.num_frames, self.num_rows, 2)
 
 
-def hmm(iterables, savedir, channel_names=None, metadata=None,
+def hmm(sequences, savedir, channel_names=None, info=None,
         num_states_retained=50, max_displacement=None,
         correction_channels=None, artifact_channels=None,
-        trim_criterion=None, invalid_frames=None, verbose=True):
+        trim_criterion=None, verbose=True):
     """
     Create a motion-corrected ImagingDataset using a row-wise hidden
     Markov model (HMM).
 
     Parameters
     ----------
-    iterables : list of list of iterable
+    sequences : list of list of iterable
         Iterables yielding frames from imaging cycles and channels.
     savedir : str
         The directory used to store the dataset. If the directory
@@ -1081,231 +927,80 @@ def hmm(iterables, savedir, channel_names=None, metadata=None,
     """
     if correction_channels:
         correction_channels = [
-            sima.misc.resolve_channels(c, channel_names, len(iterables[0]))
+            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
             for c in correction_channels]
     if artifact_channels:
         artifact_channels = [
-            sima.misc.resolve_channels(c, channel_names, len(iterables[0]))
+            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
             for c in artifact_channels]
     if correction_channels:
-        mc_iterables = [[cycle[i] for i in correction_channels]
-                        for cycle in iterables]
+        mc_sequences = [s[:, :, :, :, correction_channels] for s in sequences]
         if artifact_channels is not None:
             artifact_channels = [i for i, c in enumerate(correction_channels)
                                  if c in artifact_channels]
     else:
-        mc_iterables = iterables
-    displacements = _MCImagingDataset(
-        mc_iterables, invalid_frames=invalid_frames
-    ).estimate_displacements(
+        mc_sequences = sequences
+    print 'START MC'
+    displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
         num_states_retained, max_displacement, artifact_channels, verbose
     )
 
-    return ImagingDataset(iterables, savedir,
-                          channel_names=channel_names,
-                          displacements=displacements,
-                          trim_criterion=trim_criterion,
-                          invalid_frames=invalid_frames)
+    return ImagingDataset(
+        [_MotionCorrectedSequence(s, d, frame_shape)
+         for s, d in izip(sequences, displacements)],
+        savedir, channel_names=channel_names)
 
 """ FROM IMAGING.PY """
-class ImagingDataset():
-    @lazyprop
-    def _untrimmed_frame_size(self):
-        """Calculate the size of motion corrected frames before trimming.
-
-        The size of these frames is given by the size of the uncorrected
-        frames plus the extent of the displacements.
-
-        """
-        return [
-            x + y for x, y in zip((self._raw_num_rows, self._raw_num_columns),
-                                  self._max_displacement)
-        ]
-
-    @lazyprop
-    def _trim_coords(self):
-        """The coordinates used to trim the corrected imaging data."""
-        if self.trim_criterion is None:
-            trim_coords = [
-                list(self._max_displacement),
-                [self._raw_num_rows, self._raw_num_columns]
-            ]
-        elif isinstance(self.trim_criterion, (float, int)):
-            obs_counts = _observation_counts(
-                it.chain(*self._displacements),
-                (self._raw_num_rows, self._raw_num_columns),
-                self._untrimmed_frame_size
-            )
-            num_frames = sum(len(x) for x in self._displacements
-                             ) / self._raw_num_rows
-            occupancy = obs_counts.astype(float) / num_frames
-            row_occupancy = \
-                occupancy.sum(axis=1) / self._raw_num_columns \
-                > self.trim_criterion
-            row_min = np.nonzero(row_occupancy)[0].min()
-            row_max = np.nonzero(row_occupancy)[0].max()
-            col_occupancy = occupancy.sum(axis=0) / self._raw_num_rows \
-                > self.trim_criterion
-            col_min = np.nonzero(col_occupancy)[0].min()
-            col_max = np.nonzero(col_occupancy)[0].max()
-            trim_coords = [[row_min, col_min], [row_max, col_max]]
-        else:
-            raise TypeError('Invalid type for trim_criterion')
-        return trim_coords
-
-class _CorrectedCycle(_ImagingCycle):
-
-    """A multiple cycle imaging dataset that has been motion corrected.
-
-    Parameters
-    ----------
-    iterables : list of iterable
-    untrimmed_frame_size : tuple
-        The shape of the aligned images before under-observed pixels
-        are trimmed.
-    trim_coords : list of list of int
-        The top left and bottom right coordinates for trimming
-        the returned frames. If set to None, no trimming occurs.
-
-    """
-
-    def __init__(self, iterables, displacements, untrimmed_frame_size,
-                 trim_coords):
-        self._raw_num_rows, self._raw_num_columns = next(
-            iter(iterables[0])).shape
-        self._displacements = displacements
-        self._untrimmed_frame_size = untrimmed_frame_size
-        self._trim_coords = trim_coords
-        super(_CorrectedCycle, self).__init__(iterables)
-
-    def observation_counts(self):
-        """Return an array with the number of observations of each location."""
-        return _observation_counts(
-            self._displacements, (self._raw_num_rows, self._raw_num_columns),
-            self._untrimmed_frame_size)
-
-    def __iter__(self):
-        """Align the imaging data using calculated displacements.
-
-        Yields
-        ------
-        list of arrays
-            The corrected images for each channel are yielded on frame at a
-            time.
-        """
-        for frame_idx, frame in enumerate(
-                super(_CorrectedCycle, self).__iter__()):
-            out = []
-            for channel in frame:
-                tmp = channel.astype(float)
-                im = _align_frame(tmp, self._displacements[
-                    (frame_idx * channel.shape[0]):
-                    ((frame_idx + 1) * channel.shape[0])],
-                    self._untrimmed_frame_size)
-                if self._trim_coords is not None:
-                    im = im[self._trim_coords[0][0]:self._trim_coords[1][0],
-                            self._trim_coords[0][1]:self._trim_coords[1][1]]
-                out.append(im)
-            yield out
-
-    def _export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
-                       scale_values=False, channel_names=None):
-        """Save a multi-page TIFF files of the motion corrected time series.
-
-        One TIFF file is created for each channel.
-        The TIFF files have the same name as the uncorrected files, but should
-        be saved in a different directory.
-
-        Parameters
-        ----------
-        filenames : list of str
-            The filenames used for saving each channel.
-        fill_gaps : bool, optional
-            Whether to fill in unobserved pixels with data from nearby frames.
-        """
-        if fill_gaps:
-            if 'TIFF' in fmt:
-                output_files = [TiffFileWriter(fn) for fn in filenames]
-            elif fmt == 'HDF5':
-                if not h5py_available:
-                    raise ImportError('h5py required')
-                f = h5py.File(filenames, 'w')
-                output_array = np.empty((self.num_frames, 1,
-                                         self.num_rows,
-                                         self.num_columns,
-                                         self.num_channels), dtype='uint16')
-            else:
-                raise('Not Implemented')
-
-            save_frames = _fill_gaps(iter(self), iter(self))
-            for f_idx, frame in enumerate(save_frames):
-                for ch_idx, channel in enumerate(frame):
-                    if fmt == 'TIFF16':
-                        f = output_files[ch_idx]
-                        if scale_values:
-                            f.write_page(sima.misc.to16bit(channel))
-                        else:
-                            f.write_page(channel.astype('uint16'))
-                    elif fmt == 'TIFF8':
-                        f = output_files[ch_idx]
-                        if scale_values:
-                            f.write_page(sima.misc.to8bit(channel))
-                        else:
-                            f.write_page(channel.astype('uint8'))
-                    elif fmt == 'HDF5':
-                        output_array[f_idx, 0, :, :, ch_idx] = channel
-                    else:
-                        raise ValueError('Unrecognized output format.')
-
-            if 'TIFF' in fmt:
-                for f in output_files:
-                    f.close()
-            elif fmt == 'HDF5':
-                f.create_dataset(name='imaging', data=output_array)
-                for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
-                    f['imaging'].dims[idx].label = label
-                if channel_names is not None:
-                    f['imaging'].attrs['channel_names'] = np.array(
-                        channel_names)
-                f.close()
-        else:
-            super(_CorrectedCycle, self)._export_frames(
-                filenames, fmt=fmt, scale_values=scale_values)
-
-
-def _observation_counts(displacements, im_size, output_size):
-    """Count the number of times that each location was observed."""
-    count = np.zeros(output_size, dtype=np.int)
-    for row_idx, disp in enumerate(displacements):
-        i = row_idx % im_size[0]
-        count[i + disp[0], disp[1]:(disp[1] + im_size[1])] += 1
-    return count
-
-
-def _fill_gaps(frame_iter1, frame_iter2):
-    """Fill missing rows in the corrected images with data from nearby times.
-
-    Parameters
-    ----------
-    frame_iter1 : iterator of list of array
-        The corrected frames (one list entry per channel).
-    frame_iter2 : iterator of list of array
-        The corrected frames (one list entry per channel).
-
-    Yields
-    ------
-    list of array
-        The corrected and filled frames.
-    """
-    first_obs = next(frame_iter1)
-    for frame in frame_iter1:
-        for frame_chan, fobs_chan in zip(frame, first_obs):
-            fobs_chan[np.isnan(fobs_chan)] = frame_chan[np.isnan(fobs_chan)]
-        if all(np.all(np.isfinite(chan)) for chan in first_obs):
-            break
-    most_recent = [x * np.nan for x in first_obs]
-    for frame in frame_iter2:
-        for fr_chan, mr_chan in zip(frame, most_recent):
-            mr_chan[np.isfinite(fr_chan)] = fr_chan[np.isfinite(fr_chan)]
-        yield [np.nan_to_num(mr_ch) + np.isnan(mr_ch) * fo_ch
-               for mr_ch, fo_ch in zip(most_recent, first_obs)]
+# class ImagingDataset():
+#     @lazyprop
+#     def _untrimmed_frame_size(self):
+#         """Calculate the size of motion corrected frames before trimming.
+#
+#         The size of these frames is given by the size of the uncorrected
+#         frames plus the extent of the displacements.
+#
+#         """
+#         return [
+#             x + y for x, y in zip((self._raw_num_rows, self._raw_num_columns),
+#                                   self._max_displacement)
+#         ]
+#
+#     @lazyprop
+#     def _trim_coords(self):
+#         """The coordinates used to trim the corrected imaging data."""
+#         if self.trim_criterion is None:
+#             trim_coords = [
+#                 list(self._max_displacement),
+#                 [self._raw_num_rows, self._raw_num_columns]
+#             ]
+#         elif isinstance(self.trim_criterion, (float, int)):
+#             obs_counts = _observation_counts(
+#                 chain(*self._displacements),
+#                 (self._raw_num_rows, self._raw_num_columns),
+#                 self._untrimmed_frame_size
+#             )
+#             num_frames = sum(len(x) for x in self._displacements
+#                              ) / self._raw_num_rows
+#             occupancy = obs_counts.astype(float) / num_frames
+#             row_occupancy = \
+#                 occupancy.sum(axis=1) / self._raw_num_columns \
+#                 > self.trim_criterion
+#             row_min = np.nonzero(row_occupancy)[0].min()
+#             row_max = np.nonzero(row_occupancy)[0].max()
+#             col_occupancy = occupancy.sum(axis=0) / self._raw_num_rows \
+#                 > self.trim_criterion
+#             col_min = np.nonzero(col_occupancy)[0].min()
+#             col_max = np.nonzero(col_occupancy)[0].max()
+#             trim_coords = [[row_min, col_min], [row_max, col_max]]
+#         else:
+#             raise TypeError('Invalid type for trim_criterion')
+#         return trim_coords
+#
+#
+# def _observation_counts(displacements, im_size, output_size):
+#     """Count the number of times that each location was observed."""
+#     count = np.zeros(output_size, dtype=np.int)
+#     for row_idx, disp in enumerate(displacements):
+#         i = row_idx % im_size[0]
+#         count[i + disp[0], disp[1]:(disp[1] + im_size[1])] += 1
+#     return count

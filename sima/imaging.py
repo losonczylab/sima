@@ -112,12 +112,10 @@ class ImagingDataset(object):
             self.savedir = abspath(savedir)
             if not self.savedir.endswith('.sima'):
                 self.savedir += '.sima'
-
         self.info = {} if info is None else info
 
         if sequences is None:
             # Special case used to load an existing ImagingDataset
-
             if not self.savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
@@ -157,7 +155,6 @@ class ImagingDataset(object):
 
             self._sequences = [[unpack(channel) for channel in sequence]
                                for sequence in data.pop('sequences')]
-
             self._channel_names = data.pop('channel_names', None)
             try:
                 self.num_frames = data.pop('num_frames')
@@ -185,14 +182,12 @@ class ImagingDataset(object):
             raise ValueError(
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
-        self.num_channels = self._sequences[0].shape[4]
-        self.frame_shape = self._sequences[0].shape[1:4]
+        self.frame_shape = self._sequences[0].shape[1:]
+        self.num_channels = self.frame_shape[-1]
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(len(c) for c in self)
-
         if self.channel_names is None:
             self.channel_names = [str(x) for x in range(self.num_channels)]
-
         if save and self.savedir is not None:
             self._save(self.savedir)
 
