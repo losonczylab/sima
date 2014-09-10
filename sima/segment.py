@@ -802,6 +802,7 @@ def _extractStRois(frames,min_area=50,spatial_sep=True):
 
     rois = []
     for frame_no in range(len(frames)):
+        print "%i of %i frames"%(frame_no,len(frames))
         image_index = frame_no
         img = np.array(frames[frame_no])
         component_mask = np.zeros(img.shape)
