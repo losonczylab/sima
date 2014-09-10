@@ -648,7 +648,8 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
     for i in range(st_components.shape[2]):
         st_component = st_components[:,:,i]
         st_component = abs(st_component-np.mean(st_component))
-        st_component[np.where(st_component<0)]=0
+        st_component = st_component/np.max(st_component)
+        #st_component[np.where(st_component<0)]=0
         st_components[:,:,i] = st_component
 
     if path is not None:
@@ -933,7 +934,7 @@ def _smoothROI(roi):
         p = [x[idx],y[idx]]
         
         if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 2*radius and len(b) > 3:
-            newRoi = ROI(polygons=[np.array(b)],im_shape=roi.im_shape)
+            newRoi = ROI(polygons=[b],im_shape=roi.im_shape)
             if newRoi.mask.size != 0:
                 # "well formed ROI"
                 return newRoi,True
@@ -967,7 +968,7 @@ def _smoothROI(roi):
     return roi, False
 
 
-def patchGradient(img,n=5):
+def patchGradient(img,n=3):
     bstICA = np.array(img)
     #bstICA = bstICA-np.min(bstICA)
     #bstICA = bstICA/np.max(bstICA)
@@ -1060,7 +1061,7 @@ def classify(accepted, st_components,storeFile=None,frames=None,force=False):
         patch_vals2 = patch_static[np.where(np.logical_not(allmasks))]
         patch_static_params.append(stats.norm.fit(patch_vals2))
     
-        stICA_img = np.array(st_components[frame_no])/np.max(st_components[frame_no])
+        stICA_img = np.array(accepted[frame_no])/np.max(accepted[frame_no])
         vals1 = stICA_img[np.where(np.logical_and(allmasks,stICA_img>0))]
         roi_params.append(stats.rayleigh.fit(vals1))
     
@@ -1208,13 +1209,11 @@ def evalPixels(accepted,st_components,static_params,roi_params,patch_static_para
     
     x=np.linspace(-1,1,1000)
 
-    fitted1 = stats.rayleigh.pdf(x,loc=roi_params[0],scale=roi_params[1])
-
+    fitted1 = stats.rayleigh.pdf(x,loc=roia_params[0],scale=roi_params[1])
     fitted2 = stats.norm.pdf(x,loc=static_params[0],scale=static_params[1])
 
     x=np.linspace(-1,1,1000)
     fitted1 = stats.rayleigh.pdf(x,loc=patch_roi_params[0],scale=patch_roi_params[1])
-
     fitted2 = stats.norm.pdf(x,loc=patch_static_params[0],scale=patch_static_params[1])
 
     results = []
@@ -1261,20 +1260,25 @@ def evalPixels(accepted,st_components,static_params,roi_params,patch_static_para
             plt.title("Current Frame")
 
             plt.figure(figsize=(12,6))
-            plt.subplot(121)
+            plt.subplot(131)
             plt.imshow(static_prob)
             plt.title("Fluorescence static prob")
-            plt.subplot(122)
+            plt.subplot(132)
             plt.imshow(roi_probs)
             plt.title("Fluorescence ROI prob")
+            plt.subplot(133)
+            plt.imshow(roi_probs-static_prob)
 
             plt.figure(figsize=(12,6))
-            plt.subplot(121)
-            plt.imshow(patch_static_prob)
+            plt.subplot(131)
+            plt.imshow(bstICA)
             plt.title("patch gradient static prob")
-            plt.subplot(122)
+            plt.subplot(132)
             plt.imshow(patch_roi_probs)
             plt.title("patch gradient roi prob")
+            plt.subplot(133)
+            plt.imshow(patch_roi_probs-patch_static_prob)
+            
 
             plt.figure()
             plt.imshow(frame)
@@ -1334,7 +1338,7 @@ def stica(dataset,channel=0,mu=0.01,num_components=30,
 
     rois = _remove_overlapping(rois,percent_overlap=overlap_per)
 
-    return rois
+    return rois,accepted
 
 
 def stica_class(dataset,channel=0,mu=0.01,num_components=30,
@@ -1387,11 +1391,16 @@ def stica_class(dataset,channel=0,mu=0.01,num_components=30,
     accepted,accepted_components,_ = _findUsefulComponents(
             st_components,0.12,x_smoothing=5)
     
+    for comp in accepted_components:
+        comp = comp/np.max(comp)
+        comp = comp-np.min(comp)
+
     static_params,roi_params,patch_static_params,patch_roi_params,frame_rois = classify(accepted[:5],accepted_components[:5])
 
     accepted,accepted_components,_ = _findUsefulComponents(
             st_components,static_threshold,x_smoothing=x_smoothing)
-
+    
+    #results = evalPixels(accepted,np.array(accepted_components),static_params,roi_params,patch_static_params,patch_roi_params,frame_rois)
     results = evalPixels(accepted,np.array(accepted_components),static_params,roi_params,patch_static_params,patch_roi_params,frame_rois)
     
     np.savez(res_path,results=results)
@@ -1400,7 +1409,6 @@ def stica_class(dataset,channel=0,mu=0.01,num_components=30,
     print 'smoothing ROIs'
     if smooth_rois:
         rois = [_smoothROI(roi)[0] for roi in rois]
-
-    #rois = _remove_overlapping(rois,percent_overlap=0.75)
-
+    
+    rois = _remove_overlapping(rois,percent_overlap=overlap_per)
     return rois,accepted
