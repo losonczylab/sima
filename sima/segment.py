@@ -855,7 +855,6 @@ def _remove_overlapping(rois, percent_overlap=0.9):
     """
 
     if percent_overlap > 0 and percent_overlap <= 1:
-        print 'removing overlapping rois'
         for roi in rois:
             roi.mask = roi.mask
         
