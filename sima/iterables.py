@@ -396,7 +396,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
     # TODO: check clipping and output frame size
 
     def __init__(self, base, displacements, frame_shape):
-        super(_MotionSequence, self).__init__(base)
+        super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
         self._frame_shape = frame_shape  # (planes, rows, columns)
 
@@ -419,14 +419,14 @@ class _MotionCorrectedSequence(_WrapperSequence):
         times = indices[0]
         if indices[0] not in (None, slice(None)):
             new_indices = (None,) + indices[1:]
-            return _MotionSequence(
+            return _MotionCorrectedSequence(
                 self._base[times],
                 self.displacements[times],
                 self._frame_shape
             )[new_indices]
         if len(indices) == 5:
             chans = indices[5]
-            return _MotionSequence(
+            return _MotionCorrectedSequence(
                 self._base[:, :, :, :, chans],
                 self.displacements[:, :, :, chans],
                 self._frame_shape

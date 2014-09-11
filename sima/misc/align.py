@@ -13,7 +13,10 @@
 import warnings
 
 import numpy as np
-from scipy.fftpack import fft2, ifft2
+try:
+    from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
+except ImportError:
+    from scipy.fftpack import fft2, ifft2
 import scipy.ndimage as scind
 import scipy.sparse
 
@@ -64,8 +67,8 @@ def cross_correlation_2d(pixels1, pixels2):
     # leaving f(x,y)*(t(x-u,y-v)-t_mean) which is a convolution of f
     # by t-t_mean.
     #
-    fp1 = fft2(pixels1,fshape)
-    fp2 = fft2(pixels2,fshape)
+    fp1 = fft2(pixels1.astype('float32'),fshape)
+    fp2 = fft2(pixels2.astype('float32'),fshape)
     corr12 = ifft2(fp1 * fp2.conj()).real
 
     #
@@ -128,8 +131,9 @@ def cross_correlation_2d(pixels1, pixels2):
     #
     corrnorm[(unit < np.product(s) / 2) &
              (sd < np.mean(sd) / 100)] = 0
-    corrnorm[unit < np.product(s) / 4] = 0  # also delete possibilites with
-                                            # few observed pixels
+    # Also exclude possibilites with few observed pixels.
+    corrnorm[unit < np.product(s) / 4] = 0
+
     return corrnorm
 
 def align_cross_correlation(pixels1, pixels2):

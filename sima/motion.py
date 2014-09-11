@@ -19,9 +19,9 @@ import warnings
 import numpy as np
 from numpy.linalg import det, svd, pinv
 from scipy.special import gammaln
-from scipy.stats import nanstd
+from scipy.stats import nanmedian
 from scipy.stats.mstats import mquantiles
-from scipy.ndimage.filters import gaussian_filter
+# from scipy.ndimage.filters import gaussian_filter
 
 try:
     import sima._motion as mc
@@ -73,7 +73,7 @@ def _estimate_movement_model(shifts, num_rows):
 
     Parameters
     ----------
-    shifts : array
+    shifts : list of array
         The estimated displacement of each frame.  Size: (2, T).
     num_rows : int
         The number of rows in each image frame.
@@ -87,23 +87,21 @@ def _estimate_movement_model(shifts, num_rows):
     log_transition_matrix : array
         The log transition probabilities for nearest neighbor discrete jumps.
     """
-    diffs = np.diff(shifts)
-    diffs = diffs[:, np.isfinite(diffs).all(axis=0)]
-    cov_matrix = np.cov(diffs) / num_rows
+    shifts = np.array(list(chain(*chain(*shifts))))
+    assert shifts.shape[1] == 2
+    diffs = np.diff(shifts, axis=0)
+    num_frames = len(shifts)
+    cov_matrix = np.cov(diffs[np.isfinite(diffs).all(axis=1)].T) / num_rows
     # don't allow singular covariance matrix
-    cov_matrix[0, 0] = max(cov_matrix[0, 0], 1. / (
-        shifts.shape[1] * num_rows))
-    cov_matrix[1, 1] = max(cov_matrix[1, 1], 1. / (
-        shifts.shape[1] * num_rows))
+    cov_matrix[0, 0] = max(cov_matrix[0, 0], 1. / (num_frames * num_rows))
+    cov_matrix[1, 1] = max(cov_matrix[1, 1], 1. / (num_frames * num_rows))
     assert det(cov_matrix) > 0
 
-    mean_shift = np.nanmean(shifts, axis=1)
-    centered_shifts = np.nan_to_num(
-        shifts -
-        np.dot(mean_shift.reshape([2, 1]), np.ones([1, shifts.shape[1]]))
-    )
+    mean_shift = np.nanmean(shifts, axis=0)
+    assert len(mean_shift) == 2
+    centered_shifts = np.nan_to_num(shifts - mean_shift)
     # fit to autoregressive AR(1) model
-    A = np.dot(pinv(centered_shifts[:, :-1].T), centered_shifts[:, 1:].T)
+    A = np.dot(pinv(centered_shifts[:-1]), centered_shifts[1:])
     # symmetrize A, assume independent motion on orthogonal axes
     A = 0.5 * (A + A.T)
     U, s, V = svd(A)
@@ -122,12 +120,11 @@ def _estimate_movement_model(shifts, num_rows):
         for j in range(max_jump_size + 1):
             log_transition_matrix[i, j] = np.log(
                 _discrete_transition_prob(
-                    np.array([i, j]), np.array([0., 0.]),
-                    transition_probs, 8))
+                    np.array([i, j]), np.array([0., 0.]), transition_probs, 8))
     assert np.all(np.isfinite(cov_matrix)) and \
         np.all(np.isfinite(decay_matrix)) and \
         np.all(np.isfinite(log_transition_matrix))
-    return cov_matrix, decay_matrix, log_transition_matrix
+    return cov_matrix, decay_matrix, log_transition_matrix, mean_shift
 
 
 def _threshold_gradient(im):
@@ -325,7 +322,6 @@ class _MCImagingDataset(ImagingDataset):
             The estimated displacements and partial results of motion
             correction.
         """
-        print "estimate displacements"
         if verbose:
             print 'Estimating model parameters.'
         if max_displacement is not None:
@@ -334,30 +330,27 @@ class _MCImagingDataset(ImagingDataset):
             max_displacement = np.array([-1, -1])
 
         # valid_rows = self._detect_artifact(artifact_channels)
-        print "call _correlation_based_correction"
         shifts, correlations = self._correlation_based_correction(
             max_displacement=max_displacement)
-        references, _, offset = self._whole_frame_shifting(
+        references, variances, offset = self._whole_frame_shifting(
             shifts, correlations)
-        gains = self._estimate_gains(references, offset,
-                                     shifts.astype(int), correlations)
+        gains = nanmedian(
+            (references / variances).reshape(-1, references.shape[-1]))
+        # gains = self._estimate_gains(references, offset,
+        #                              shifts.astype(int), correlations)
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
         pixel_means, pixel_variances = self._pixel_distribution()
-        cov_matrix_est, decay_matrix, log_transition_matrix = \
-            _estimate_movement_model(shifts, self.num_rows)
-        mean_shift = np.nanmean(shifts, axis=1)
+        cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
+            _estimate_movement_model(shifts, self.frame_shape[1])
 
         # add a bit of extra room to move around
-        extra_buffer = ((max_displacement - np.nanmax(shifts, 1) +
-                         np.nanmin(shifts, 1)) / 2).astype(int)
-        if max_displacement[0] < 0:
-            extra_buffer[0] = 5
-        if max_displacement[1] < 0:
-            extra_buffer[1] = 5
-        min_displacements = (
-            np.nanmin(shifts, 1) - extra_buffer).astype(int)
-        max_displacements = (
-            np.nanmax(shifts, 1) + extra_buffer).astype(int)
+        min_shifts = np.nanmin(list(chain(*chain(*shifts))), 0)
+        max_shifts = np.nanmax(list(chain(*chain(*shifts))), 0)
+        extra_buffer = (
+            (max_displacement - max_shifts + min_shifts) / 2).astype(int)
+        extra_buffer[max_displacement < 0] = 5
+        min_displacements = (np.nanmin(shifts, 1) - extra_buffer).astype(int)
+        max_displacements = (np.nanmax(shifts, 1) + extra_buffer).astype(int)
 
         displacements = self._neighbor_viterbi(
             log_transition_matrix, references, gains, decay_matrix,
@@ -409,11 +402,12 @@ class _MCImagingDataset(ImagingDataset):
         var_est :
             Variances of the intensity of each channel.
         """
+        # TODO: separate distributions for each plane
         sums = np.zeros(self.num_channels).astype(float)
         sum_squares = np.zeros(self.num_channels).astype(float)
         count = 0
         t = 0
-        for frame in chain(*self):
+        for frame in chain(*chain(*self)):
             if t > 0:
                 mean_est = sums / count
                 var_est = (sum_squares / count) - (mean_est ** 2)
@@ -423,9 +417,9 @@ class _MCImagingDataset(ImagingDataset):
             im = np.concatenate(
                 [np.expand_dims(x, 0) for x in frame],
                 axis=0).astype(float)  # NOTE: integers overflow
-            sums += im.sum(axis=1).sum(axis=1)
-            sum_squares += (im ** 2).sum(axis=1).sum(axis=1)
-            count += im.shape[1] * im.shape[2]
+            sums += im.sum(axis=0).sum(axis=0)
+            sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
+            count += np.prod(im.shape[0] * im.shape[1])
             t += 1
         assert np.all(mean_est > 0)
         assert np.all(var_est > 0)
@@ -492,14 +486,12 @@ class _MCImagingDataset(ImagingDataset):
                        ] += np.nan_to_num(plane)
             assert pixel_sums.ndim == 3
 
-        print 'CORR SETUP'
         shifts = [np.zeros(cycle.shape[:2] + (2,)) for cycle in self]
         correlations = [np.empty(cycle.shape[:2]) for cycle in self]
         offset = np.zeros(2, dtype=int)
         pixel_sums = np.zeros(self.frame_shape).astype('float64')
         # NOTE: float64 gives nan when divided by 0
         pixel_counts = np.zeros(pixel_sums.shape)
-        print 'START CORR'
         for cycle, c_shifts, c_corrs in izip(self, shifts, correlations):
             for frame, f_shifts, f_corrs in izip(cycle, c_shifts, c_corrs):
                 for p, (plane, p_shifts) in enumerate(izip(frame, f_shifts)):
@@ -519,13 +511,15 @@ class _MCImagingDataset(ImagingDataset):
                         shift, f_corrs[p] = align_cross_correlation(
                             reference, plane)
                         p_shifts[:] = shift - offset
-                        print shift, offset, p_shifts, f_corrs[p]
                         pixel_sums, pixel_counts, offset = resize_arrays(
                             p_shifts, pixel_sums, pixel_counts, offset)
                         update_sums_and_counts(pixel_sums[p], pixel_counts[p],
                                                offset, p_shifts, plane)
         # TODO: align planes to minimize shifts between them
-        return shifts.astype(float), correlations.astype(float)
+        return (
+            [s.astype(float) for s in shifts],
+            [c.astype(float) for c in correlations]
+        )
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -549,123 +543,127 @@ class _MCImagingDataset(ImagingDataset):
             The displacement to add to each shift to align the minimal shift
             with the edge of the corrected image.
         """
-        good_corr = correlations >= np.nanmean(correlations) - \
-            2 * nanstd(correlations)
+        # Calculate a correlation threshold for each plane of the frame
+        thresh = \
+            np.nanmean(list(chain(*correlations)), axis=0) - \
+            2 * np.nanstd(list(chain(*correlations)), axis=0)
         # only include image frames with sufficiently high correlation
-        min_shifts = np.nanmin(shifts[:, good_corr], axis=1).astype(int)
-        max_shifts = np.nanmax(shifts[:, good_corr], axis=1).astype(int)
-        reference = np.zeros([
-            self.num_channels,
-            self.num_rows + max_shifts[0] - min_shifts[0],
-            self.num_columns + max_shifts[1] - min_shifts[1]])
+        min_shifts = np.nanmin(np.concatenate(
+            [s[c > thresh] for s, c in izip(shifts, correlations)]
+        ), axis=0).astype(int)
+        max_shifts = np.nanmax(np.concatenate(
+            [s[c > thresh] for s, c in izip(shifts, correlations)]
+        ), axis=0).astype(int)
+        out_shape = list(self.frame_shape)
+        out_shape[1] += max_shifts[0] - min_shifts[0]
+        out_shape[2] += max_shifts[1] - min_shifts[1]
+        reference = np.zeros(out_shape)
         sum_squares = np.zeros_like(reference)
         count = np.zeros_like(reference)
-        for frame, shift, gc in izip(chain(*self), shifts.T, good_corr):
-            if gc:
-                im = np.concatenate([np.expand_dims(x, 0) for x in frame],
-                                    axis=0).astype(float)
-                # indices for shifted image
-                low_idx = shift - min_shifts
-                high_idx = low_idx + im.shape[1:]
-                reference[:, low_idx[0]:high_idx[0],
-                          low_idx[1]:high_idx[1]] += im
-                sum_squares[:, low_idx[0]:high_idx[0],
-                            low_idx[1]:high_idx[1]] += im ** 2
-                count[:, low_idx[0]:high_idx[0], low_idx[1]:high_idx[1]] += 1
+        for frame, shift, corr in izip(
+                chain(*self), chain(*shifts), chain(*correlations)):
+            for plane, p_shifts, p_corr, th, ref, ssq, cnt in izip(
+                    frame, shift, corr, thresh, reference, sum_squares, count):
+                if p_corr > th:
+                    low = p_shifts - min_shifts
+                    high = low + plane.shape[:-1]
+                    ref[low[0]:high[0], low[1]:high[1]] += plane
+                    ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
+                    cnt[low[0]:high[0], low[1]:high[1]] += np.isfinite(plane)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             reference /= count
-        reference[np.equal(count, 0)] = np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+            assert np.all(np.isnan(reference[np.equal(count, 0)]))
             variances = (sum_squares / count) - reference ** 2
+            assert not np.any(variances < 0)
         offset = - min_shifts
         return reference, variances, offset
 
-    def _estimate_gains(self, references, offset, shifts, correlations):
-        """Estimate the photon-pixel transformation gain for each channel
+    # def _estimate_gains(self, references, offset, shifts, correlations):
+    #     """Estimate the photon-pixel transformation gain for each channel
 
-        Parameters
-        ----------
-        references : array
-            Time average of each channel after frame-by-frame alignment.
-            Shape: (num_channels, num_rows, num_columns)
-        offset : array
-            The displacement to add to each shift to align the minimal shift
-            with the edge of the corrected image.
-        shifts : array
-            The estimated shifts for each frame.  Shape: (2, T).
-        correlations : array
-            Intensity correlations between shifted frames and reference.
+    #     Parameters
+    #     ----------
+    #     references : array
+    #         Time average of each channel after frame-by-frame alignment.
+    #         Shape: (num_channels, num_rows, num_columns)
+    #     offset : array
+    #         The displacement to add to each shift to align the minimal shift
+    #         with the edge of the corrected image.
+    #     shifts : array
+    #         The estimated shifts for each frame.  Shape: (2, T).
+    #     correlations : array
+    #         Intensity correlations between shifted frames and reference.
 
-        Returns
-        -------
-        array
-            The photon-to-intensity gains for each channel.
-        """
-        corr_mean = np.nanmean(correlations)
-        corr_stdev = nanstd(correlations)
-        # Calculate displacements between consecutive images
-        diffs = np.diff(shifts, axis=1)
-        # Threshold the gradient of the smoothed reference image to minimize
-        # estimation errors due to uncorrected movements
-        smooth_references = np.array([gaussian_filter(chan, sigma=1)
-                                      for chan in references])
-        grad_below_threshold = _threshold_gradient(smooth_references)
-        # Initialize variables for the loop
-        count = np.zeros(self.num_channels)
-        sum_estimates = np.zeros(self.num_channels)
-        sum_square_estimates = np.zeros(self.num_channels)
-        im2 = None
-        t = - 1
-        for cycle in self:
-            for frame_idx, frame in enumerate(cycle):
-                im1 = im2
-                im2 = np.concatenate([np.expand_dims(x, 0) for x in frame],
-                                     axis=0).astype(float)
-                if frame_idx > 0 and (
-                        correlations[t + 1] > corr_mean - 2 * corr_stdev and
-                        correlations[t] > corr_mean - 2 * corr_stdev):
-                    # calculate the coordinates of the overlap of the images
-                    im1_min_coords = np.maximum(diffs[:, t], 0)
-                    im1_max_coords = im1.shape[1:] + np.minimum(diffs[:, t], 0)
-                    im2_min_coords = np.maximum(-diffs[:, t], 0)
-                    im2_max_coords = im1.shape[1:] + np.minimum(
-                        -diffs[:, t], 0)
-                    # select the overlap regions
-                    x0 = im1[:, im1_min_coords[0]:im1_max_coords[0],
-                             im1_min_coords[1]:im1_max_coords[1]]
-                    x1 = im2[:, im2_min_coords[0]:im2_max_coords[0],
-                             im2_min_coords[1]:im2_max_coords[1]]
-                    # Include only values where x0 > x1 because the calcium
-                    # signal increases more quickly than it decays)
-                    scaling_estimates = ((x1 - x0) ** 2) / (x1 + x0)
-                    scaling_estimates = scaling_estimates * (x0 > x1)
-                    shifted_thresholds = grad_below_threshold[
-                        :,
-                        (im1_min_coords[0] + shifts[0, t] + offset[0]):
-                        (im1_max_coords[0] + shifts[0, t] + offset[0]),
-                        (im1_min_coords[1] + shifts[1, t] + offset[1]):
-                        (im1_max_coords[1] + shifts[1, t] + offset[1])]
-                    # Discard if grad > threshold
-                    scaling_estimates = scaling_estimates * shifted_thresholds
-                    sum_estimates += np.nansum(
-                        np.nansum(scaling_estimates, axis=2), axis=1)
-                    sum_square_estimates += np.nansum(np.nansum(
-                        scaling_estimates ** 2, axis=2), axis=1)
-                    # Keep track of which indices provide valid estimates
-                    valid_matrix = np.isfinite(scaling_estimates) * (
-                        x0 > x1) * shifted_thresholds
-                    # update the count of the number of estimates
-                    count += valid_matrix.sum(axis=2).sum(axis=1)
-                    mean_est = sum_estimates / count
-                    var_est = ((sum_square_estimates / count) - (mean_est ** 2)
-                               ) / count
-                    # Stop if rel error below threshold and >10 frames examined
-                    if np.all(np.sqrt(var_est) / mean_est < 0.01) and t > 10:
-                        break
-                t += 1  # increment time
-        return sum_estimates / count
+    #     Returns
+    #     -------
+    #     array
+    #         The photon-to-intensity gains for each channel.
+    #     """
+    #     corr_means = np.nanmean(list(chain(*correlations)), axis=0)
+    #     corr_stdevs = np.nanstd(list(chain(*correlations)), axis=0)
+
+    #     # Calculate displacements between consecutive images
+    #     diffs = np.diff(shifts, axis=1)
+    #     # Threshold the gradient of the smoothed reference image to minimize
+    #     # estimation errors due to uncorrected movements
+    #     smooth_references = np.array([gaussian_filter(chan, sigma=1)
+    #                                   for chan in references])
+    #     grad_below_threshold = _threshold_gradient(smooth_references)
+    #     # Initialize variables for the loop
+    #     count = np.zeros(self.num_channels)
+    #     sum_estimates = np.zeros(self.num_channels)
+    #     sum_square_estimates = np.zeros(self.num_channels)
+    #     im2 = None
+    #     t = - 1
+    #     for cycle in self:
+    #         for frame_idx, frame in enumerate(cycle):
+    #             im1 = im2
+    #             im2 = np.concatenate([np.expand_dims(x, 0) for x in frame],
+    #                                  axis=0).astype(float)
+    #             if frame_idx > 0 and (
+    #                     correlations[t + 1] > corr_mean - 2 * corr_stdev and
+    #                     correlations[t] > corr_mean - 2 * corr_stdev):
+    #                 # calculate the coordinates of the overlap of the images
+    #                 im1_min_coords = np.maximum(diffs[:, t], 0)
+    #                 im1_max_coords = im1.shape[1:] + np.minimum(diffs[:, t], 0)
+    #                 im2_min_coords = np.maximum(-diffs[:, t], 0)
+    #                 im2_max_coords = im1.shape[1:] + np.minimum(
+    #                     -diffs[:, t], 0)
+    #                 # select the overlap regions
+    #                 x0 = im1[:, im1_min_coords[0]:im1_max_coords[0],
+    #                          im1_min_coords[1]:im1_max_coords[1]]
+    #                 x1 = im2[:, im2_min_coords[0]:im2_max_coords[0],
+    #                          im2_min_coords[1]:im2_max_coords[1]]
+    #                 # Include only values where x0 > x1 because the calcium
+    #                 # signal increases more quickly than it decays)
+    #                 scaling_estimates = ((x1 - x0) ** 2) / (x1 + x0)
+    #                 scaling_estimates = scaling_estimates * (x0 > x1)
+    #                 shifted_thresholds = grad_below_threshold[
+    #                     :,
+    #                     (im1_min_coords[0] + shifts[0, t] + offset[0]):
+    #                     (im1_max_coords[0] + shifts[0, t] + offset[0]),
+    #                     (im1_min_coords[1] + shifts[1, t] + offset[1]):
+    #                     (im1_max_coords[1] + shifts[1, t] + offset[1])]
+    #                 # Discard if grad > threshold
+    #                 scaling_estimates = scaling_estimates * shifted_thresholds
+    #                 sum_estimates += np.nansum(
+    #                     np.nansum(scaling_estimates, axis=2), axis=1)
+    #                 sum_square_estimates += np.nansum(np.nansum(
+    #                     scaling_estimates ** 2, axis=2), axis=1)
+    #                 # Keep track of which indices provide valid estimates
+    #                 valid_matrix = np.isfinite(scaling_estimates) * (
+    #                     x0 > x1) * shifted_thresholds
+    #                 # update the count of the number of estimates
+    #                 count += valid_matrix.sum(axis=2).sum(axis=1)
+    #                 mean_est = sum_estimates / count
+    #                 var_est = ((sum_square_estimates / count) - (mean_est ** 2)
+    #                            ) / count
+    #                 # Stop if rel error below threshold and >10 frames examined
+    #                 if np.all(np.sqrt(var_est) / mean_est < 0.01) and t > 10:
+    #                     break
+    #             t += 1  # increment time
+    #     return sum_estimates / count
 
 
 class _MotionSequence(_WrapperSequence):
@@ -684,7 +682,8 @@ class _MotionSequence(_WrapperSequence):
     """
 
     def __iter__(self):
-        return iter(self._base)
+        for frame in self._base:
+            yield frame.astype(float)
 
     def _iter_processed(self, gains, pixel_means, pixel_variances):
         """Generator of preprocessed frames for efficient computation.
@@ -940,7 +939,6 @@ def hmm(sequences, savedir, channel_names=None, info=None,
                                  if c in artifact_channels]
     else:
         mc_sequences = sequences
-    print 'START MC'
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
         num_states_retained, max_displacement, artifact_channels, verbose
     )
