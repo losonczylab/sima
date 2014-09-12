@@ -987,40 +987,9 @@ def _smoothROI(roi, radius=3):
     return roi, False
 
 
-def patchGradient(img, n=3):
-    bstICA = np.array(img)
-    bstICA = np.abs(bstICA-np.mean(bstICA))
-
-    bstICA[bstICA < np.std(bstICA)] = 0
-    bstICA[bstICA > np.std(bstICA)] = 1
-
-    patch_static = np.zeros(bstICA.shape)
-    for y in range(bstICA.shape[0]):
-        for x in range(bstICA.shape[1]):
-            rx = (max((0, x-n)), min(x+n, bstICA.shape[1]))
-            ry = (max(0, y-n), min(y+n, bstICA.shape[0]))
-
-            patch = bstICA[ry[0]:ry[1], rx[0]:rx[1]]
-            patch_val = np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, 1:-1])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, 1:-1])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[1:-1, :-2])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[1:-1, 2:])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, 2:])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, 2:])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, :-2])) + \
-                np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, :-2]))
-
-            patch_static[y, x] = (patch_val*(1.0/(patch.size**(np.sqrt(2)))))
-
-    patch_static = patch_static-np.min(patch_static)
-    patch_static = 1-patch_static/np.max(patch_static)
-
-    return patch_static, bstICA
-
-
 def stica(dataset, channel=0, mu=0.01, num_components=30,
-          static_threshold=0.1, min_area=75, x_smoothing=4, overlap_per=0,
-          smooth_rois=True):
+          static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
+          smooth_rois=True, spatial_sep=True):
     """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
 
     Parameters
@@ -1033,12 +1002,39 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         Weighting parameter for the trade off between spatial and temporal
         information. Must be between 0 and 1. Low values give higher weight
         to temporal information. Default: 0.01
-
+    num_components : int
+        number of principal componenets to use
+    static_threshold : float
+        threhold on the static allowable in an ICA components, eliminating high
+        scoring components speeds the ROI extraction and may improve the results
+    min_area : int
+        minimum ROI size in number of pixels
+    x_smoothing : int
+        number of itereations of static removial and gaussian blur to perform on
+        each stICA component
+    overlap_per : float
+        percentage of an ROI that must be covered in order to combine the two
+        segments. Values outside of (0,1] will result in no removal of overlapping
+        ROIs. Requires x_smoothing to be > 0.
+    smooth_rois : bool
+        Set to True in order to translate the ROIs into polygons and execute
+        smoothing algorithm. Requires x_smoothing to be > 0.
+    spatial_sep : bool
+        spatial_sep : bool
+        If True, the stICA components will be segmented spatially and
+        non-contiguous points will be made into sparate ROIs. Requires x_smoothing
+        to be > 0. Default: True
 
     Returns
     -------
     rois : list
         A list of sima.ROI ROI objects which have been smoothed
+
+    References
+    ----------
+    .. [2] Mukamel, E. a, Nimmerjahn, A., & Schnitzer, M. J. (2009). Automated
+       analysis of cellular signals from large-scale calcium imaging data. Neuron,
+       63(6), 474-60. doi:10.1016/j.neuron.2009.08.009
     """
 
     if dataset.savedir is not None:
@@ -1061,17 +1057,21 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
     print 'performing ICA...'
     st_components = _stICA(space_pcs, time_pcs, mu=mu, path=ica_path,
                            n_components=num_components)
-    accepted, accepted_components, _ = _findUsefulComponents(
-        st_components, static_threshold, x_smoothing=x_smoothing)
 
-    print 'extracting ROIs...'
-    rois = _extractStRois(accepted, min_area=min_area)
+    if x_smoothing > 0 or static_threshold > 0:
+        accepted, accepted_components, _ = _findUsefulComponents(
+            st_components, static_threshold, x_smoothing=x_smoothing)
 
-    if smooth_rois:
-        print 'smoothing ROIs...'
-        rois = [_smoothROI(roi)[0] for roi in rois]
+        if min_area > 0 or spatial_sep:
+            rois = _extractStRois(accepted, min_area=min_area, spatial_sep=spatial_sep)
 
-    print 'removing overlapping ROIs...'
-    rois = _remove_overlapping(rois, percent_overlap=overlap_per)
+        if smooth_rois:
+            print 'smoothing ROIs...'
+            rois = [_smoothROI(roi)[0] for roi in rois]
+
+        print 'removing overlapping ROIs...'
+        rois = _remove_overlapping(rois, percent_overlap=overlap_per)
+    else:
+        [ROI(st_components[:, :, i]) for i in xrange(st_components.shape[2])]
 
     return rois, accepted
