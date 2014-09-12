@@ -576,7 +576,7 @@ def ca1pc(
                            y_diameter)
 
 
-def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
+def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     """Perform spatio-temporal ICA given spatial and temporal Principal 
     Components
 
@@ -620,7 +620,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
 
     if ret is not None:
         return ret
-    
+
     # preprocess the PCA data
     for i in range(space_pcs.shape[2]):
         space_pcs[:,:,i] = mu*(space_pcs[:,:,i]-nanmean(space_pcs[:,:,i])) \
@@ -633,7 +633,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
     y = np.concatenate((space_pcs.reshape(
             space_pcs.shape[0]*space_pcs.shape[1],
             space_pcs.shape[2]),time_pcs))
-     
+
     # execute the FastICA algorithm
     ica = FastICA(n_components=n_components,max_iter=1500)
     st_components = np.real(np.array(ica.fit_transform(y)))
@@ -645,7 +645,7 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
                                               space_pcs.shape[1],
                                               st_components.shape[1])
 
-    
+
     # normalize the ica results
     for i in range(st_components.shape[2]):
         st_component = st_components[:,:,i]
@@ -655,13 +655,13 @@ def _stICA(space_pcs,time_pcs,mu=0.01,n_components=30,path=None):
 
     # save the ica components if a path has been provided
     if path is not None:
-        np.savez(path, st_components=st_components, mu=mu, 
+        np.savez(path, st_components=st_components, mu=mu,
                  num_pcs=time_pcs.shape[1])
 
     return st_components
 
 
-def _findUsefulComponents(st_components,threshold,x_smoothing=4):
+def _findUsefulComponents(st_components, threshold, x_smoothing=4):
     """ finds ICA components with axons and brings them to the foreground
 
     Parameters
@@ -681,7 +681,7 @@ def _findUsefulComponents(st_components,threshold,x_smoothing=4):
         stICA components which contain axons have been processed
         Shape: n_components
     accepted_components : list
-        stICA components which are found to contain axons but without image 
+        stICA components which are found to contain axons but without image
         processing applied
     rejected : list
         stICA components that are determined to have no axon information in them
@@ -718,9 +718,9 @@ def _findUsefulComponents(st_components,threshold,x_smoothing=4):
                             np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,2:])) + \
                             np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,:-2])) + \
                             np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,:-2]))
-        
+
         static = static*2.0/(frame.shape[0]*frame.shape[1])
-        
+
         # decide if the component should be accepted or rejected
         if np.sum(static) < threshold:
             accepted.append(frame)
@@ -730,7 +730,7 @@ def _findUsefulComponents(st_components,threshold,x_smoothing=4):
     return accepted,accepted_components,rejected
 
 
-def fndpts(p,frame,arr=[],i=0,recursion_limit=5000):
+def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
     """ recursivly search of adjacent points
 
     Parameters
@@ -738,7 +738,7 @@ def fndpts(p,frame,arr=[],i=0,recursion_limit=5000):
     p : list
         A list of length 2, [x,y], of the coordinates to the current point
     frame : array
-        Single stICA component, to have points removed from and put into the 
+        Single stICA component, to have points removed from and put into the
         return array, arr
         Shape: (num_rows,num_columns)
 
@@ -762,7 +762,7 @@ def fndpts(p,frame,arr=[],i=0,recursion_limit=5000):
     if i == recursion_limit:
         print 'recurr limit'
         return []
-    
+
     frame[p[0],p[1]]=0
 
     arr = fndpts([p[0]-1,p[1]-1],frame,arr=arr,i=i+1)+ \
@@ -777,7 +777,7 @@ def fndpts(p,frame,arr=[],i=0,recursion_limit=5000):
     return arr
 
 
-def _extractStRois(frames,min_area=50,spatial_sep=True):
+def _extractStRois(frames, min_area=50, spatial_sep=True):
     """ Extract ROIs from the spatio-temporal components
 
     Parameters
@@ -796,7 +796,7 @@ def _extractStRois(frames,min_area=50,spatial_sep=True):
         A list of sima.ROI ROI objects
     """
 
-    # set the recursion limit up to account for the method to find contiguous 
+    # set the recursion limit up to account for the method to find contiguous
     # pixels
     sys.setrecursionlimit(10500)
 
@@ -814,7 +814,7 @@ def _extractStRois(frames,min_area=50,spatial_sep=True):
             arr = []
             arr = fndpts(p,img)
             thisroi = np.zeros(img.shape,'bool')
-            
+
             for p in arr:
                 thisroi[p[0],p[1]] = True
 
@@ -826,7 +826,7 @@ def _extractStRois(frames,min_area=50,spatial_sep=True):
                 if spatial_sep:
                     rois.append(ROI(mask=thisroi,im_shape=thisroi.shape))
                 component_mask[np.where(thisroi)] = True
-            
+
             pts = np.where(img>0)
 
         if not spatial_sep and np.any(component_mask):
@@ -845,7 +845,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
     rois : list
         list of sima.ROI ROIs
     percent_overlap : float
-        percent of the smaller ROIs total area which must be covered in order 
+        percent of the smaller ROIs total area which must be covered in order
         for the ROIs to be evaluated as overlapping
 
     Returns
@@ -857,7 +857,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
     if percent_overlap > 0 and percent_overlap <= 1:
         for roi in rois:
             roi.mask = roi.mask
-        
+
         for i in xrange(len(rois)):
             for j in [j for j in xrange(len(rois)) if j != i]:
                 if rois[i] is not None and rois[j] is not None:
@@ -877,7 +877,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
 
 
 def _smoothROI(roi, radius=3):
-    """ Smooth out the ROI boundaries and reduce the number of points in the 
+    """ Smooth out the ROI boundaries and reduce the number of points in the
     ROI polygons.
 
     Parameters
@@ -889,32 +889,27 @@ def _smoothROI(roi, radius=3):
     Returns
     -------
     roi : sima.ROI
-        If successful, an ROI object which have been smoothed, otherwise, the 
+        If successful, an ROI object which have been smoothed, otherwise, the
         original ROI is returned
     success : bool
         True if the smoothing has been successful, False otherwise
     """
 
     frame = roi.mask.todense().copy()
-          
+
     frame[frame>0]=1
-    check = frame[:-2,:-2]+frame[1:-1,:-2]+frame[2:,:-2]+frame[:-2,1:-1]+ \
-                    frame[2:,1:-1]+frame[:-2:,2:]+frame[1:-1,2:]+frame[2:,2:]
+    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2]+frame[:-2, 1:-1]+ \
+                    frame[2:,1:-1]+frame[:-2:, 2:]+frame[1:-1, 2:]+frame[2:, 2:]
     z = np.zeros(frame.shape)
-    z[1:-1,1:-1] = check;
+    z[1:-1, 1:-1] = check;
 
     #initialize and array to hold the new polygon and find the first point
     b = []
-    rows,cols = np.where(z>0)
-    p = [cols[0],rows[0]]
+    rows, cols = np.where(z>0)
+    p = [cols[0], rows[0]]
     base = p
 
-    #x=np.roll(np.array(list(p[0]+range(-3,3))+[p[0]+3]*(2*3+1)+list(p[0]+ \
-    #            range(-3,3)[::-1]) +[p[0]-(3+1)]*(2*3+1)),-2)
-    #y=np.roll(np.array([p[1]-3]*(2*3)+list(p[1]+range(-3,3))+[p[1]+3]*(2*3+1)+ \
-    #            list(p[1]+range(-3,(3+1))[::-1])),-3)
-    
-    # establish an iteration limit to ensue the loop terminates if smoothing 
+    # establish an iteration limit to ensue the loop terminates if smoothing
     # is unsuccessful
     limit = 1500
 
@@ -925,45 +920,45 @@ def _smoothROI(roi, radius=3):
         # find the ist of all points at the given radius and adjust to be lined
         # up for clockwise traversal
         x=np.roll(np.array(
-                list(p[0]+range(-radius,radius)) + \
+                list(p[0]+range(-radius, radius)) + \
                 [p[0]+radius]*(2*radius+1) + \
-                list(p[0]+range(-radius,radius)[::-1]) + \
+                list(p[0]+range(-radius, radius)[::-1]) + \
                 [p[0]-(radius+1)]*(2*radius+1)),-2)
-        y=np.roll(np.array(
-                [p[1]-radius]*(2*radius)+list(p[1] + range(-radius,radius))+ \
-                [p[1]+radius]*(2*radius+1)+list(p[1] + \
-                range(-radius,(radius+1))[::-1])),-radius)
-        
+        y = np.roll(np.array([p[1]-radius]*(2*radius)+list(p[1] +
+                             range(-radius, radius)) + [p[1] + radius] *
+                             (2*radius+1)+list(p[1] +
+                             range(-radius, (radius + 1))[::-1])), -radius)
+
         # insure that the x and y points are within the image
-        x[x<0]=0
-        y[y<0]=0
-        x[x>=z.shape[1]] = z.shape[1]-1
-        y[y>=z.shape[0]] = z.shape[0]-1
-            
-        vals = z[y,x]
+        x[x < 0] = 0
+        y[y < 0] = 0
+        x[x >= z.shape[1]] = z.shape[1]-1
+        y[y >= z.shape[0]] = z.shape[0]-1
 
-        # ensure that the vals array has a valid transition from 0 to 1 
+        vals = z[y, x]
+
+        # ensure that the vals array has a valid transition from 0 to 1
         # otherwise the algorithm has failed
-        if len(np.where(np.roll(vals,1) == 0)[0]) == 0 or \
-                len(np.where(vals>0)[0]) == 0:
-            return roi,False
+        if len(np.where(np.roll(vals, 1) == 0)[0]) == 0 or \
+                len(np.where(vals > 0)[0]) == 0:
+            return roi, False
 
-        idx = np.intersect1d(np.where(vals>0)[0], 
-                             np.where(np.roll(vals,1) == 0)[0])[0]
-        p = [x[idx],y[idx]]
-        
+        idx = np.intersect1d(np.where(vals > 0)[0],
+                             np.where(np.roll(vals, 1) == 0)[0])[0]
+        p = [x[idx], y[idx]]
+
         # check if the traveral is near to the starting point indicating that
-        # the algirthm has completed. If less then 3 points are found this is 
+        # the algirthm has completed. If less then 3 points are found this is
         # not yet a valid ROI
         if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
                 len(b) > 3:
-            newRoi = ROI(polygons=[b],im_shape=roi.im_shape)
+            newRoi = ROI(polygons=[b], im_shape=roi.im_shape)
             if newRoi.mask.size != 0:
                 # "well formed ROI"
-                return newRoi,True
+                return newRoi, True
 
         # if p is already in the list of polygon points, increase the radius of
-        # search. if radius is already larger then 6, blur the mask and try 
+        # search. if radius is already larger then 6, blur the mask and try
         # again
         if p in b:
             if radius > 6:
@@ -971,8 +966,8 @@ def _smoothROI(roi, radius=3):
                 z = ndimage.gaussian_filter(z, sigma=1)
 
                 b = []
-                rows,cols = np.where(z>0)
-                p = [cols[0],rows[0]]
+                rows, cols = np.where(z > 0)
+                p = [cols[0], rows[0]]
                 base = p
                 tmpRad = False
 
@@ -982,60 +977,50 @@ def _smoothROI(roi, radius=3):
                 if len(b) > 3:
                     p = b[-3]
                     del b[-3:]
-              
+
         elif tmpRad:
             tmpRad = False
             radius = 3
 
-    # The maximum number of cycles has completed and no suitable smoothed ROI 
+    # The maximum number of cycles has completed and no suitable smoothed ROI
     # has been determined
     return roi, False
 
 
-def patchGradient(img,n=3):
+def patchGradient(img, n=3):
     bstICA = np.array(img)
-    #bstICA = bstICA-np.min(bstICA)
-    #bstICA = bstICA/np.max(bstICA)
     bstICA = np.abs(bstICA-np.mean(bstICA))
 
-    bstICA[bstICA<np.std(bstICA)] = 0
-    bstICA[bstICA>np.std(bstICA)] = 1
+    bstICA[bstICA < np.std(bstICA)] = 0
+    bstICA[bstICA > np.std(bstICA)] = 1
 
     patch_static = np.zeros(bstICA.shape)
     for y in range(bstICA.shape[0]):
         for x in range(bstICA.shape[1]):
-            rx = (max((0,x-n)),min(x+n,bstICA.shape[1]))
-            ry = (max(0,y-n),min(y+n,bstICA.shape[0]))
-        
-            patch = bstICA[ry[0]:ry[1],rx[0]:rx[1]]
-            patch_val = np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,1:-1])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,1:-1])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[1:-1,:-2])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[1:-1,2:])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,2:])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,2:])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[2:,:-2])) + \
-                            np.sum(np.abs(patch[1:-1,1:-1]-patch[:-2,:-2]))
-            
-            patch_static[y,x] = (patch_val*(1.0/(patch.size**(np.sqrt(2)))))
+            rx = (max((0, x-n)), min(x+n, bstICA.shape[1]))
+            ry = (max(0, y-n), min(y+n, bstICA.shape[0]))
+
+            patch = bstICA[ry[0]:ry[1], rx[0]:rx[1]]
+            patch_val = np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, 1:-1])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, 1:-1])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[1:-1, :-2])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[1:-1, 2:])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, 2:])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, 2:])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[2:, :-2])) + \
+                np.sum(np.abs(patch[1:-1, 1:-1]-patch[:-2, :-2]))
+
+            patch_static[y, x] = (patch_val*(1.0/(patch.size**(np.sqrt(2)))))
 
     patch_static = patch_static-np.min(patch_static)
     patch_static = 1-patch_static/np.max(patch_static)
-    
-    """
-    plt.imshow(patch_static)
-    plt.figure()
-    plt.imshow(img)
-    plt.figure()
-    plt.imshow(bstICA)
-    plt.show()
-    """
 
-    return patch_static,bstICA
+    return patch_static, bstICA
 
 
-def stica(dataset,channel=0,mu=0.01,num_components=30,
-          static_threshold=0.1,min_area=75,x_smoothing=4,overlap_per=0,smooth_rois=True):
+def stica(dataset, channel=0, mu=0.01, num_components=30,
+          static_threshold=0.1, min_area=75, x_smoothing=4, overlap_per=0,
+          smooth_rois=True):
     """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
 
     Parameters
@@ -1046,10 +1031,10 @@ def stica(dataset,channel=0,mu=0.01,num_components=30,
         The index of the channel to be used. Default: 0
     mu : float, optional
         Weighting parameter for the trade off between spatial and temporal
-        information. Must be between 0 and 1. Low values give higher weight 
+        information. Must be between 0 and 1. Low values give higher weight
         to temporal information. Default: 0.01
 
-    
+
     Returns
     -------
     rois : list
@@ -1069,23 +1054,24 @@ def stica(dataset,channel=0,mu=0.01,num_components=30,
         ica_path = None
 
     print 'performing PCA...'
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_components, path=pca_path)
-    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,dataset.num_columns,
-                                          num_components))
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_components,
+                                   path=pca_path)
+    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
+                        dataset.num_columns, num_components))
     print 'performing ICA...'
-    st_components = _stICA(space_pcs,time_pcs,mu=mu,path=ica_path,
+    st_components = _stICA(space_pcs, time_pcs, mu=mu, path=ica_path,
                            n_components=num_components)
-    accepted,accepted_components,_ = _findUsefulComponents(
-            st_components,static_threshold,x_smoothing=x_smoothing)
-    
+    accepted, accepted_components, _ = _findUsefulComponents(
+        st_components, static_threshold, x_smoothing=x_smoothing)
+
     print 'extracting ROIs...'
-    rois = _extractStRois(accepted,min_area=min_area)
+    rois = _extractStRois(accepted, min_area=min_area)
 
     if smooth_rois:
         print 'smoothing ROIs...'
         rois = [_smoothROI(roi)[0] for roi in rois]
-    
-    print 'removing overlapping ROIs...'
-    rois = _remove_overlapping(rois,percent_overlap=overlap_per)
 
-    return rois,accepted
+    print 'removing overlapping ROIs...'
+    rois = _remove_overlapping(rois, percent_overlap=overlap_per)
+
+    return rois, accepted
