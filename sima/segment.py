@@ -577,7 +577,7 @@ def ca1pc(
 
 
 def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
-    """Perform spatio-temporal ICA given spatial and temporal Principal 
+    """Perform spatio-temporal ICA given spatial and temporal Principal
     Components
 
     Parameters
@@ -590,7 +590,7 @@ def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
         Shape: (num_times, num_pcs).
     mu : float
         Weighting parameter for the trade off between spatial and temporal
-        information. Must be between 0 and 1. Low values give higher weight 
+        information. Must be between 0 and 1. Low values give higher weight
         to temporal information. Default: 0.01
     n_components : int
         The maximum number of ICA components to generate. Default: 30
@@ -623,35 +623,34 @@ def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 
     # preprocess the PCA data
     for i in range(space_pcs.shape[2]):
-        space_pcs[:,:,i] = mu*(space_pcs[:,:,i]-nanmean(space_pcs[:,:,i])) \
-                                /np.max(space_pcs)
+        space_pcs[:, :, i] = mu*(space_pcs[:, :, i]-nanmean(space_pcs[:, :, i])) \
+            / np.max(space_pcs)
     for i in range(time_pcs.shape[1]):
-        time_pcs[:,i] = (1-mu)*(time_pcs[:,i]-nanmean(time_pcs[:,i]))/ \
-                                np.max(time_pcs)
+        time_pcs[:, i] = (1-mu)*(time_pcs[:, i]-nanmean(time_pcs[:, i])) / \
+            np.max(time_pcs)
 
     # concatenate the space and time PCs
     y = np.concatenate((space_pcs.reshape(
-            space_pcs.shape[0]*space_pcs.shape[1],
-            space_pcs.shape[2]),time_pcs))
+        space_pcs.shape[0]*space_pcs.shape[1],
+        space_pcs.shape[2]), time_pcs))
 
     # execute the FastICA algorithm
-    ica = FastICA(n_components=n_components,max_iter=1500)
+    ica = FastICA(n_components=n_components, max_iter=1500)
     st_components = np.real(np.array(ica.fit_transform(y)))
 
     # pull out the spacial portion of the st_components
     st_components = \
-        st_components[:(space_pcs.shape[0]*space_pcs.shape[1]),:]
+        st_components[:(space_pcs.shape[0]*space_pcs.shape[1]), :]
     st_components = st_components.reshape(space_pcs.shape[0],
-                                              space_pcs.shape[1],
-                                              st_components.shape[1])
-
+                                          space_pcs.shape[1],
+                                          st_components.shape[1])
 
     # normalize the ica results
     for i in range(st_components.shape[2]):
-        st_component = st_components[:,:,i]
+        st_component = st_components[:, :, i]
         st_component = abs(st_component-np.mean(st_component))
         st_component = st_component/np.max(st_component)
-        st_components[:,:,i] = st_component
+        st_components[:, :, i] = st_component
 
     # save the ica components if a path has been provided
     if path is not None:
@@ -684,7 +683,8 @@ def _findUsefulComponents(st_components, threshold, x_smoothing=4):
         stICA components which are found to contain axons but without image
         processing applied
     rejected : list
-        stICA components that are determined to have no axon information in them
+        stICA components that are determined to have no axon information
+        in them
     """
 
     accepted = []
@@ -693,41 +693,42 @@ def _findUsefulComponents(st_components, threshold, x_smoothing=4):
     for i in xrange(st_components.shape[2]):
 
         # copy the component, remove pixels with low weights
-        frame = st_components[:,:,i].copy()
-        frame[frame<2*np.std(frame)] = 0
+        frame = st_components[:, :, i].copy()
+        frame[frame < 2*np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
         for n in range(x_smoothing):
-            check = frame[1:-1,:-2]+frame[1:-1,2:]+frame[:-2,1:-1]+frame[2,1:-1]
+            check = frame[1:-1, :-2]+frame[1:-1, 2:]+frame[:-2, 1:-1] + \
+                frame[2, 1:-1]
             z = np.zeros(frame.shape)
-            z[1:-1,1:-1] = check;
+            z[1:-1, 1:-1] = check
             frame[np.logical_not(z)] = 0
 
             blurred = ndimage.gaussian_filter(frame, sigma=1)
             frame = blurred+frame
 
             frame = frame/np.max(frame)
-            frame[frame<2*np.std(frame)] = 0
+            frame[frame < 2*np.std(frame)] = 0
 
         # calculate the remaining static in the component
-        static = np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,1:-1])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,1:-1])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[1:-1,:-2])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[1:-1,2:])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,2:])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,2:])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[2:,:-2])) + \
-                            np.sum(np.abs(frame[1:-1,1:-1]-frame[:-2,:-2]))
+        static = np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, :-2]))
 
         static = static*2.0/(frame.shape[0]*frame.shape[1])
 
         # decide if the component should be accepted or rejected
         if np.sum(static) < threshold:
             accepted.append(frame)
-            accepted_components.append(st_components[:,:,i])
+            accepted_components.append(st_components[:, :, i])
         else:
             rejected.append(frame)
-    return accepted,accepted_components,rejected
+    return accepted, accepted_components, rejected
 
 
 def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
@@ -755,24 +756,24 @@ def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
     >>> sys.setrecursionlimit(10500)
     """
 
-    if p[0]<0 or p[0]>=frame.shape[0] or p[1]<0 or p[1]>=frame.shape[1] or \
-            frame[p[0],p[1]] == 0:
+    if p[0] < 0 or p[0] >= frame.shape[0] or p[1] < 0 or p[1] >= frame.shape[1] or \
+            frame[p[0], p[1]] == 0:
         return []
 
     if i == recursion_limit:
         print 'recurr limit'
         return []
 
-    frame[p[0],p[1]]=0
+    frame[p[0], p[1]] = 0
 
-    arr = fndpts([p[0]-1,p[1]-1],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0]-1,p[1]],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0]-1,p[1]+1],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0],p[1]-1],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0],p[1]+1],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0]+1,p[1]-1],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0]+1,p[1]],frame,arr=arr,i=i+1)+ \
-            fndpts([p[0]+1,p[1]+1],frame,arr=arr,i=i+1)
+    arr = fndpts([p[0]-1, p[1]-1], frame, arr=arr, i=i+1) + \
+        fndpts([p[0]-1, p[1]], frame, arr=arr, i=i+1) +   \
+        fndpts([p[0]-1, p[1]+1], frame, arr=arr, i=i+1) + \
+        fndpts([p[0], p[1]-1], frame, arr=arr, i=i+1) +   \
+        fndpts([p[0], p[1]+1], frame, arr=arr, i=i+1) +   \
+        fndpts([p[0]+1, p[1]-1], frame, arr=arr, i=i+1) + \
+        fndpts([p[0]+1, p[1]], frame, arr=arr, i=i+1) +   \
+        fndpts([p[0]+1, p[1]+1], frame, arr=arr, i=i+1)
     arr.append(p)
     return arr
 
@@ -802,35 +803,35 @@ def _extractStRois(frames, min_area=50, spatial_sep=True):
 
     rois = []
     for frame_no in range(len(frames)):
-        print "%i of %i frames"%(frame_no,len(frames))
+        print "%i of %i frames" % (frame_no, len(frames))
         image_index = frame_no
         img = np.array(frames[frame_no])
         component_mask = np.zeros(img.shape)
-        pts = np.where(img>0)
+        pts = np.where(img > 0)
 
-        while pts[0].shape[0]>0:
-            #start with the first non-zero point and find all adjacent points
-            p = [pts[0][0],pts[1][0]]
+        while pts[0].shape[0] > 0:
+            # start with the first non-zero point and find all adjacent points
+            p = [pts[0][0], pts[1][0]]
             arr = []
-            arr = fndpts(p,img)
-            thisroi = np.zeros(img.shape,'bool')
+            arr = fndpts(p, img)
+            thisroi = np.zeros(img.shape, 'bool')
 
             for p in arr:
-                thisroi[p[0],p[1]] = True
+                thisroi[p[0], p[1]] = True
 
             # remove the extracted roi from the original img
-            img[thisroi>0]=0
+            img[thisroi > 0] = 0
 
-            thisarea = len(np.where(thisroi>0)[0])
+            thisarea = len(np.where(thisroi > 0)[0])
             if thisarea > min_area:
                 if spatial_sep:
-                    rois.append(ROI(mask=thisroi,im_shape=thisroi.shape))
+                    rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
                 component_mask[np.where(thisroi)] = True
 
-            pts = np.where(img>0)
+            pts = np.where(img > 0)
 
         if not spatial_sep and np.any(component_mask):
-            rois.append(ROI(mask=component_mask,im_shape=thisroi.shape))
+            rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
 
         frame_no = frame_no+1
 
@@ -864,7 +865,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                     overlap = np.logical_and(rois[i].mask.toarray(),
                                              rois[j].mask.toarray())
                     small_area = np.min(
-                        (rois[i].mask.size,rois[j].mask.size))
+                        (rois[i].mask.size, rois[j].mask.size))
 
                     if len(np.where(overlap)[0]) > percent_overlap*small_area:
                         new_shape = np.logical_or(rois[i].mask.toarray(),
@@ -897,15 +898,15 @@ def _smoothROI(roi, radius=3):
 
     frame = roi.mask.todense().copy()
 
-    frame[frame>0]=1
-    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2]+frame[:-2, 1:-1]+ \
-                    frame[2:,1:-1]+frame[:-2:, 2:]+frame[1:-1, 2:]+frame[2:, 2:]
+    frame[frame > 0] = 1
+    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2]+frame[:-2, 1:-1] + \
+        frame[2:, 1:-1]+frame[:-2:, 2:]+frame[1:-1, 2:]+frame[2:, 2:]
     z = np.zeros(frame.shape)
-    z[1:-1, 1:-1] = check;
+    z[1:-1, 1:-1] = check
 
-    #initialize and array to hold the new polygon and find the first point
+    # initialize and array to hold the new polygon and find the first point
     b = []
-    rows, cols = np.where(z>0)
+    rows, cols = np.where(z > 0)
     p = [cols[0], rows[0]]
     base = p
 
@@ -919,11 +920,10 @@ def _smoothROI(roi, radius=3):
         b.append(p)
         # find the ist of all points at the given radius and adjust to be lined
         # up for clockwise traversal
-        x=np.roll(np.array(
-                list(p[0]+range(-radius, radius)) + \
-                [p[0]+radius]*(2*radius+1) + \
-                list(p[0]+range(-radius, radius)[::-1]) + \
-                [p[0]-(radius+1)]*(2*radius+1)),-2)
+        x = np.roll(np.array(list(p[0]+range(-radius, radius)) +
+                             [p[0]+radius]*(2*radius+1) +
+                             list(p[0]+range(-radius, radius)[::-1]) +
+                             [p[0]-(radius+1)]*(2*radius+1)), -2)
         y = np.roll(np.array([p[1]-radius]*(2*radius)+list(p[1] +
                              range(-radius, radius)) + [p[1] + radius] *
                              (2*radius+1)+list(p[1] +
