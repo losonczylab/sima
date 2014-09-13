@@ -13,13 +13,9 @@ except ImportError:
 else:
     cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
-import matplotlib.pyplot as plt
 from scipy import nanmean
 from sklearn.decomposition import FastICA
 import sys
-from descartes import PolygonPatch
-import scipy.stats as stats
-
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
@@ -576,7 +572,7 @@ def ca1pc(
                            y_diameter)
 
 
-def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
+def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     """Perform spatio-temporal ICA given spatial and temporal Principal
     Components
 
@@ -623,8 +619,8 @@ def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 
     # preprocess the PCA data
     for i in range(space_pcs.shape[2]):
-        space_pcs[:, :, i] = mu*(space_pcs[:, :, i]-nanmean(space_pcs[:, :, i])) \
-            / np.max(space_pcs)
+        space_pcs[:, :, i] = mu*(space_pcs[:, :, i]- \
+            nanmean(space_pcs[:, :, i]))/np.max(space_pcs)
     for i in range(time_pcs.shape[1]):
         time_pcs[:, i] = (1-mu)*(time_pcs[:, i]-nanmean(time_pcs[:, i])) / \
             np.max(time_pcs)
@@ -660,7 +656,7 @@ def _stICA(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     return st_components
 
 
-def _findUsefulComponents(st_components, threshold, x_smoothing=4):
+def _find_useful_components(st_components, threshold, x_smoothing=4):
     """ finds ICA components with axons and brings them to the foreground
 
     Parameters
@@ -697,7 +693,7 @@ def _findUsefulComponents(st_components, threshold, x_smoothing=4):
         frame[frame < 2*np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
-        for n in range(x_smoothing):
+        for n in xrange(x_smoothing):
             check = frame[1:-1, :-2]+frame[1:-1, 2:]+frame[:-2, 1:-1] + \
                 frame[2, 1:-1]
             z = np.zeros(frame.shape)
@@ -756,8 +752,8 @@ def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
     >>> sys.setrecursionlimit(10500)
     """
 
-    if p[0] < 0 or p[0] >= frame.shape[0] or p[1] < 0 or p[1] >= frame.shape[1] or \
-            frame[p[0], p[1]] == 0:
+    if p[0] < 0 or p[0] >= frame.shape[0] or p[1] < 0 or \
+            p[1] >= frame.shape[1] or frame[p[0], p[1]] == 0:
         return []
 
     if i == recursion_limit:
@@ -778,7 +774,7 @@ def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
     return arr
 
 
-def _extractStRois(frames, min_area=50, spatial_sep=True):
+def _extract_st_rois(frames, min_area=50, spatial_sep=True):
     """ Extract ROIs from the spatio-temporal components
 
     Parameters
@@ -804,7 +800,6 @@ def _extractStRois(frames, min_area=50, spatial_sep=True):
     rois = []
     for frame_no in range(len(frames)):
         print "%i of %i frames" % (frame_no, len(frames))
-        image_index = frame_no
         img = np.array(frames[frame_no])
         component_mask = np.zeros(img.shape)
         pts = np.where(img > 0)
@@ -877,7 +872,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
     return [roi for roi in rois if roi is not None]
 
 
-def _smoothROI(roi, radius=3):
+def _smooth_roi(roi, radius=3):
     """ Smooth out the ROI boundaries and reduce the number of points in the
     ROI polygons.
 
@@ -899,8 +894,9 @@ def _smoothROI(roi, radius=3):
     frame = roi.mask.todense().copy()
 
     frame[frame > 0] = 1
-    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2]+frame[:-2, 1:-1] + \
-        frame[2:, 1:-1]+frame[:-2:, 2:]+frame[1:-1, 2:]+frame[2:, 2:]
+    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2] + \
+        frame[:-2, 1:-1]+frame[2:, 1:-1]+frame[:-2:, 2:] + \
+        frame[1:-1, 2:]+frame[2:, 2:]
     z = np.zeros(frame.shape)
     z[1:-1, 1:-1] = check
 
@@ -915,7 +911,7 @@ def _smoothROI(roi, radius=3):
     limit = 1500
 
     # store wether the radius of search is increased aboved the initial value
-    tmpRad = False
+    tmp_rad = False
     for i in range(limit-1):
         b.append(p)
         # find the ist of all points at the given radius and adjust to be lined
@@ -952,10 +948,10 @@ def _smoothROI(roi, radius=3):
         # not yet a valid ROI
         if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
                 len(b) > 3:
-            newRoi = ROI(polygons=[b], im_shape=roi.im_shape)
-            if newRoi.mask.size != 0:
+            new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
+            if new_roi.mask.size != 0:
                 # "well formed ROI"
-                return newRoi, True
+                return new_roi, True
 
         # if p is already in the list of polygon points, increase the radius of
         # search. if radius is already larger then 6, blur the mask and try
@@ -969,17 +965,17 @@ def _smoothROI(roi, radius=3):
                 rows, cols = np.where(z > 0)
                 p = [cols[0], rows[0]]
                 base = p
-                tmpRad = False
+                tmp_rad = False
 
             else:
                 radius = radius+1
-                tmpRad = True
+                tmp_rad = True
                 if len(b) > 3:
                     p = b[-3]
                     del b[-3:]
 
-        elif tmpRad:
-            tmpRad = False
+        elif tmp_rad:
+            tmp_rad = False
             radius = 3
 
     # The maximum number of cycles has completed and no suitable smoothed ROI
@@ -1005,25 +1001,26 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
     num_components : int
         number of principal componenets to use
     static_threshold : float
-        threhold on the static allowable in an ICA components, eliminating high
-        scoring components speeds the ROI extraction and may improve the results
+        threhold on the static allowable in an ICA components, eliminating
+        high scoring components speeds the ROI extraction and may improve
+        the results
     min_area : int
         minimum ROI size in number of pixels
     x_smoothing : int
-        number of itereations of static removial and gaussian blur to perform on
-        each stICA component
+        number of itereations of static removial and gaussian blur to perform
+        on each stICA component
     overlap_per : float
         percentage of an ROI that must be covered in order to combine the two
-        segments. Values outside of (0,1] will result in no removal of overlapping
-        ROIs. Requires x_smoothing to be > 0.
+        segments. Values outside of (0,1] will result in no removal of
+        overlapping ROIs. Requires x_smoothing to be > 0.
     smooth_rois : bool
         Set to True in order to translate the ROIs into polygons and execute
         smoothing algorithm. Requires x_smoothing to be > 0.
     spatial_sep : bool
         spatial_sep : bool
         If True, the stICA components will be segmented spatially and
-        non-contiguous points will be made into sparate ROIs. Requires x_smoothing
-        to be > 0. Default: True
+        non-contiguous points will be made into sparate ROIs. Requires
+        x_smoothing to be > 0. Default: True
 
     Returns
     -------
@@ -1055,23 +1052,24 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
     space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
                         dataset.num_columns, num_components))
     print 'performing ICA...'
-    st_components = _stICA(space_pcs, time_pcs, mu=mu, path=ica_path,
+    st_components = _stica(space_pcs, time_pcs, mu=mu, path=ica_path,
                            n_components=num_components)
 
     if x_smoothing > 0 or static_threshold > 0:
-        accepted, accepted_components, _ = _findUsefulComponents(
+        accepted, _, _ = _find_useful_components(
             st_components, static_threshold, x_smoothing=x_smoothing)
 
         if min_area > 0 or spatial_sep:
-            rois = _extractStRois(accepted, min_area=min_area, spatial_sep=spatial_sep)
+            rois = _extract_st_rois(accepted, min_area=min_area,
+                                  spatial_sep=spatial_sep)
 
         if smooth_rois:
             print 'smoothing ROIs...'
-            rois = [_smoothROI(roi)[0] for roi in rois]
+            rois = [_smooth_roi(roi)[0] for roi in rois]
 
         print 'removing overlapping ROIs...'
         rois = _remove_overlapping(rois, percent_overlap=overlap_per)
     else:
-        [ROI(st_components[:, :, i]) for i in xrange(st_components.shape[2])]
+        rois = [ROI(st_components[:, :, i]) for i in xrange(st_components.shape[2])]
 
     return rois, accepted
