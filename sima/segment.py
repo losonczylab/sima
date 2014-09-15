@@ -1013,4 +1013,4 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         rois = [ROI(st_components[:, :, i]) for i in
                 xrange(st_components.shape[2])]
 
-    return rois, accepted
+    return rois
