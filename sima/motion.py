@@ -233,11 +233,10 @@ def _lookup_tables(d_min, d_max, log_markov_matrix,
             log_markov_matrix[abs(stp[0]), abs(stp[1])])
     transition_tbl = np.array(transition_tbl, dtype=int)
     log_markov_matrix_tbl = np.fromiter(log_markov_matrix_tbl, dtype=float)
-    slice_tbl = mc.slice_lookup(references, position_tbl, num_columns, offset)
-
+    slice_tbls = [mc.slice_lookup(r, position_tbl, num_columns, offset)
+                  for r in references]
     assert position_tbl.dtype == int
-
-    return position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbl
+    return position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbls
 
 
 def _backtrace(start_idx, backpointer, states, position_tbl):
@@ -277,7 +276,7 @@ class _MCImagingDataset(ImagingDataset):
             self, log_transition_matrix, references, gains, decay_matrix,
             cov_matrix_est, mean_shift, offset, min_displacements,
             max_displacements, pixel_means, pixel_variances,
-            num_states_retained, valid_rows, verbose=True):
+            num_states_retained, verbose=True):
         """Estimate the MAP trajectory with the Viterbi Algorithm.
 
         See _MCCycle.neighbor_viterbi for details."""
@@ -290,10 +289,7 @@ class _MCImagingDataset(ImagingDataset):
                     log_transition_matrix, references, gains, decay_matrix,
                     cov_matrix_est, mean_shift, offset, min_displacements,
                     max_displacements, pixel_means, pixel_variances,
-                    num_states_retained,
-                    {k: v[i] for k, v in valid_rows.iteritems()},
-                    invalid_frames=set(self.invalid_frames[i]),
-                    verbose=verbose
+                    num_states_retained, verbose=verbose
                 )
             )
         return displacements
@@ -349,14 +345,14 @@ class _MCImagingDataset(ImagingDataset):
         extra_buffer = (
             (max_displacement - max_shifts + min_shifts) / 2).astype(int)
         extra_buffer[max_displacement < 0] = 5
-        min_displacements = (np.nanmin(shifts, 1) - extra_buffer).astype(int)
-        max_displacements = (np.nanmax(shifts, 1) + extra_buffer).astype(int)
+        min_displacements = (min_shifts - extra_buffer).astype(int)
+        max_displacements = (max_shifts + extra_buffer).astype(int)
 
         displacements = self._neighbor_viterbi(
             log_transition_matrix, references, gains, decay_matrix,
             cov_matrix_est, mean_shift, offset, min_displacements,
             max_displacements, pixel_means, pixel_variances,
-            num_states_retained, valid_rows, verbose)
+            num_states_retained, verbose)
         """
         if path is not None:
             d = np.zeros(len(displacements), dtype=np.object)
@@ -381,7 +377,8 @@ class _MCImagingDataset(ImagingDataset):
             with open(path, 'wb') as f:
                 pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         """
-        return displacements
+        min_disp = np.min(list(chain(*chain(*chain(*displacements)))), axis=0)
+        return [disp - min_disp for disp in displacements]
 
     def _pixel_distribution(self, tolerance=0.001, min_frames=1000):
         """Estimate the distribution of pixel intensities for each channel.
@@ -710,18 +707,12 @@ class _MotionSequence(_WrapperSequence):
         means = pixel_means / gains
         variances = pixel_variances / gains ** 2
         for frame in self:
-            im = np.concatenate([np.expand_dims(x, 0) for x in frame],
-                                axis=0).astype(float)
-            for i in range(self.num_channels):
-                im[i] /= gains[i]  # scale by inverse of the gain factor
+            im = frame / gains
             # take the log of the factorial of each pixel
             log_im_fac = gammaln(im + 1)
             # probability of observing the pixels (ignoring reference)
-            log_im_p = np.zeros_like(im, dtype=float)
-            for i in range(self.num_channels):
-                log_im_p[i, :, :] = -((im[i] - means[i]) ** 2 / (
-                    2 * variances[i])) \
-                    - 0.5 * np.log(2. * np.pi * variances[i])
+            log_im_p = -(im - means) ** 2 / (2 * variances) \
+                - 0.5 * np.log(2. * np.pi * variances)
             assert(np.all(np.isfinite(im)))
             inf_indices = np.logical_not(np.isfinite(log_im_fac))
             log_im_fac[inf_indices] = im[inf_indices] * (
@@ -733,8 +724,7 @@ class _MotionSequence(_WrapperSequence):
     def neighbor_viterbi(
             self, log_markov_matrix, references, gains, mov_decay, mov_cov,
             mean_shift, offset, min_displacements, max_displacements,
-            pixel_means, pixel_variances, num_retained, valid_rows,
-            invalid_frames, verbose=False):
+            pixel_means, pixel_variances, num_retained, verbose=False):
         """Apply Viterbi algorithm to estimate the MAP displacement trajectory.
 
         Parameters
@@ -778,95 +768,75 @@ class _MotionSequence(_WrapperSequence):
             The maximum aposteriori displacement trajectory.  Shape: (2, T).
         """
         offset = np.array(offset, dtype=int)  # type verification
-        T = self.num_rows * self.num_frames  # determine number of timesteps
+        T = np.prod(self.shape[:3])  # determine number of timesteps
         backpointer = []
         states = []
 
         # store outputs of various functions applied to the reference images
         # for later use
-        references = np.array([ref for ref in references])
-        assert len(references.shape) == 3
-        scaled_refs = np.array(
-            [ref / gains[i] for i, ref in enumerate(references)])
+        assert references.ndim == 4
+        scaled_refs = references / gains
         log_scaled_refs = np.log(scaled_refs)
-        position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbl = \
+        position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbls = \
             _lookup_tables(min_displacements, max_displacements,
-                           log_markov_matrix, self.num_columns, references,
+                           log_markov_matrix, self.shape[3], references,
                            offset)
         initial_dist = _initial_distribution(mov_decay, mov_cov, mean_shift)
-
         iter_processed = iter(self._iter_processed(gains, pixel_means,
                                                    pixel_variances))
-        # Initial timestep
-        im, log_im_fac, log_im_p = next(iter_processed)
-        frame_number = 0
-        frame_row = 0
-        tmp_states = []
-        tmp_log_p = []
-        for index, position in enumerate(position_tbl):  # TODO parallelize
-            # check that the displacement is allowable
-            if np.all(min_displacements <= position) and np.all(
-                    position <= max_displacements):
-                tmp_states.append(index)
-                # probability of initial displacement
-                tmp_log_p.append(np.log(initial_dist(position)))
-        tmp_log_p = np.array(tmp_log_p)
-        tmp_states = np.array(tmp_states, dtype='int')
-        mc.log_observation_probabilities(
-            tmp_log_p, tmp_states, im, log_im_p, log_im_fac, scaled_refs,
-            log_scaled_refs, frame_row, slice_tbl, position_tbl, offset,
-            references[0].shape[0])
-        tmp_log_p[np.isnan(tmp_log_p)] = -np.Inf  # get rid of NaNs for sorting
-        ix = np.argsort(-tmp_log_p)[0:num_retained]  # keep most likely states
-        states.append(np.array(tmp_states)[ix])
-        log_p_old = np.array(tmp_log_p)[ix] - tmp_log_p[ix[0]]
 
-        # subsequent time steps
-        for t in range(1, T):
-            assert(np.any(np.isfinite(log_p_old)))
-            frame_row = t % self.num_rows
-            if frame_row == 0:  # load new image data if frame time has changed
-                im, log_im_fac, log_im_p = next(iter_processed)
-                frame_number += 1
-            tmp_states, tmp_log_p, tmp_backpointer = mc.transitions(
-                states[t - 1], log_markov_matrix_tbl, log_p_old,
-                position_tbl, transition_tbl)
-            # observation probabilities
-            if frame_number not in invalid_frames:
-                if all(x[t] for x in valid_rows.itervalues()):
+        def initial_probs():
+            tmp_states = []
+            log_p = []
+            for index, position in enumerate(position_tbl):  # TODO parallelize
+                # check that the displacement is allowable
+                if np.all(min_displacements <= position) and np.all(
+                        position <= max_displacements):
+                    tmp_states.append(index)
+                    # probability of initial displacement
+                    log_p.append(np.log(initial_dist(position)))
+            return np.array(tmp_states, dtype='int'), np.array(log_p)
+
+        t = 0
+        log_p_old = None  # for flaking purposes; does nothing
+        for frame in iter_processed:
+            for plane, log_plane_fac, log_plane_p, plane_ref, log_plane_ref, stbl in izip(
+                    *(frame + (scaled_refs, log_scaled_refs, slice_tbls))):
+                for row_idx, row in enumerate(plane):
+                    if t == 0:
+                        tmp_states, log_p = initial_probs()
+                    else:
+                        tmp_states, log_p, tmp_backpointer = mc.transitions(
+                            states[-1], log_markov_matrix_tbl, log_p_old,
+                            position_tbl, transition_tbl)
                     mc.log_observation_probabilities(
-                        tmp_log_p, tmp_states, im, log_im_p, log_im_fac,
-                        scaled_refs, log_scaled_refs, frame_row, slice_tbl,
-                        position_tbl, offset, references[0].shape[0])
-                else:
-                    mc.log_observation_probabilities(
-                        tmp_log_p, tmp_states, im[1:, :, :],
-                        log_im_p[1:, :, :], log_im_fac[1:, :, :],
-                        scaled_refs[1:, :, :], log_scaled_refs[1:, :, :],
-                        frame_row, slice_tbl, position_tbl, offset,
-                        references[0].shape[0])
-            if np.any(np.isfinite(tmp_log_p)):
-                # assert not any(np.isnan(tmp_log_p))
-                tmp_log_p[np.isnan(tmp_log_p)] = -np.Inf  # remove nans to sort
-                # Keep only num_retained most likely states
-                ix = np.argsort(-tmp_log_p)[0:num_retained]
-                states.append(tmp_states[ix])
-                log_p_old = tmp_log_p[ix] - tmp_log_p[ix[0]]
-                backpointer.append(tmp_backpointer[ix])
-            else:
-                # if no finite observation probabilities, then use previous
-                # timesteps states
-                states.append(states[t - 1])
-                backpointer.append(np.arange(num_retained))
-                warnings.warn('No finite observation probabilities.')
-            if verbose and (t * 10) % T < 10:
-                print t * 100 / T, '% done'  # report progress
+                        log_p, tmp_states, plane, log_plane_p,
+                        log_plane_fac, plane_ref, log_plane_ref, row_idx,
+                        stbl, position_tbl, offset, references[0].shape[0])
+                    if np.any(np.isfinite(log_p)):
+                        # Remove nans to sort.
+                        log_p[np.isnan(log_p)] = -np.Inf
+                        # Keep only num_retained most likely states.
+                        ix = np.argsort(-log_p)[0:num_retained]
+                        states.append(tmp_states[ix])
+                        log_p_old = log_p[ix] - log_p[ix[0]]
+                        if t > 0:
+                            backpointer.append(tmp_backpointer[ix])
+                    else:
+                        # If none of the observation probabilities are finite,
+                        # then use states from the previous timestep.
+                        states.append(states[-1])
+                        backpointer.append(np.arange(num_retained))
+                        warnings.warn('No finite observation probabilities.')
+                    if verbose and (t * 10) % T < 10:
+                        print t * 100 / T, '% done'  # report progress
+                    t += 1
 
         assert position_tbl.dtype == int
         displacements = _backtrace(np.argmax(log_p_old), backpointer, states,
                                    position_tbl)
         assert displacements.dtype == int
-        return displacements.reshape(self.num_frames, self.num_rows, 2)
+        return displacements.reshape(self.shape[:3] + (2,))
 
 
 def hmm(sequences, savedir, channel_names=None, info=None,
@@ -940,65 +910,43 @@ def hmm(sequences, savedir, channel_names=None, info=None,
     else:
         mc_sequences = sequences
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
-        num_states_retained, max_displacement, artifact_channels, verbose
+        num_states_retained, max_displacement, artifact_channels, verbose)
+    max_disp = np.max(list(chain(*chain(*chain(*displacements)))), axis=0)
+    frame_shape = np.array(sequences[0].shape)[1:]
+    frame_shape[1:3] += max_disp
+    corrected_sequences = [
+        _MotionCorrectedSequence(s, d, frame_shape)
+        for s, d in izip(sequences, displacements)]
+    rows, columns = _trim_coords(
+        trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
     )
-
+    corrected_sequences = [
+        s[:, :, rows, columns] for s in corrected_sequences]
     return ImagingDataset(
-        [_MotionCorrectedSequence(s, d, frame_shape)
-         for s, d in izip(sequences, displacements)],
-        savedir, channel_names=channel_names)
+        corrected_sequences, savedir, channel_names=channel_names)
 
-""" FROM IMAGING.PY """
-# class ImagingDataset():
-#     @lazyprop
-#     def _untrimmed_frame_size(self):
-#         """Calculate the size of motion corrected frames before trimming.
-#
-#         The size of these frames is given by the size of the uncorrected
-#         frames plus the extent of the displacements.
-#
-#         """
-#         return [
-#             x + y for x, y in zip((self._raw_num_rows, self._raw_num_columns),
-#                                   self._max_displacement)
-#         ]
-#
-#     @lazyprop
-#     def _trim_coords(self):
-#         """The coordinates used to trim the corrected imaging data."""
-#         if self.trim_criterion is None:
-#             trim_coords = [
-#                 list(self._max_displacement),
-#                 [self._raw_num_rows, self._raw_num_columns]
-#             ]
-#         elif isinstance(self.trim_criterion, (float, int)):
-#             obs_counts = _observation_counts(
-#                 chain(*self._displacements),
-#                 (self._raw_num_rows, self._raw_num_columns),
-#                 self._untrimmed_frame_size
-#             )
-#             num_frames = sum(len(x) for x in self._displacements
-#                              ) / self._raw_num_rows
-#             occupancy = obs_counts.astype(float) / num_frames
-#             row_occupancy = \
-#                 occupancy.sum(axis=1) / self._raw_num_columns \
-#                 > self.trim_criterion
-#             row_min = np.nonzero(row_occupancy)[0].min()
-#             row_max = np.nonzero(row_occupancy)[0].max()
-#             col_occupancy = occupancy.sum(axis=0) / self._raw_num_rows \
-#                 > self.trim_criterion
-#             col_min = np.nonzero(col_occupancy)[0].min()
-#             col_max = np.nonzero(col_occupancy)[0].max()
-#             trim_coords = [[row_min, col_min], [row_max, col_max]]
-#         else:
-#             raise TypeError('Invalid type for trim_criterion')
-#         return trim_coords
-#
-#
-# def _observation_counts(displacements, im_size, output_size):
-#     """Count the number of times that each location was observed."""
-#     count = np.zeros(output_size, dtype=np.int)
-#     for row_idx, disp in enumerate(displacements):
-#         i = row_idx % im_size[0]
-#         count[i + disp[0], disp[1]:(disp[1] + im_size[1])] += 1
-#     return count
+
+def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
+    """The coordinates used to trim the corrected imaging data."""
+    assert len(raw_shape) == 3
+    assert len(untrimmed_shape) == 3
+    if trim_criterion is None:
+        trim_criterion = 1.
+    if isinstance(trim_criterion, (float, int)):
+        obs_counts = sum(mc.observation_counts(raw_shape, d, untrimmed_shape)
+                         for d in chain(*displacements))
+        num_frames = sum(len(x) for x in displacements)
+        occupancy = obs_counts.astype(float) / num_frames
+        row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
+            raw_shape[0] * raw_shape[2])
+        row_min = np.nonzero(row_occupancy >= trim_criterion)[0].min()
+        row_max = np.nonzero(row_occupancy >= trim_criterion)[0].max() + 1
+        col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
+            raw_shape[:2])
+        col_min = np.nonzero(col_occupancy >= trim_criterion)[0].min()
+        col_max = np.nonzero(col_occupancy >= trim_criterion)[0].max() + 1
+        rows = slice(row_min, row_max)
+        columns = slice(col_min, col_max)
+    else:
+        raise TypeError('Invalid type for trim_criterion')
+    return rows, columns

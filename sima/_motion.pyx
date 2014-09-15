@@ -73,39 +73,56 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     cdef np.ndarray[Py_ssize_t] minNonNanIndices, maxNonNanIndices
     cdef np.ndarray[Py_ssize_t, ndim=3] sliceLookup
 
-    minNonNanIndices = np.empty(references.shape[1], dtype='int')
-    maxNonNanIndices = np.empty(references.shape[1], dtype='int')
-    for i, row in enumerate(references[0]):
+    minNonNanIndices = np.empty(references.shape[0], dtype='int')
+    maxNonNanIndices = np.empty(references.shape[0], dtype='int')
+    for i, row in enumerate(references[:, :, 0]):
         nonNanIndices = np.nonzero(np.logical_not(np.isnan(row)))[0]
-        minNonNanIndices[i] = nonNanIndices[0]
-        maxNonNanIndices[i] = nonNanIndices[-1]
-    sliceLookup = np.empty([references.shape[1], positionLookup.shape[0], 4],
+        try:
+            minNonNanIndices[i] = nonNanIndices[0]
+            maxNonNanIndices[i] = nonNanIndices[-1] + 1
+        except IndexError:
+            minNonNanIndices[i] = 0
+            maxNonNanIndices[i] = 0
+    assert np.all(minNonNanIndices <= maxNonNanIndices)
+    sliceLookup = np.empty([references.shape[0], positionLookup.shape[0], 4],
                            dtype='int')
     for posIdx, position in enumerate(positionLookup):
         x_shift = position[1]
+        low_ref_idx = max(min(offset[1] + x_shift, references.shape[1]), 0)
+        high_ref_idx = max(
+            min(offset[1] + x_shift + num_columns, references.shape[1]), 0)
+        assert low_ref_idx <= high_ref_idx
         if x_shift >= 0:
-            low_ref_idx = min(offset[1] + x_shift, references.shape[2] - 1)
-            high_ref_idx = min(references.shape[2], low_ref_idx + num_columns)
             low_frame_idx = 0
             high_frame_idx = low_frame_idx + high_ref_idx - low_ref_idx
         else:
-            low_ref_idx = max(offset[1] + x_shift, 0)
-            high_ref_idx = max(offset[1] + x_shift + num_columns, 1)
             high_frame_idx = num_columns
             low_frame_idx = high_frame_idx - high_ref_idx + low_ref_idx
-        for rowIdx in range(references.shape[1]):
-            sliceLookup[rowIdx, posIdx, 0] = max(minNonNanIndices[rowIdx],
-                                                 low_ref_idx)
-            sliceLookup[rowIdx, posIdx, 1] = min(maxNonNanIndices[rowIdx],
-                                                 high_ref_idx)
-            sliceLookup[rowIdx, posIdx, 2] = low_frame_idx + \
-                sliceLookup[rowIdx, posIdx, 0] - low_ref_idx
-            sliceLookup[rowIdx, posIdx, 3] = high_frame_idx + \
-                sliceLookup[rowIdx, posIdx, 1] - high_ref_idx
+        assert low_frame_idx <= high_frame_idx
+        for rowIdx in range(references.shape[0]):
+            sliceLookup[rowIdx, posIdx, 0] = min(
+                maxNonNanIndices[rowIdx],
+                max(minNonNanIndices[rowIdx], low_ref_idx))
+            sliceLookup[rowIdx, posIdx, 1] = min(
+                maxNonNanIndices[rowIdx],
+                max(minNonNanIndices[rowIdx], high_ref_idx))
+            sliceLookup[rowIdx, posIdx, 2] = max(
+                0, low_frame_idx + sliceLookup[rowIdx, posIdx, 0] - low_ref_idx
+            )
+            sliceLookup[rowIdx, posIdx, 3] = max(
+                0,
+                high_frame_idx + sliceLookup[rowIdx, posIdx, 1] - high_ref_idx
+            )
+    assert np.all(sliceLookup[:, :, 0] <= sliceLookup[:, :, 1])
+    assert np.all(sliceLookup[:, :, 2] <= sliceLookup[:, :, 3])
+    assert np.all(sliceLookup[:, :, :2] <= references.shape[1])
+    assert np.all(sliceLookup[:, :, :2] >= 0)
+    assert np.all(sliceLookup[:, :, 2:] <= num_columns)
+    assert np.all(sliceLookup[:, :, 2:] >= 0)
     return sliceLookup
 
 
-@cython.boundscheck(False)  # turn of bounds-checking for entire function
+# @cython.boundscheck(False)  # turn of bounds-checking for entire function
 def log_observation_probabilities(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
         np.ndarray[Py_ssize_t, ndim=1] tmpStateIds,
@@ -133,22 +150,22 @@ def log_observation_probabilities(
             minFrame = sliceLookup[reference_row, index, 2]
             maxFrame = sliceLookup[reference_row, index, 3]
             logp = 0.0
-            for chan in range(im.shape[0]):
+            for chan in range(im.shape[2]):
                 for j in range(0, minFrame):
-                    logp += logImP[chan, frame_row, j]
+                    logp += logImP[frame_row, j, chan]
                 jj = sliceLookup[reference_row, index, 0]
                 for j in range(minFrame, maxFrame):
-                    logp += im[chan, frame_row, j] * \
-                        logScaledRefs[chan, reference_row, jj] - \
-                        scaled_references[chan, reference_row, jj] - \
-                        logImFac[chan, frame_row, j]
+                    logp += im[frame_row, j, chan] * \
+                        logScaledRefs[reference_row, jj, chan] - \
+                        scaled_references[reference_row, jj, chan] - \
+                        logImFac[frame_row, j, chan]
                     jj += 1
-                for j in range(maxFrame, logImP.shape[2]):
-                    logp += logImP[chan, frame_row, j]
+                for j in range(maxFrame, logImP.shape[1]):
+                    logp += logImP[frame_row, j, chan]
             tmpLogP[i] += logp
 
 def _align_frame(
-        np.ndarray[FLOAT_TYPE_t, ndim=3] frame,
+        np.ndarray[FLOAT_TYPE_t, ndim=4] frame,
         np.ndarray[INT_TYPE_t, ndim=3] displacements,
         corrected_frame_size):
     """Correct a frame based on previously estimated displacements.
@@ -166,13 +183,13 @@ def _align_frame(
     array : float32
         The corrected frame, with unobserved locations indicated as NaN.
     """
-    cdef np.ndarray[FLOAT_TYPE_t, ndim=3] corrected_frame = np.zeros(
+    cdef np.ndarray[FLOAT_TYPE_t, ndim=4] corrected_frame = np.zeros(
         corrected_frame_size)
     cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(corrected_frame_size, dtype=int)
     cdef int num_cols, plane_idx, i, j, x, y
     num_cols = frame.shape[2]
     for plane_idx in range(frame.shape[0]):
-        for i in range(frame.shape[0]):
+        for i in range(frame.shape[1]):
             y = i + displacements[plane_idx, i, 0]
             for j in range(num_cols):
                 x = displacements[plane_idx, i, 1] + j
@@ -180,4 +197,34 @@ def _align_frame(
                 corrected_frame[plane_idx, y, x] += frame[plane_idx, i, j]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return corrected_frame / count
+        return (corrected_frame.T / count.T).T
+
+def observation_counts(
+        frame_shape,
+        np.ndarray[INT_TYPE_t, ndim=3] displacements,
+        corrected_frame_size):
+    """Correct a frame based on previously estimated displacements.
+
+    Parameters
+    ----------
+    frame_shape : tuple of int
+        (num_planes, num_rows, num_columns)
+    displacements : array
+        The displacements, adjusted so that (0,0) corresponds to the corner.
+        Shape: (num_rows, 2).
+
+    Returns
+    -------
+    counts : ndarray
+        The number of times each pixel has been observed
+    """
+    cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(corrected_frame_size, dtype=int)
+    cdef int num_cols, plane_idx, i, j, x, y
+    num_cols = frame_shape[2]
+    for plane_idx in range(frame_shape[0]):
+        for i in range(frame_shape[1]):
+            y = i + displacements[plane_idx, i, 0]
+            for j in range(num_cols):
+                x = displacements[plane_idx, i, 1] + j
+                count[plane_idx, y, x] += 1
+    return count
