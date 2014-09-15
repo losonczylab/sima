@@ -347,7 +347,7 @@ class _Sequence_HDF5(_IndexableSequence):
             if idx != i:
                 swapper[i], swapper[idx] = swapper[idx], swapper[i]
                 frame.swapaxes(i, idx)
-        return frame
+        return frame.astype(float)
 
     def _todict(self):
         return {
@@ -409,8 +409,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
             yield _align_frame(frame, displacement, self._frame_shape)
 
     def _get_frame(self, t):
-        _align_frame(self._base._get_frame(t), self.displacements[t],
-                     self._frame_shape)
+        _align_frame(self._base._get_frame(t).astype(float),
+                     self.displacements[t], self._frame_shape)
 
     def __getitem__(self, indices):
         if len(indices) > 5:

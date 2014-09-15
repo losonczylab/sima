@@ -185,7 +185,8 @@ def _align_frame(
     """
     cdef np.ndarray[FLOAT_TYPE_t, ndim=4] corrected_frame = np.zeros(
         corrected_frame_size)
-    cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(corrected_frame_size, dtype=int)
+    cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(
+        corrected_frame_size[:-1], dtype=int)
     cdef int num_cols, plane_idx, i, j, x, y
     num_cols = frame.shape[2]
     for plane_idx in range(frame.shape[0]):
