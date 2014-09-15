@@ -469,7 +469,7 @@ def normcut(
 
     Notes
     -----
-    The normalized cut procedure [1]_ is iteratively applied, first to the
+    The normalized cut procedure [2]_ is iteratively applied, first to the
     entire image, and then to each cut made from the previous application of
     the procedure.
 
@@ -489,7 +489,7 @@ def normcut(
 
     References
     ----------
-    .. [1] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
+    .. [2] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
        Segmentation.  IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
 
@@ -939,7 +939,7 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         information. Must be between 0 and 1. Low values give higher weight
         to temporal information. Default: 0.01
     num_components : int
-        number of principal componenets to use
+        number of principal components to use
     static_threshold : float
         threhold on the static allowable in an ICA components, eliminating
         high scoring components speeds the ROI extraction and may improve
@@ -969,7 +969,7 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
 
     References
     ----------
-    .. [2] Mukamel, E. a, Nimmerjahn, A., & Schnitzer, M. J. (2009). Automated
+    .. [1] Mukamel, E. a, Nimmerjahn, A., & Schnitzer, M. J. (2009). Automated
        analysis of cellular signals from large-scale calcium imaging data.
        Neuron, 63(6), 474-60. doi:10.1016/j.neuron.2009.08.009
     """
