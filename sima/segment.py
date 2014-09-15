@@ -20,6 +20,7 @@ import sys
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
+from scipy.ndimage import measurements
 
 try:
     import sima._opca as _opca
@@ -619,8 +620,8 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 
     # preprocess the PCA data
     for i in range(space_pcs.shape[2]):
-        space_pcs[:, :, i] = mu*(space_pcs[:, :, i]- \
-            nanmean(space_pcs[:, :, i]))/np.max(space_pcs)
+        space_pcs[:, :, i] = mu*(space_pcs[:, :, i] -
+                                 nanmean(space_pcs[:, :, i]))/np.max(space_pcs)
     for i in range(time_pcs.shape[1]):
         time_pcs[:, i] = (1-mu)*(time_pcs[:, i]-nanmean(time_pcs[:, i])) / \
             np.max(time_pcs)
@@ -727,53 +728,6 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
     return accepted, accepted_components, rejected
 
 
-def fndpts(p, frame, arr=[], i=0, recursion_limit=5000):
-    """ recursivly search of adjacent points
-
-    Parameters
-    ----------
-    p : list
-        A list of length 2, [x,y], of the coordinates to the current point
-    frame : array
-        Single stICA component, to have points removed from and put into the
-        return array, arr
-        Shape: (num_rows,num_columns)
-
-    Returns
-    -------
-    arr : list
-        A list of adjacent point length 2 lists that have been removed from the
-        frame. Shape: (n,2)
-
-    Notes
-    _______
-    This function requires the system recursive depth to be increased:
-    >>> import sys
-    >>> sys.setrecursionlimit(10500)
-    """
-
-    if p[0] < 0 or p[0] >= frame.shape[0] or p[1] < 0 or \
-            p[1] >= frame.shape[1] or frame[p[0], p[1]] == 0:
-        return []
-
-    if i == recursion_limit:
-        print 'recurr limit'
-        return []
-
-    frame[p[0], p[1]] = 0
-
-    arr = fndpts([p[0]-1, p[1]-1], frame, arr=arr, i=i+1) + \
-        fndpts([p[0]-1, p[1]], frame, arr=arr, i=i+1) +   \
-        fndpts([p[0]-1, p[1]+1], frame, arr=arr, i=i+1) + \
-        fndpts([p[0], p[1]-1], frame, arr=arr, i=i+1) +   \
-        fndpts([p[0], p[1]+1], frame, arr=arr, i=i+1) +   \
-        fndpts([p[0]+1, p[1]-1], frame, arr=arr, i=i+1) + \
-        fndpts([p[0]+1, p[1]], frame, arr=arr, i=i+1) +   \
-        fndpts([p[0]+1, p[1]+1], frame, arr=arr, i=i+1)
-    arr.append(p)
-    return arr
-
-
 def _extract_st_rois(frames, min_area=50, spatial_sep=True):
     """ Extract ROIs from the spatio-temporal components
 
@@ -793,38 +747,24 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
         A list of sima.ROI ROI objects
     """
 
-    # set the recursion limit up to account for the method to find contiguous
-    # pixels
-    sys.setrecursionlimit(10500)
-
     rois = []
     for frame_no in range(len(frames)):
-        print "%i of %i frames" % (frame_no, len(frames))
+        image_index = frame_no
         img = np.array(frames[frame_no])
-        component_mask = np.zeros(img.shape)
-        pts = np.where(img > 0)
 
-        while pts[0].shape[0] > 0:
-            # start with the first non-zero point and find all adjacent points
-            p = [pts[0][0], pts[1][0]]
-            arr = []
-            arr = fndpts(p, img)
-            thisroi = np.zeros(img.shape, 'bool')
+        img[np.where(img > 0)] = 1
+        img, seg_count = measurements.label(img)
+        component_mask = np.zeros(img.shape, 'bool')
 
-            for p in arr:
-                thisroi[p[0], p[1]] = True
-
-            # remove the extracted roi from the original img
-            img[thisroi > 0] = 0
-
-            thisarea = len(np.where(thisroi > 0)[0])
-            if thisarea > min_area:
+        for i in xrange(seg_count):
+            segment = np.where(img == i+1)
+            if segment[0].size >= min_area:
                 if spatial_sep:
+                    thisroi = np.zeros(img.shape, 'bool')
+                    thisroi[segment] = True
                     rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
-                component_mask[np.where(thisroi)] = True
-
-            pts = np.where(img > 0)
-
+                else:
+                    component_mask[segment] = True
         if not spatial_sep and np.any(component_mask):
             rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
 
@@ -1030,8 +970,8 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
     References
     ----------
     .. [2] Mukamel, E. a, Nimmerjahn, A., & Schnitzer, M. J. (2009). Automated
-       analysis of cellular signals from large-scale calcium imaging data. Neuron,
-       63(6), 474-60. doi:10.1016/j.neuron.2009.08.009
+       analysis of cellular signals from large-scale calcium imaging data.
+       Neuron, 63(6), 474-60. doi:10.1016/j.neuron.2009.08.009
     """
 
     if dataset.savedir is not None:
@@ -1061,7 +1001,7 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
 
         if min_area > 0 or spatial_sep:
             rois = _extract_st_rois(accepted, min_area=min_area,
-                                  spatial_sep=spatial_sep)
+                                    spatial_sep=spatial_sep)
 
         if smooth_rois:
             print 'smoothing ROIs...'
@@ -1070,6 +1010,7 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         print 'removing overlapping ROIs...'
         rois = _remove_overlapping(rois, percent_overlap=overlap_per)
     else:
-        rois = [ROI(st_components[:, :, i]) for i in xrange(st_components.shape[2])]
+        rois = [ROI(st_components[:, :, i]) for i in
+                xrange(st_components.shape[2])]
 
     return rois, accepted
