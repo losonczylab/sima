@@ -11,6 +11,9 @@ from numpy.testing import (
     assert_allclose)
 
 from sima import extract
+from sima import ImagingDataset
+from sima.misc import example_data
+from sima import segment
 import os
 import tempfile
 import numpy as np
@@ -26,6 +29,14 @@ def teardown():
 
 def test_extract_rois():
     return
+
+
+def test_stica():
+    ds = ImagingDataset.load(example_data())
+    rois = segment.stica(ds, channel=0, num_components=5)
+    assert_equal(len(rois), 3)
+    assert_(rois[0].mask.toarray()[22, 39])
+    assert_(not rois[0].mask.toarray()[50, 50])
 
 if __name__ == "__main__":
     run_module_suite()
