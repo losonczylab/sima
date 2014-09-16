@@ -15,7 +15,6 @@ else:
 
 from scipy import nanmean
 from sklearn.decomposition import FastICA
-import sys
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
@@ -749,7 +748,6 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
 
     rois = []
     for frame_no in range(len(frames)):
-        image_index = frame_no
         img = np.array(frames[frame_no])
 
         img[np.where(img > 0)] = 1
@@ -923,7 +921,7 @@ def _smooth_roi(roi, radius=3):
     return roi, False
 
 
-def stica(dataset, channel=0, mu=0.01, num_components=30,
+def stica(dataset, channel=0, mu=0.01, components=75,
           static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
           smooth_rois=True, spatial_sep=True):
     """
@@ -939,26 +937,28 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         Weighting parameter for the trade off between spatial and temporal
         information. Must be between 0 and 1. Low values give higher weight
         to temporal information. Default: 0.01
-    num_components : int
-        number of principal components to use
-    static_threshold : float
+    components : int or list, optional
+        Number of principal components to use. If list is given, then use
+        only the principcal componenets indexed by the list Default: 75
+    static_threshold : float, optional
         threhold on the static allowable in an ICA components, eliminating
         high scoring components speeds the ROI extraction and may improve
-        the results
-    min_area : int
+        the results. Default: 0.5
+    min_area : int, optional
         minimum ROI size in number of pixels
-    x_smoothing : int
+    x_smoothing : int, optional
         number of itereations of static removial and gaussian blur to perform
-        on each stICA component
-    overlap_per : float
+        on each stICA component. 0 provides no gaussian blur, larger values
+        produce stICA components with less static but the ROIs loose
+        defination. Default: 5
+    overlap_per : float, optional
         percentage of an ROI that must be covered in order to combine the two
         segments. Values outside of (0,1] will result in no removal of
-        overlapping ROIs. Requires x_smoothing to be > 0.
-    smooth_rois : bool
+        overlapping ROIs. Requires x_smoothing to be > 0. Default: 0
+    smooth_rois : bool, optional
         Set to True in order to translate the ROIs into polygons and execute
-        smoothing algorithm. Requires x_smoothing to be > 0.
-    spatial_sep : bool
-        spatial_sep : bool
+        smoothing algorithm. Requires x_smoothing to be > 0. Default: True
+    spatial_sep : bool, optional
         If True, the stICA components will be segmented spatially and
         non-contiguous points will be made into sparate ROIs. Requires
         x_smoothing to be > 0. Default: True
@@ -1002,8 +1002,8 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
        probability density functions. Neuroimage. 2002 Feb;15(2):407-21.
 
     .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
-       cellular signals from large-scale calcium imaging data.  Neuron. 2009 Sep
-       24;63(6):747-60.
+       cellular signals from large-scale calcium imaging data.  Neuron. 2009
+       Sep 24;63(6):747-60.
     """
 
     if dataset.savedir is not None:
@@ -1019,13 +1019,19 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         ica_path = None
 
     print 'performing PCA...'
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, num_components,
+    if isinstance(components, int):
+        components = range(components)
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, components[-1]+1,
                                    path=pca_path)
     space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
-                        dataset.num_columns, num_components))
+                        dataset.num_columns, space_pcs.shape[2]))
+    space_pcs = np.array([space_pcs[:, :, i]
+                          for i in components]).transpose((1, 2, 0))
+    time_pcs = np.array([time_pcs[:, i] for i in components]).transpose((1, 0))
+
     print 'performing ICA...'
     st_components = _stica(space_pcs, time_pcs, mu=mu, path=ica_path,
-                           n_components=num_components)
+                           n_components=space_pcs.shape[2])
 
     if x_smoothing > 0 or static_threshold > 0:
         accepted, _, _ = _find_useful_components(
