@@ -7,7 +7,7 @@ Version 0.2.0"""
 print __doc__
 
 from sima.imaging import ImagingDataset
-import sima.imaging_parameters as imaging_parameters
+from sima.sequence import Sequence
 
 from numpy.testing import Tester
 test = Tester().test
