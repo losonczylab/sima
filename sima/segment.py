@@ -968,26 +968,27 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
         A list of sima.ROI ROI objects
 
     Notes
-    -------
-    stICA is a procedure which applys ICA to extracted PCA components in a 
+    -----
+    stICA is a procedure which applys ICA to extracted PCA components in a
     process that takes into consideration both the spatial and temporal
-    components. This tends to generate more sparse components than those found 
+    components. This tends to generate more sparse components than those found
     through PCA alone.  In order to implement spatio and temporal ICA, temporal
-    components from the PCA are concatenated to the spatio ones. The following 
-    spatio-temporal variable :math:`y_i` and the resulting ICA components 
+    components from the PCA are concatenated to the spatio ones. The following
+    spatio-temporal variable :math:`y_i` and the resulting ICA components
     :math:`z_i` are defined by:
 
     .. math::
-        
-        y_i &= \\begin{cases} \\mu U_{ki}      & i \\leq N_x \\
-        \\p{1-\\mu}V_{ki} & N_x < i \\leq\\left\\(N_x+N_t\\right\\)\\end{cases} \\ \\nonumber
-        z_i^{k} &= \\sum_j \\mathbf{W}_{i,j}^{\\left\\(n\\right\\)} y^{\\left\\(j\\right\\)}, 
-    
-    where :math:`U` corresponds to the spatio PCA component matrix with 
-    dimensions :math:`N_x`, pixels, by :math:`k` principal components and 
+
+        y_i &= \\begin{cases} \\mu U_{ki}      & i \\leq N_x \\\\
+                (1-\\mu)V_{ki} & N_x < i \\leq (N_x+N_t)
+                \\end{cases} \\\\
+        z_i^{k} &= \\sum_j \\mathbf{W}_{i,j}^{(n)} y^{(j)},
+
+    where :math:`U` corresponds to the spatio PCA component matrix with
+    dimensions :math:`N_x`, pixels, by :math:`k` principal components and
     :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k` temporal
     PCA component matrix. :math:`\\mu` is a weighting parameter to balance the
-    tradeoff between the spatio and temporal information.  ICA is performed on 
+    tradeoff between the spatio and temporal information.  ICA is performed on
     :math:`y_i` to extract the independent components :math:`z_i`.
 
     References
