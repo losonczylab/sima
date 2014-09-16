@@ -371,7 +371,7 @@ class _WrapperSequence(Sequence):
             getattr(super(_WrapperSequence, self), name)
         except AttributeError as err:
             if err.args[0] == \
-                    "'super' object has no attribute '_" + name + "'":
+                    "'super' object has no attribute '" + name + "'":
                 return getattr(self._base, name)
             else:
                 raise err
@@ -409,8 +409,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
             yield _align_frame(frame, displacement, self._frame_shape)
 
     def _get_frame(self, t):
-        _align_frame(self._base._get_frame(t).astype(float),
-                     self.displacements[t], self._frame_shape)
+        return _align_frame(self._base._get_frame(t).astype(float),
+                           self.displacements[t], self._frame_shape)
 
     def __getitem__(self, indices):
         if len(indices) > 5:
@@ -465,13 +465,16 @@ class _IndexedSequence(_WrapperSequence):
         try:
             for t in self._times:
                 yield self._base._get_frame(t)[self._indices[1:]]
-        except AttributeError:
+        except AttributeError as err:
+            if not err.args[0] == \
+                    "'super' object has no attribute '_get_frame'":
+                raise err
             idx = 0
             for t, frame in enumerate(self._base):
                 try:
                     whether_yield = t == self._times[idx]
                 except IndexError:
-                    break
+                    raise StopIteration
                 if whether_yield:
                     yield frame[self._indices[1:]]
                     idx += 1

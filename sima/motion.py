@@ -296,7 +296,7 @@ class _MCImagingDataset(ImagingDataset):
 
     def estimate_displacements(
             self, num_states_retained=50, max_displacement=None,
-            artifact_channels=None, verbose=True, path=None):
+            verbose=True, path=None):
         """Estimate and save the displacements for the time series.
 
         Parameters
@@ -305,8 +305,6 @@ class _MCImagingDataset(ImagingDataset):
             Number of states to retain at each time step of the HMM.
         max_displacement : array of int
             The maximum allowed displacement magnitudes in [y,x].
-        artifact_channels : list of int
-            Channels for which artifact light should be checked.
         path : str, optional
             Path for saving a record of the displacement estimation.
             If there is already a .pkl file, the data will be added
@@ -325,7 +323,6 @@ class _MCImagingDataset(ImagingDataset):
         else:
             max_displacement = np.array([-1, -1])
 
-        # valid_rows = self._detect_artifact(artifact_channels)
         shifts, correlations = self._correlation_based_correction(
             max_displacement=max_displacement)
         references, variances, offset = self._whole_frame_shifting(
@@ -841,8 +838,7 @@ class _MotionSequence(_WrapperSequence):
 
 def hmm(sequences, savedir, channel_names=None, info=None,
         num_states_retained=50, max_displacement=None,
-        correction_channels=None, artifact_channels=None,
-        trim_criterion=None, verbose=True):
+        correction_channels=None, trim_criterion=None, verbose=True):
     """
     Create a motion-corrected ImagingDataset using a row-wise hidden
     Markov model (HMM).
@@ -878,8 +874,6 @@ def hmm(sequences, savedir, channel_names=None, info=None,
         Information from the channels corresponding to these indices
         will be used for motion correction. By default, all channels
         will be used.
-    artifact_channels : list of int, optional
-        Channels for which artifact light should be checked.
     trim_criterion : float, optional
         The required fraction of frames during which a location must
         be within the field of view for it to be included in the
@@ -898,19 +892,11 @@ def hmm(sequences, savedir, channel_names=None, info=None,
         correction_channels = [
             sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
             for c in correction_channels]
-    if artifact_channels:
-        artifact_channels = [
-            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
-            for c in artifact_channels]
-    if correction_channels:
         mc_sequences = [s[:, :, :, :, correction_channels] for s in sequences]
-        if artifact_channels is not None:
-            artifact_channels = [i for i, c in enumerate(correction_channels)
-                                 if c in artifact_channels]
     else:
         mc_sequences = sequences
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
-        num_states_retained, max_displacement, artifact_channels, verbose)
+        num_states_retained, max_displacement, verbose)
     max_disp = np.max(list(chain(*chain(*chain(*displacements)))), axis=0)
     frame_shape = np.array(sequences[0].shape)[1:]
     frame_shape[1:3] += max_disp
@@ -925,6 +911,11 @@ def hmm(sequences, savedir, channel_names=None, info=None,
     return ImagingDataset(
         corrected_sequences, savedir, channel_names=channel_names)
 
+
+def frame_correlation_alignment(
+        sequences, savedir, channel_names=None, info=None,
+        correction_channels=None, trim_criterion=None, verbose=True):
+    pass
 
 def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     """The coordinates used to trim the corrected imaging data."""
