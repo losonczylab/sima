@@ -18,7 +18,7 @@ from numpy.testing import (
 
 from sima import motion
 from sima import misc
-from sima.iterables import MultiPageTIFF
+from sima.sequence import MultiPageTIFF
 from sima.misc import example_tiff
 
 import warnings

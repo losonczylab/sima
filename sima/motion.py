@@ -32,7 +32,7 @@ except ImportError as error:
                       reload_support=True)
     import sima._motion as mc
 from sima.imaging import ImagingDataset
-from sima.iterables import _WrapperSequence, _MotionCorrectedSequence
+from sima.sequence import _WrapperSequence, _MotionCorrectedSequence
 import sima.misc
 from sima.misc.align import align_cross_correlation
 

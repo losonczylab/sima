@@ -12,7 +12,7 @@ objects that satisfy the following properties:
   of numpy arrays with shape (num_rows, num_columns).
 * Iterables must survive pickling and unpickling.
 
-Examples of valid iterables include:
+Examples of valid sequence include:
 
 * numpy arrays of shape (num_frames, num_rows, num_columns)
 
@@ -72,7 +72,7 @@ class Sequence(object):
 
     >>> import sima # doctest: +ELLIPSIS
     ...
-    >>> from sima.iterables import Sequence
+    >>> from sima.sequence import Sequence
     >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
 
 

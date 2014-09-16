@@ -39,7 +39,7 @@ Individual classes or functions can be imported from submodules.
 For example, we can import the iterable object for use with multi-page
 TIFF files with the following command:
 
-    >>> from sima.iterables import MultiPageTIFF
+    >>> from sima.sequence import MultiPageTIFF
 
 For more details on importing, consult the `Python documentation
 <https://docs.python.org/2.7/>`_.
@@ -92,29 +92,29 @@ To begin with, we create some Numpy arrays containing random data.
 Once we have the Numpy arrays containing the imaging data, we create the
 ImagingDataset object as follows.
 
-    >>> iterables = [
+    >>> sequence = [
     ...     [cycle1_channel1, cycle1_channel2],
     ...     [cycle2_channel1, cycle2_channel2]
     ... ]
     >>> dataset = sima.ImagingDataset(
-    ...     iterables, 'example_np.sima', channel_names=['green', 'red'])
+    ...     sequence, 'example_np.sima', channel_names=['green', 'red'])
 
 Multipage TIFF files
 ....................
 For simplicity, we consider the case of only a single cycle and channel.
 
-    >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.ImagingDataset(iterables, 'example_TIFF.sima')
+    >>> from sima.sequence import MultiPageTIFF
+    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
+    >>> dataset = sima.ImagingDataset(sequence, 'example_TIFF.sima')
 
 HDF5 files
 ..........
 The argument 'yxt' specifies that the first index of the HDF5 array corresponds
 to the row, the second to the column, and the third to the time.
 
-    >>> from sima.iterables import HDF5
-    >>> iterables = [[HDF5('example.h5', 'yxt')]]
-    >>> dataset = sima.ImagingDataset(iterables, 'example_HDF5.sima')
+    >>> from sima.sequence import HDF5
+    >>> sequence = [[HDF5('example.h5', 'yxt')]]
+    >>> dataset = sima.ImagingDataset(sequence, 'example_HDF5.sima')
 
 
 Loading ImagingDataset objects
@@ -134,9 +134,9 @@ is used to indicate that the maximum possible displacement is 20 rows and 30
 columns.
 
     >>> import sima.motion
-    >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.motion.hmm(iterables, 'example_mc.sima',
+    >>> from sima.sequence import MultiPageTIFF
+    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
+    >>> dataset = sima.motion.hmm(sequence, 'example_mc.sima',
     ...                           max_displacement=[20,30], verbose=False)
 
 When the signal is of interest is very sparse or highly dynamic, it is sometimes
@@ -147,11 +147,11 @@ alogorithm, and the second channel contains a static tdTomato signal that provid
 a stable reference.
 
     >>> import sima.motion
-    >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF('example_Ch1.tif'), 
+    >>> from sima.sequence import MultiPageTIFF
+    >>> sequence = [[MultiPageTIFF('example_Ch1.tif'), 
     ...               MultiPageTIFF('example_Ch2.tif')]]
     >>> dataset = sima.motion.hmm(
-    ...     iterables, 'example_mc2.sima', max_displacement=[20,30], 
+    ...     sequence, 'example_mc2.sima', max_displacement=[20,30], 
     ...     channel_names=['GCaMP', 'tdTomato'],
     ...     correction_channels=['tdTomato'], verbose=False)
 
@@ -281,16 +281,16 @@ can be used to view the results of motion correction, as shown in the following
 example.
 
     >>> import sima.motion
-    >>> from sima.iterables import MultiPageTIFF
-    >>> iterables = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.motion.hmm(iterables, 'example_mc3.sima',
+    >>> from sima.sequence import MultiPageTIFF
+    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
+    >>> dataset = sima.motion.hmm(sequence, 'example_mc3.sima',
     ...                           max_displacement=[20,30], verbose=False)
     >>> dataset.export_averages(['exported_frames.tif'], fmt='TIFF16')
     >>> dataset.export_frames([['exported_frames.tif']], fmt='TIFF16')
 
 The paths to which the exported data are saved are organized as a list with one
 filename per channel for the :func:`export_averages` method, or as a list of
-lists (organized analogously to the iterables used to initialize an
+lists (organized analogously to the sequence used to initialize an
 :class:`ImagingDataset` object) for the :func:`export_frames` method. If
 however, the export format is specified to HDF5, then the filenames for
 :func:`export_frames` should be organized into a list with one filename per

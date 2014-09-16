@@ -8,5 +8,5 @@ ImagingDataset objects
     :members:
     :member-order: bysource
 
-.. automodule:: sima.iterables
+.. automodule:: sima.sequence
     :members:

@@ -52,7 +52,7 @@ The ROI Buddy GUI depends on SIMA, so shares all dependencies with SIMA. In addi
     TIFF files containing many frames, we recommend running the ROI Buddy from
     source after installing the libtiff C library and its associated Python
     bindings, as it enables more efficient memory handling.  Alternatively, 
-    initializing SIMA iterables with HDF5 datasets enables rapid data access.
+    initializing SIMA sequence with HDF5 datasets enables rapid data access.
 
 
 User Interface
