@@ -469,7 +469,7 @@ def normcut(
 
     Notes
     -----
-    The normalized cut procedure [2]_ is iteratively applied, first to the
+    The normalized cut procedure [3]_ is iteratively applied, first to the
     entire image, and then to each cut made from the previous application of
     the procedure.
 
@@ -489,7 +489,7 @@ def normcut(
 
     References
     ----------
-    .. [2] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
+    .. [3] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
        Segmentation.  IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
 
@@ -926,7 +926,8 @@ def _smooth_roi(roi, radius=3):
 def stica(dataset, channel=0, mu=0.01, num_components=30,
           static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
           smooth_rois=True, spatial_sep=True):
-    """ Segmentation for axon/dendrite ROIs based on spatio-temporial ICA
+    """
+    Segmentation using spatiotemporial indepenent component analysis (stICA).
 
     Parameters
     ----------
@@ -969,13 +970,16 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
 
     Notes
     -----
-    stICA is a procedure which applys ICA to extracted PCA components in a
-    process that takes into consideration both the spatial and temporal
-    components. This tends to generate more sparse components than those found
-    through PCA alone.  In order to implement spatio and temporal ICA, temporal
-    components from the PCA are concatenated to the spatio ones. The following
-    spatio-temporal variable :math:`y_i` and the resulting ICA components
-    :math:`z_i` are defined by:
+    Spatiotemporal (stICA) [1]_ is a procedure which applys ICA to extracted
+    PCA components in a process that takes into consideration both the spatial
+    and temporal character of these components. This method has been used to
+    segment calcium imaging data [2]_, and can be used to segment cell bodies,
+    dendrites, and axons.
+
+    In order to implement spatio and temporal ICA, temporal components from PCA
+    are concatenated to the spatial ones.  The following spatiotemporal
+    variable :math:`y_i` and the resulting ICA components :math:`z_i` are
+    defined by:
 
     .. math::
 
@@ -986,16 +990,20 @@ def stica(dataset, channel=0, mu=0.01, num_components=30,
 
     where :math:`U` corresponds to the spatio PCA component matrix with
     dimensions :math:`N_x`, pixels, by :math:`k` principal components and
-    :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k` temporal
-    PCA component matrix. :math:`\\mu` is a weighting parameter to balance the
-    tradeoff between the spatio and temporal information.  ICA is performed on
-    :math:`y_i` to extract the independent components :math:`z_i`.
+    :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k`
+    temporal PCA component matrix. :math:`\\mu` is a weighting parameter to
+    balance the tradeoff between the spatio and temporal information.  ICA is
+    performed on :math:`y_i` to extract the independent components :math:`z_i`.
 
     References
     ----------
-    .. [1] Mukamel, E. a, Nimmerjahn, A., & Schnitzer, M. J. (2009). Automated
-       analysis of cellular signals from large-scale calcium imaging data.
-       Neuron, 63(6), 474-60. doi:10.1016/j.neuron.2009.08.009
+    .. [1] Stone JV, Porrill J, Porter NR, Wilkinson ID.  Spatiotemporal
+       independent component analysis of event-related fMRI data using skewed
+       probability density functions. Neuroimage. 2002 Feb;15(2):407-21.
+
+    .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
+       cellular signals from large-scale calcium imaging data.  Neuron. 2009 Sep
+       24;63(6):747-60.
     """
 
     if dataset.savedir is not None:
