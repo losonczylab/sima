@@ -636,7 +636,7 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        method : {normcut, ca1pc}, optional
+        method : {'stica', 'normcut', 'ca1pc'}, optional
             The method for segmentation. Defaults to normcut.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
@@ -657,6 +657,8 @@ class ImagingDataset(object):
             rois = segment.normcut(self, **kwargs)
         elif method is 'ca1pc':
             rois = segment.ca1pc(self, **kwargs)
+        elif method is 'ca1pc':
+            rois = segment.stica(self, **kwargs)
         else:
             raise ValueError('Unrecognized segmentation method.')
         if self.savedir is not None:

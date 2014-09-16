@@ -11,6 +11,11 @@ Segmentation approaches
 
 Please consider contributing additional methods to the SIMA project.
 
+Spatial-temporal Independent Component Analysis
+-----------------------------------------------
+
+.. autofunction:: sima.segment.stica
+
 Normalized cuts
 ---------------
 
