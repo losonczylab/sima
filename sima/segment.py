@@ -992,8 +992,10 @@ def stica(dataset, channel=0, mu=0.01, components=75,
     dimensions :math:`N_x`, pixels, by :math:`k` principal components and
     :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k`
     temporal PCA component matrix. :math:`\\mu` is a weighting parameter to
-    balance the tradeoff between the spatio and temporal information.  ICA is
-    performed on :math:`y_i` to extract the independent components :math:`z_i`.
+    balance the tradeoff between the spatio and temporal information with low
+    values of :math:`\\mu` giving higher weight to the signals temporal
+    components. ICA is performed on :math:`y_i` to extract the independent
+    components :math:`z_i`.
 
     References
     ----------
