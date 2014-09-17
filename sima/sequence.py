@@ -1,38 +1,40 @@
 """
-Iterables
-=========
+Sequence Objects
+================
 
-ImagingDataset objects must be initialized with
-`iterable <http://docs.python.org/2/glossary.html#term-iterable>`_
-objects that satisfy the following properties:
-
-* The iterable should not be its own iterator, i.e. it should be able to
-  spawn multiple iterators that can be iterated over independently.
-* Each iterator spawned from the iterable must yield image frames in the form
-  of numpy arrays with shape (num_rows, num_columns).
-* Iterables must survive pickling and unpickling.
-
-Examples of valid sequence include:
-
-* numpy arrays of shape (num_frames, num_rows, num_columns)
-
-  >>> import sima
-  >>> from numpy import ones
-  >>> frames = ones((100, 128, 128))
-  >>> sima.ImagingDataset([[frames]], None)
-  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
-  num_frames=100>
-
-* lists of numpy arrays of shape (num_rows, num_columns)
-
-  >>> frames = [ones((128, 128)) for _ in range(100)]
-  >>> sima.ImagingDataset([[frames]], None)
-  <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
-  num_frames=100>
-
-For convenience, we have created iterable objects that can be used with
-common data formats.
+Within SIMA, imaging data is contained in Sequence objects.
 """
+
+# ImagingDataset objects must be initialized with a list of
+# `iterable <http://docs.python.org/2/glossary.html#term-iterable>`_
+# objects that satisfy the following properties:
+#
+# * The iterable should not be its own iterator, i.e. it should be able to
+#   spawn multiple iterators that can be iterated over independently.
+# * Each iterator spawned from the iterable must yield image frames in the form
+#   of numpy arrays with shape (num_rows, num_columns).
+# * Iterables must survive pickling and unpickling.
+#
+# Examples of valid sequence include:
+#
+# * numpy arrays of shape (num_frames, num_rows, num_columns)
+#
+#   >>> import sima
+#   >>> from numpy import ones
+#   >>> frames = ones((100, 128, 128))
+#   >>> sima.ImagingDataset([[frames]], None)
+#   <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
+#   num_frames=100>
+#
+# * lists of numpy arrays of shape (num_rows, num_columns)
+#
+#   >>> frames = [ones((128, 128)) for _ in range(100)]
+#   >>> sima.ImagingDataset([[frames]], None)
+#   <ImagingDataset: num_channels=1, num_cycles=1, frame_size=128x128,
+#   num_frames=100>
+#
+# For convenience, we have created iterable objects that can be used with
+# common data formats.
 
 import itertools
 import warnings

@@ -42,6 +42,7 @@ class ImagingDataset(object):
     >>> dataset = sima.ImagingDataset.load(example_data())
 
     Datasets can be iterated over as follows:
+
     >>> for sequence in dataset:
     ...     for frame in sequence:
     ...         for row in frame:
@@ -50,6 +51,7 @@ class ImagingDataset(object):
     ...                     pass
 
     Datasets can also be indexed and sliced.
+
     >>> dataset[0].num_sequences
     1
     >>> dataset[:, 0].num_chanels
@@ -82,16 +84,10 @@ class ImagingDataset(object):
 
     Attributes
     ----------
-    frame_shape : tuple of int
-        The shape of the data acquired for each frame, in order
-        (num_planes, num_rows, num_columns).
     num_sequences : int
         The number of sequences in the ImagingDataset.
-    num_channels : int
-        The number of simultaneously recorded channels in the
-        ImagingDataset.
     frame_shape : tuple of int
-        The shape of each frame:
+        The shape of each frame, in order
         (num_planes, num_rows, num_columns, num_channels).
     num_frames : int
         The total number of image frames in the ImagingDataset.
@@ -154,11 +150,10 @@ class ImagingDataset(object):
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
         self.frame_shape = self._sequences[0].shape[1:]
-        self.num_channels = self.frame_shape[-1]
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(len(c) for c in self)
         if self.channel_names is None:
-            self.channel_names = [str(x) for x in range(self.num_channels)]
+            self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
         if save and self.savedir is not None:
             self._save(self.savedir)
 
@@ -365,7 +360,8 @@ class ImagingDataset(object):
         Parameters
         ----------
         filenames : list of str
-            The (tif) filenames for saving the time averages.
+            The (.tif) filenames, one per channel, for saving the time
+            averages.
         fmt : {'TIFF8', 'TIFF16'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         scale_values : bool, optional
@@ -574,13 +570,10 @@ class ImagingDataset(object):
         return '<ImagingDataset>'
 
     def __repr__(self):
-        return ('<ImagingDataset: ' +
-                'num_channels={n_channels}, num_sequences={n_sequences}, ' +
-                'frame_size={rows}x{cols}, num_frames={frames}>').format(
-            n_channels=self.num_channels,
+        return ('<ImagingDataset: ' + 'num_sequences={n_sequences}, ' +
+                'frame_shape={fsize}, num_frames={frames}>').format(
             n_sequences=self.num_sequences,
-            rows=self.num_rows,
-            cols=self.num_columns,
+            fsize=self.frame_shape,
             frames=self.num_frames)
 
     def __iter__(self):

@@ -397,8 +397,8 @@ class _MCImagingDataset(ImagingDataset):
             Variances of the intensity of each channel.
         """
         # TODO: separate distributions for each plane
-        sums = np.zeros(self.num_channels).astype(float)
-        sum_squares = np.zeros(self.num_channels).astype(float)
+        sums = np.zeros(self.frame_shape[-1]).astype(float)
+        sum_squares = np.zeros(self.frame_shape[-1]).astype(float)
         count = 0
         t = 0
         for frame in chain(*chain(*self)):

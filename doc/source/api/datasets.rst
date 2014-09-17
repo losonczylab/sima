@@ -1,4 +1,12 @@
-======================
+=======
+Classes
+=======
+
+.. automodule:: sima.sequence
+
+.. autoclass:: sima.Sequence
+    :members:
+
 ImagingDataset objects
 ======================
 
@@ -7,6 +15,3 @@ ImagingDataset objects
 .. autoclass:: sima.ImagingDataset
     :members:
     :member-order: bysource
-
-.. automodule:: sima.sequence
-    :members:
