@@ -14,7 +14,12 @@ else:
     cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
 from scipy import nanmean
-from sklearn.decomposition import FastICA
+try:
+    from sklearn.decomposition import FastICA
+except ImportError:
+    SKLEARN_AVAILABLE = False
+else:
+    SKLEARN_AVAILABLE = True
 
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
@@ -1007,6 +1012,8 @@ def stica(dataset, channel=0, mu=0.01, components=75,
        cellular signals from large-scale calcium imaging data.  Neuron. 2009
        Sep 24;63(6):747-60.
     """
+    if not SKLEARN_AVAILABLE:
+        raise ImportError('scikit-learn >= 0.11 required')
 
     if dataset.savedir is not None:
         pca_path = os.path.join(
