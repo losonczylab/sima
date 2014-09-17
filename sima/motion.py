@@ -412,7 +412,7 @@ class _MCImagingDataset(ImagingDataset):
         """
         channels = [] if channels is None else channels
         ret = {}
-        
+
         for channel in channels:
             row_intensities = []
             row_sums = []
@@ -420,29 +420,6 @@ class _MCImagingDataset(ImagingDataset):
                 im = frame[channel].astype('float')
                 row_intensities.append(im.mean(axis=1))
             row_intensities = np.array(row_intensities)
-
-
-            #####################
-            
-            points = {}
-            for i,row in enumerate(row_intensities.T):
-                for found in np.where(row-np.mean(row)<-4*np.std(row))[0]:
-                    if found not in points.keys():
-                        points[found] = [i]
-                    else:
-                        points[found].append(i)
-
-            for key in points.keys():
-                if len(points[key]) == 1:
-                    del points[key]
-                elif len(np.where(points[key]-np.roll(points[key],1) == 1)[0]) == 0:
-                    del points[key]
-
-            print "identified dropped frames: "
-            print points
-
-            #######################
-
 
             for i in range(row_intensities.shape[1]):
                 row_intensities[:, i] += -row_intensities[:, i].mean() + \
