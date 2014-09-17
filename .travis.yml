@@ -33,7 +33,7 @@ before_install:
   - sudo pip install conda
   - sudo conda init
   - sudo conda update conda --yes
-  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikits-learn' #scikits-image'
+  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn'
   - conda create -p $HOME/py --yes $deps "python=$TRAVIS_PYTHON_VERSION"
   - export PATH=$HOME/py/bin:$PATH
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
