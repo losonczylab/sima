@@ -33,7 +33,7 @@ def test_extract_rois():
 
 def test_stica():
     ds = ImagingDataset.load(example_data())
-    rois = segment.stica(ds, channel=0, num_components=5)
+    rois = segment.stica(ds, channel=0, components=5)
     assert_equal(len(rois), 3)
     assert_(rois[0].mask.toarray()[22, 39])
     assert_(not rois[0].mask.toarray()[50, 50])
