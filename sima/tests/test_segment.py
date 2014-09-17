@@ -32,8 +32,7 @@ def test_extract_rois():
 
 def test_stica():
     ds = ImagingDataset.load(example_data())
-    rois = segment.stica(ds, channel=0, components=15)
-    allrois = np.sum((roi.mask.toarray() for roi in rois),0)
+    rois = segment.stica(ds, channel=0, components=5)
 
 if __name__ == "__main__":
     run_module_suite()
