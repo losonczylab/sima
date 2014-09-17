@@ -479,7 +479,7 @@ class _IndexedSequence(_WrapperSequence):
                     yield frame[self._indices[1:]]
                     idx += 1
 
-    def _get_frame_(self, t):
+    def _get_frame(self, t):
         return self._base._get_frame(self._times[t])[self._indices[1:]]
 
     def __len__(self):

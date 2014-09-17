@@ -912,10 +912,34 @@ def hmm(sequences, savedir, channel_names=None, info=None,
         corrected_sequences, savedir, channel_names=channel_names)
 
 
-def frame_correlation_alignment(
+def frame_alignment(
         sequences, savedir, channel_names=None, info=None,
-        correction_channels=None, trim_criterion=None, verbose=True):
-    pass
+        method='correlation', correction_channels=None, trim_criterion=None,
+        verbose=True):
+    """Align whole frames.
+
+    Parameters
+    ----------
+    method : {'correlation', 'ECC'}
+    """
+    if correction_channels:
+        correction_channels = [
+            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
+            for c in correction_channels]
+        mc_sequences = [s[:, :, :, :, correction_channels] for s in sequences]
+    else:
+        mc_sequences = sequences
+    if method == 'correlation':
+        raise NotImplementedError
+    elif method == 'ECC':
+        # http://docs.opencv.org/trunk/modules/video/doc
+        # /motion_analysis_and_object_tracking.html#findtransformecc
+        #
+        # http://xanthippi.ceid.upatras.gr/people/evangelidis/ecc/
+        raise NotImplementedError
+    else:
+        raise ValueError("Unrecognized option for 'method'")
+
 
 def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     """The coordinates used to trim the corrected imaging data."""
@@ -930,12 +954,14 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
         occupancy = obs_counts.astype(float) / num_frames
         row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
             raw_shape[0] * raw_shape[2])
-        row_min = np.nonzero(row_occupancy >= trim_criterion)[0].min()
-        row_max = np.nonzero(row_occupancy >= trim_criterion)[0].max() + 1
+        good_rows = row_occupancy + 1e-8 >= trim_criterion
+        row_min = np.nonzero(good_rows)[0].min()
+        row_max = np.nonzero(good_rows)[0].max() + 1
         col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
             raw_shape[:2])
-        col_min = np.nonzero(col_occupancy >= trim_criterion)[0].min()
-        col_max = np.nonzero(col_occupancy >= trim_criterion)[0].max() + 1
+        good_cols = col_occupancy + 1e-8 >= trim_criterion
+        col_min = np.nonzero(good_cols)[0].min()
+        col_max = np.nonzero(good_cols)[0].max() + 1
         rows = slice(row_min, row_max)
         columns = slice(col_min, col_max)
     else:
