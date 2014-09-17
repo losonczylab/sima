@@ -34,10 +34,11 @@ For convenience, we have created iterable objects that can be used with
 common data formats.
 """
 
-from os.path import abspath, dirname
 import itertools
 import warnings
 from distutils.version import StrictVersion
+from os.path import (abspath, dirname, join, normpath, normcase, isfile,
+                     samefile)
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
@@ -103,6 +104,13 @@ class Sequence(object):
     @abstractmethod
     def _todict(self):
         raise NotImplementedError
+
+    @classmethod
+    def _from_dict(cls, d, savedir=None):
+        """Create a Sequence instance from a dictionary."""
+        if savedir is not None:
+            _resolve_paths(d, savedir)
+        return cls(**d)
 
     def __len__(self):
         return sum(1 for _ in self)
@@ -379,6 +387,13 @@ class _WrapperSequence(Sequence):
     def _todict(self):
         raise NotImplementedError
 
+    @classmethod
+    def _from_dict(cls, d, savedir=None):
+        base_dict = d.pop('base')
+        base_class = base_dict.pop('__class__')
+        base = base_class._from_dict(base_dict, savedir)
+        return cls(base, **d)
+
 
 class _MotionCorrectedSequence(_WrapperSequence):
 
@@ -492,10 +507,6 @@ class _IndexedSequence(_WrapperSequence):
             'indices': self._indices
         }
 
-    @classmethod
-    def _from_dict(cls, d, reldir=None):
-        raise NotImplementedError
-
     # def __dir__(self):
     #     """Customize how attributes are reported, e.g. for tab completion.
 
@@ -593,3 +604,25 @@ def _detect_artifact(self, channels=None):
     return ret
 
 
+def _resolve_paths(d, savedir):
+    paths = set()
+    try:
+        relp = d.pop('_relpath')
+    except KeyError:
+        pass
+    else:
+        paths.add(normcase(abspath(normpath(join(savedir, relp)))))
+    try:
+        paths.add(normcase(abspath(normpath(d.pop('_abspath')))))
+    except KeyError:
+        pass
+    if len(paths):
+        paths = filter(isfile, paths)
+        if len(paths) != 1:
+            testfile = paths.pop()
+            if not all(samefile(testfile, p) for p in paths):
+                raise Exception(
+                    'Files have been moved. The path '
+                    'cannot be unambiguously resolved.'
+                )
+        d['path'] = paths.pop()

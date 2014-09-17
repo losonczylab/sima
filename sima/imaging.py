@@ -4,8 +4,7 @@ import itertools as it
 import os
 import errno
 import csv
-from os.path import dirname, join, normpath, normcase, isfile, relpath, \
-    abspath
+from os.path import dirname, join, relpath, abspath
 import cPickle as pickle
 from distutils.version import StrictVersion
 
@@ -20,7 +19,7 @@ else:
 import sima
 import sima.segment as segment
 import sima.misc
-from sima.misc import lazyprop, mkdir_p, most_recent_key, affine_transform
+from sima.misc import mkdir_p, most_recent_key, affine_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
 with warnings.catch_warnings():
@@ -122,39 +121,11 @@ class ImagingDataset(object):
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
 
-            def resolve_paths(d):
-                paths = set()
-                try:
-                    relp = d.pop('_relpath')
-                except KeyError:
-                    pass
-                else:
-                    paths.add(normcase(abspath(normpath(join(savedir, relp)))))
-                try:
-                    paths.add(normcase(abspath(normpath(d.pop('_abspath')))))
-                except KeyError:
-                    pass
-                if len(paths):
-                    paths = filter(isfile, paths)
-                    if len(paths) != 1:
-                        testfile = paths.pop()
-                        if not all(os.path.samefile(testfile, p)
-                                   for p in paths):
-                            raise Exception(
-                                'Files have been moved. The path '
-                                'cannot be unambiguously resolved.'
-                            )
-                    d['path'] = paths.pop()
-
             def unpack(sequence):
-                try:
-                    resolve_paths(sequence)
-                    return sequence.pop('__class__')(**sequence)
-                except AttributeError:
-                    return sequence
+                return sequence.pop('__class__')._from_dict(
+                    sequence, self.savedir)
 
-            self._sequences = [[unpack(channel) for channel in sequence]
-                               for sequence in data.pop('sequences')]
+            self._sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             try:
                 self.num_frames = data.pop('num_frames')
@@ -177,7 +148,7 @@ class ImagingDataset(object):
 
         # initialize sequences
         self.num_sequences = len(self._sequences)
-        if not np.all([sequence.shape[1:] == sequences[0].shape[1:]
+        if not np.all([sequence.shape[1:] == self._sequences[0].shape[1:]
                        for sequence in self._sequences]):
             raise ValueError(
                 'All sequences must have images of the same size ' +
@@ -199,35 +170,6 @@ class ImagingDataset(object):
         ]
         return ImagingDataset(sequences, None, info=self.info)
 
-    # @lazyprop
-    # def _max_displacement(self):
-    #     displacements = self._displacements
-    #     if displacements:
-    #         return np.amax([x.max(axis=0) for x in self._displacements],
-    #                        axis=0).astype(int)
-
-    # @property
-    # def _displacements(self):
-    #     if self.savedir is None:
-    #         return None
-    #     try:
-    #         with open(join(self.savedir, 'displacements.pkl'), 'rb') as f:
-    #             displacements = pickle.load(f)
-    #     except IOError:
-    #         return None
-    #     else:
-    #         to_fix = False
-    #         for sequence_idx, sequence in enumerate(displacements):
-    #             if sequence.dtype != np.dtype('int'):
-    #                 displacements[sequence_idx] = sequence.astype('int')
-    #                 to_fix = True
-    #         if to_fix:
-    #             print('Updated old displacements file')
-    #             with open(
-    #                   join(self.savedir, 'displacements.pkl'), 'wb') as f:
-    #                 pickle.dump(displacements, f, pickle.HIGHEST_PROTOCOL)
-    #         return displacements
-
     @property
     def channel_names(self):
         return self._channel_names
@@ -247,15 +189,13 @@ class ImagingDataset(object):
                     return pickle.load(f)
             except IOError:
                 pass
-        shape = (self.num_rows, self.num_columns)
-        sums = [np.zeros(shape) for _ in range(self.num_channels)]
-        counts = [np.zeros(shape) for _ in range(self.num_channels)]
+        sums = np.zeros(self.frame_shape)
+        counts = np.zeros(self.frame_shape)
         for sequence in self:
             for frame in sequence:
-                for f_ch, s_ch, c_ch in zip(frame, sums, counts):
-                    s_ch[np.isfinite(f_ch)] += f_ch[np.isfinite(f_ch)]
-                    c_ch[np.isfinite(f_ch)] += 1
-        averages = [s / c for s, c in zip(sums, counts)]
+                sums += np.nan_to_num(frame)
+                counts[np.isfinite(frame)] += 1
+        averages = sums / counts
         if self.savedir is not None:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
@@ -432,7 +372,11 @@ class ImagingDataset(object):
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        for filename, im in it.izip(filenames, self.time_averages):
+        if not len(filenames) == self.frame_shape[-1]:
+            raise ValueError(
+                "The number of filenames must equal the number of channels.")
+        for chan, filename in enumerate(filenames):
+            im = self.time_averages[:, :, :, chan]
             if dirname(filename):
                 mkdir_p(dirname(filename))
             if fmt is 'TIFF8':
