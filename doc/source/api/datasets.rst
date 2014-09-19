@@ -2,15 +2,14 @@
 Classes
 =======
 
-.. automodule:: sima.sequence
+Sequence objects
+================
 
 .. autoclass:: sima.Sequence
     :members:
 
 ImagingDataset objects
 ======================
-
-.. automodule:: sima.imaging
 
 .. autoclass:: sima.ImagingDataset
     :members:

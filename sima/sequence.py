@@ -1,10 +1,3 @@
-"""
-Sequence Objects
-================
-
-Within SIMA, imaging data is contained in Sequence objects.
-"""
-
 # ImagingDataset objects must be initialized with a list of
 # `iterable <http://docs.python.org/2/glossary.html#term-iterable>`_
 # objects that satisfy the following properties:
@@ -69,14 +62,9 @@ with warnings.catch_warnings():
 
 class Sequence(object):
 
-    """A sequence contains the data.
+    """Object containing data from sequentially acquired imaging data.
 
     Sequences are created with a call to the create method.
-
-    >>> import sima # doctest: +ELLIPSIS
-    ...
-    >>> from sima.sequence import Sequence
-    >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
 
 
     Attributes
@@ -138,52 +126,116 @@ class Sequence(object):
 
     @classmethod
     def create(cls, fmt, *args, **kwargs):
+        """Create a Sequence object.
+
+        Parameters
+        ----------
+        fmt : {'HDF5'}
+            The format of the data used to create the Sequence.
+        *args, **kwargs
+            Additional arguments depending on the data format.
+
+        Notes
+        -----
+
+        Below are explanations of the arguments for each format.
+
+        **HDF5**
+
+        path : str
+            The HDF5 filename, typicaly with .h5 extension.
+        dim_order : str
+            Specification of the order of the dimensions. This
+            string can contain the letters 't', 'x', 'y', 'z',
+            and 'c', representing time, column, row, plane,
+            and channel, respectively.
+            For example, 'tzyxc' indicates that the HDF5 data
+            dimensions represent time (t), plane (z), row (y),
+            column(x), and channel (c), respectively.
+            The string 'tyx' indicates data that data for a single
+            imaging plane and single channel has been stored in a
+            HDF5 dataset with three dimensions representing time (t),
+            column (y), and row (x) respectively.
+            Note that SIMA 0.1.x does not support multiple z-planes,
+            although these will be supported in future versions.
+        group : str, optional
+            The HDF5 group containing the imaging data.
+            Defaults to using the root group '/'
+        key : str, optional
+            The key for indexing the the HDF5 dataset containing
+            the imaging data. This can be omitted if the HDF5
+            group contains only a single key.
+
+
+        >>> from sima.sequence import Sequence
+        >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
+
+        Warning
+        -------
+        Moving the HDF5 file may make this iterable unusable
+        when the ImagingDataset is reloaded. The HDF5 file can
+        only be moved if the ImagingDataset path is also moved
+        such that they retain the same relative position.
+
+        """
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
-               scale_values=False, channel_names=None):
+               channel_names=None):
         """Save frames to the indicated filenames.
 
         This function stores a multipage tiff file for each channel.
+
+        Paramters
+        ---------
+        filenames : str or list of list str
+            The names of the output files. For HDF5 files, this must be a
+            single string. For TIFF formats, this should be a list of list
+            of strings, such that filenames[i][j] corresponds to the ith
+            plane and the jth channel.
+        fmt : {'HDF5', 'TIFF16', 'TIFF8'}
+            The output file format.
+        fill_gaps : bool, optional
+            Whether to fill in missing data with pixel intensities from
+            adjacent frames. Default: False.
+        channel_names : list of str, optional
+            List of labels for the channels to be saved if using HDF5 format.
         """
-        for filename in filenames:
-            if dirname(filename):
-                sima.misc.mkdir_p(dirname(filename))
+        if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
+            raise ValueError('Unrecognized output format.')
+
+        # Make directories necessary for saving the files.
+        try:
+            out_dirs = [dirname(filenames)]
+        except AttributeError:
+            out_dirs = [dirname(f) for f in filenames]
+        for f in filter(None, out_dirs):
+            sima.misc.mkdir_p(dirname(f))
 
         if 'TIFF' in fmt:
-            output_files = [TiffFileWriter(fn) for fn in filenames]
+            output_files = [[TiffFileWriter(fn) for fn in plane]
+                            for plane in filenames]
         elif fmt == 'HDF5':
             if not h5py_available:
                 raise ImportError('h5py >= 2.3.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty((self.num_frames, 1,
-                                     self.num_rows,
-                                     self.num_columns,
-                                     self.num_channels), dtype='uint16')
-        else:
-            raise('Not Implemented')
+            output_array = np.empty(self.shape, dtype='uint16')  # TODO: change dtype?
 
         if fill_gaps:
             save_frames = _fill_gaps(iter(self), iter(self))
         else:
             save_frames = iter(self)
         for f_idx, frame in enumerate(save_frames):
+            if fmt == 'HDF5':
+                output_array[f_idx] = frame
             for ch_idx, channel in enumerate(frame):
                 if fmt == 'TIFF16':
                     f = output_files[ch_idx]
-                    if scale_values:
-                        f.write_page(sima.misc.to16bit(channel))
-                    else:
-                        f.write_page(channel.astype('uint16'))
+                    f.write_page(channel.astype('uint16'))
                 elif fmt == 'TIFF8':
                     f = output_files[ch_idx]
-                    if scale_values:
-                        f.write_page(sima.misc.to8bit(channel))
-                    else:
-                        f.write_page(channel.astype('uint8'))
-                elif fmt == 'HDF5':
-                    output_array[f_idx, 0, :, :, ch_idx] = channel
+                    f.write_page(channel.astype('uint8'))
                 else:
                     raise ValueError('Unrecognized output format.')
 
@@ -273,39 +325,7 @@ class _Sequence_HDF5(_IndexableSequence):
     """
     Iterable for an HDF5 file containing imaging data.
 
-    Parameters
-    ----------
-    path : str
-        The HDF5 filename, typicaly with .h5 extension.
-    dim_order : str
-        Specification of the order of the dimensions. This
-        string can contain the letters 't', 'x', 'y', 'z',
-        and 'c', representing time, column, row, plane,
-        and channel, respectively.
-        For example, 'tzyxc' indicates that the HDF5 data
-        dimensions represent time (t), plane (z), row (y),
-        column(x), and channel (c), respectively.
-        The string 'tyx' indicates data that data for a single
-        imaging plane and single channel has been stored in a
-        HDF5 dataset with three dimensions representing time (t),
-        column (y), and row (x) respectively.
-        Note that SIMA 0.1.x does not support multiple z-planes,
-        although these will be supported in future versions.
-    group : str, optional
-        The HDF5 group containing the imaging data.
-        Defaults to using the root group '/'
-    key : str, optional
-        The key for indexing the the HDF5 dataset containing
-        the imaging data. This can be omitted if the HDF5
-        group contains only a single key.
-
-    Warning
-    -------
-    Moving the HDF5 file may make this iterable unusable
-    when the ImagingDataset is reloaded. The HDF5 file can
-    only be moved if the ImagingDataset path is also moved
-    such that they retain the same relative position.
-
+    See sima.Sequence.create() for details.
     """
 
     def __init__(self, path, dim_order, group=None, key=None):
