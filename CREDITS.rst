@@ -4,15 +4,15 @@ Credits
 Development
 -----------
 
-* Patrick Kaifosh
-* Jeffrey Zaremba
-* Nathan Danielson
+* Patrick Kaifosh: initial development
+* Jeffrey Zaremba: initial development
+* Nathan Danielson: initial development
+* Jack Bowler: test suite, stICA segmentation
 
 
 Testing
 -------
 
-* Jack Bowler
 * Ben Shababo
 * Clay Lacefield
 * Matthew Lovett-Barron
@@ -28,4 +28,5 @@ External code
 Funding
 -------
 
-* Patrick Kaifosh is a `Howard Hughes Medical Institute <http://www.hhmi.org>`_ International Student Research fellow.
+* Patrick Kaifosh is a `Howard Hughes Medical Institute 
+  <http://www.hhmi.org>`_ International Student Research fellow.
