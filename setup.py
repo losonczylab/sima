@@ -2,7 +2,7 @@
 import sys
 
 if 'setuptools' in sys.modules or any(
-        s.startswith('bdist') for s in sys.argv) or any (
+        s.startswith('bdist') for s in sys.argv) or any(
         s.startswith('develop') for s in sys.argv):
     from setuptools import setup as setup
 else:

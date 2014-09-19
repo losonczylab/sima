@@ -420,7 +420,7 @@ class ImagingDataset(object):
                                     self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
-        """Export extrated signals to a file.
+        """Export extracted signals to a file.
 
         Parameters
         ----------
