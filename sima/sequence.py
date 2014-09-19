@@ -38,14 +38,14 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 
-# try:
-#     from libtiff import TIFF
-#     libtiff_available = True
-# except ImportError:
-#     with warnings.catch_warnings():
-#         warnings.simplefilter("ignore")
-#         from sima.misc.tifffile import TiffFile
-#     libtiff_available = False
+try:
+    from libtiff import TIFF
+    libtiff_available = True
+except ImportError:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from sima.misc.tifffile import TiffFile
+    libtiff_available = False
 try:
     import h5py
 except ImportError:
@@ -130,7 +130,7 @@ class Sequence(object):
 
         Parameters
         ----------
-        fmt : {'HDF5'}
+        fmt : {'HDF5', 'TIFF'}
             The format of the data used to create the Sequence.
         *args, **kwargs
             Additional arguments depending on the data format.
@@ -166,20 +166,40 @@ class Sequence(object):
             the imaging data. This can be omitted if the HDF5
             group contains only a single key.
 
-
         >>> from sima.sequence import Sequence
         >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
 
         Warning
         -------
-        Moving the HDF5 file may make this iterable unusable
+        Moving the HDF5 file may make this Sequence unusable
         when the ImagingDataset is reloaded. The HDF5 file can
+        only be moved if the ImagingDataset path is also moved
+        such that they retain the same relative position.
+
+
+        **TIFF**
+
+        path : str
+            The path to the file storing the imaging data.
+        num_planes : int, optional
+            The number of interleaved planes. Default: 1.
+        num_channels : int, optional
+            The number of interleaved channels. Default: 1.
+
+        Warning
+        -------
+        Moving the TIFF file may make this Sequence unusable
+        when the ImagingDataset is reloaded. The TIFF file can
         only be moved if the ImagingDataset path is also moved
         such that they retain the same relative position.
 
         """
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
+        elif fmt == 'TIFF':
+            return _Sequence_TIFF_Interleaved(*args, **kwargs)
+        else:
+            raise ValueError('Unrecognized format')
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
                channel_names=None):
@@ -249,6 +269,54 @@ class Sequence(object):
             if channel_names is not None:
                 f['imaging'].attrs['channel_names'] = np.array(channel_names)
             f.close()
+
+
+class _Sequence_TIFF_Interleaved(Sequence):
+    """
+
+    Parameters
+    ----------
+
+    Warning
+    -------
+    Moving the TIFF files may make this iterable unusable
+    when the ImagingDataset is reloaded. The TIFF file can
+    only be moved if the ImagingDataset path is also moved
+    such that they retain the same relative position.
+
+    """
+    def __init__(self, path, num_planes=1, num_channels=1):
+        self._num_planes = num_planes
+        self._num_channels = num_channels
+        self._path = abspath(path)
+        if not libtiff_available:
+            self.stack = TiffFile(self._path)
+
+    def __iter__(self):
+        base_iter = self._iter_pages()
+        while True:
+            yield np.concatenate(
+                [np.expand_dims(
+                    np.concatenate([np.expand_dims(next(base_iter), 2)
+                                    for _ in range(self._num_channels)],
+                                   axis=2), 0)
+                 for _ in range(self._num_planes)], 0)
+
+    def _iter_pages(self):
+        if libtiff_available:
+            tiff = TIFF.open(self._path, 'r')
+            for frame in tiff.iter_images():
+                yield frame
+        else:
+            for frame in self.stack.pages:
+                yield frame.asarray(colormapped=False)
+        if libtiff_available:
+            tiff.close()
+
+    def _todict(self):
+        return {'path': self._path,
+                'num_planes': self._num_planes,
+                'num_channels': self._num_channels}
 
 
 class _IndexableSequence(Sequence):
@@ -440,6 +508,10 @@ class _MotionCorrectedSequence(_WrapperSequence):
     def __len__(self):
         return len(self._base)  # Faster to calculate len without aligning
 
+    @property
+    def shape(self):
+        return (len(self),) + self._frame_shape  # Avoid aligning image
+
     def __iter__(self):
         for frame, displacement in itertools.izip(self._base,
                                                   self.displacements):
@@ -447,7 +519,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
 
     def _get_frame(self, t):
         return _align_frame(self._base._get_frame(t).astype(float),
-                           self.displacements[t], self._frame_shape)
+                            self.displacements[t], self._frame_shape)
 
     def __getitem__(self, indices):
         if len(indices) > 5:

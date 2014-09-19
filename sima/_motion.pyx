@@ -172,11 +172,11 @@ def _align_frame(
 
     Parameters
     ----------
-    frame : list of array
+    frame : array
         Uncorrected imaging frame from each each channel.
     displacements : array
         The displacements, adjusted so that (0,0) corresponds to the corner.
-        Shape: (num_rows, 2).
+        Shape: (num_planes, num_rows, 2).
 
     Returns
     -------
