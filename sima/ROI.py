@@ -543,3 +543,19 @@ def _reformat_polygons(polygons):
             new_polygons.append(Polygon(poly).simplify(tolerance=0))
         polygons = new_polygons
     return MultiPolygon(polygons)
+
+
+def _validate_z(MultiPolygon):
+    """Checks that all Polygons in a MultiPolygon have a valid z-coordinate."""
+
+    for polygon in MultiPolygon:
+        if not polygon.has_z:
+            coords = np.array(polygon.exterior.coords[:, :2])
+            nans = np.empty([coords.shape[0], 1])
+            nans.fill(np.nan)
+            coords = np.hstack([coords, nans])
+            polygon.exterior.coords = coords
+        coords = np.array(polygon.exterior.coords)
+        if not np.all(coords[:, 2] == coords[0, 2]):
+            return False
+    return True
