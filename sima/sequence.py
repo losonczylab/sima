@@ -315,6 +315,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
 
     def _todict(self):
         return {'path': self._path,
+                '__class__': self.__class__,
                 'num_planes': self._num_planes,
                 'num_channels': self._num_channels}
 
@@ -515,7 +516,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
     def __iter__(self):
         for frame, displacement in itertools.izip(self._base,
                                                   self.displacements):
-            yield _align_frame(frame, displacement, self._frame_shape)
+            yield _align_frame(
+                frame.astype(float), displacement, self._frame_shape)
 
     def _get_frame(self, t):
         return _align_frame(self._base._get_frame(t).astype(float),
@@ -552,8 +554,77 @@ class _MotionCorrectedSequence(_WrapperSequence):
         }
 
 
-class _InvalidFramesSequence(_WrapperSequence):
-    pass
+class _MaskedSequence(_WrapperSequence):
+    """Sequence for masking invalid data with NaN's.
+
+    Parameters
+    ----------
+    base : Sequence
+    indices : list of outer product tuples:
+        (frames, zyx mask, channels)
+        (frames, planes, yx mask, channels)
+        If frames is None, then the mask is applied to all frames.
+        If the mask is None
+
+    """
+    def __init__(self, base, outers):
+        super(_MaskedSequence, self).__init__(base)
+        self._base_len = len(base)
+        self._outers = outers
+        self._mask_dict = {}
+        self._static_masks = []
+        for i, outer in self._outers:
+            if outer[0] is None:
+                self._static_masks.append(i)
+            else:
+                for t in outer[0]:
+                    try:
+                        self._frame_dict[t].append(i)
+                    except KeyError:
+                        self._frame_dict[t] = [i]
+
+    def _apply_masks(self, frame, t):
+        for i in self._static_masks + self._frame_dict[t]:
+            outer = self._outers[i][1:]
+            if len(outer) == 2:  # (zyx, channels)
+                if outer[0] is None:
+                    frame[:, :, :, outer[1]] = np.nan
+                else:
+                    frame[:, :, :, outer[1]][outer[0]] = np.nan
+            elif len(outer) == 3:
+                planes = \
+                    range(frame.shape[-1]) if outer[0] is None else outer[0]
+                for p in planes:
+                    if outer[1] is None:
+                        frame[p][:, :, outer[2]] = np.nan
+                    else:
+                        frame[p][:, :, outer[2]][outer[1]] = np.nan
+            else:
+                raise Exception
+
+    def _get_frame(self, t):
+        frame = self._base._get_frame(t)
+        self._apply_masks(frame, t)
+        return frame
+
+    def __iter__(self):
+        for t, frame in enumerate(self._base):
+            self._apply_masks(frame, t)
+            yield frame
+
+    @property
+    def shape(self):
+        return self._base.shape
+
+    def __len__(self):
+        return len(self._base)
+
+    def _todict(self):
+        return {
+            '__class__': self.__class__,
+            'base': self._base._todict(),
+            'outers': self._outers
+        }
 
 
 class _IndexedSequence(_WrapperSequence):
@@ -574,10 +645,7 @@ class _IndexedSequence(_WrapperSequence):
         try:
             for t in self._times:
                 yield self._base._get_frame(t)[self._indices[1:]]
-        except AttributeError as err:
-            if not err.args[0] == \
-                    "'super' object has no attribute '_get_frame'":
-                raise err
+        except NotImplementedError:
             idx = 0
             for t, frame in enumerate(self._base):
                 try:
