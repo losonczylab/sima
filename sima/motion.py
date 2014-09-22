@@ -507,8 +507,9 @@ class _MCImagingDataset(ImagingDataset):
                         p_shifts[:] = shift - offset
                         pixel_sums, pixel_counts, offset = resize_arrays(
                             p_shifts, pixel_sums, pixel_counts, offset)
-                        update_sums_and_counts(pixel_sums[p], pixel_counts[p],
-                                               offset, p_shifts, plane)
+                        update_sums_and_counts(
+                            pixel_sums[p], pixel_counts[p], offset,
+                            p_shifts.astype(int), plane)
         # TODO: align planes to minimize shifts between them
         return (
             [s.astype(float) for s in shifts],
