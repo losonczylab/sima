@@ -109,11 +109,47 @@ class Sequence(object):
     def shape(self):
         return (len(self),) + iter(self).next().shape
 
+    def mask(self, masks):
+        """Apply a mask to the sequence.
+
+        Masked values will be represented as numpy.NaN.
+
+        Parameters
+        ----------
+        masks : list of tuple
+            Each element of the list is a tuple describing a mask.  Each mask
+            tuple can have the form (frames, zyx-mask, channels) or (frames,
+            planes, yx-mask, channels). The frames and channels elements of
+            the tuple are lists of the frames and channels to which the mask
+            is to be applied. They yx-mask element is a binary array whose
+            True values indicate the pixels to be masked. If any of the
+            entries is set to None, than the mask will be fully applied along
+            that dimension.
+
+        Examples
+        --------
+
+        Mask out frame 3 entirely:
+
+        >>> masked_seq = seq.mask([(3, None, None)]
+
+        Mask out plane 0 of frame 3:
+
+        >>> masked_seq = seq.mask([(3, 0, None, None)]
+
+        Mask out certain pixels at all times in channel 0.
+
+        >>> mask = np.random.binomial(1, 0.5, seq.shape[1:-1])
+        >>> masked_seq = seq.mask([(None, mask, 0)]
+
+        """
+        return _MaskedSequence(self, masks)
+
     def toarray(self, squeeze=False):
         """Convert to a numpy array.
 
-        Arguments
-        ---------
+        Parameters
+        ----------
         squeeze : bool
 
         Returns
@@ -705,65 +741,6 @@ def _fill_gaps(frame_iter1, frame_iter2):
             mr_chan[np.isfinite(fr_chan)] = fr_chan[np.isfinite(fr_chan)]
         yield [np.nan_to_num(mr_ch) + np.isnan(mr_ch) * fo_ch
                for mr_ch, fo_ch in zip(most_recent, first_obs)]
-
-
-from scipy.cluster.vq import kmeans2
-from itertools import chain
-
-
-def _detect_artifact(self, channels=None):
-    """Detect pixels that have been saturated by an external source
-
-    NOTE: this is written to deal with an artifact specific to our lab.
-
-    Parameters
-    ----------
-    channels : list of int
-        The channels in which artifact light is to be detected.
-
-    Returns
-    -------
-    dict of (int, array)
-        Channel indices index boolean arrays indicating whether the rows
-        have valid (i.e. not saturated) data.
-        Array shape: (num_cycles, num_rows*num_timepoints).
-    """
-    channels = [] if channels is None else channels
-    ret = {}
-    for channel in channels:
-        row_intensities = []
-        for frame in chain(*self):
-            im = frame[channel].astype('float')
-            row_intensities.append(im.mean(axis=1))
-        row_intensities = np.array(row_intensities)
-        for i in range(row_intensities.shape[1]):
-            row_intensities[:, i] += -row_intensities[:, i].mean() + \
-                row_intensities.mean()  # remove periodic component
-        row_intensities = row_intensities.reshape(-1)
-        # Separate row means into 2 clusters
-        [centroid, labels] = kmeans2(row_intensities, 2)
-        # only discard rows if clusters are substantially separated
-        if max(centroid) / min(centroid) > 3 and \
-                max(centroid) - min(centroid) > 2 * np.sqrt(sum([np.var(
-                row_intensities[np.equal(labels, i)]) for i in [0, 1]])):
-            # row intensities in the lower cluster are valid
-            valid_rows = np.equal(labels, np.argmin(centroid))
-            # also exclude rows prior to those in the higher cluster
-            valid_rows[:-1] *= valid_rows[1:].copy()
-            # also exclude rows following those in the higher cluster
-            valid_rows[1:] *= valid_rows[:-1].copy()
-        else:
-            valid_rows = np.ones(labels.shape).astype('bool')
-        # Reshape back to a list of arrays, one per cycle
-        row_start = 0
-        valid_rows_by_cycle = []
-        for cycle in self:
-            valid_rows_by_cycle.append(
-                valid_rows[row_start:
-                           row_start + cycle.num_frames * cycle.num_rows])
-            row_start += cycle.num_frames * cycle.num_rows
-        ret[channel] = valid_rows_by_cycle
-    return ret
 
 
 def _resolve_paths(d, savedir):
