@@ -486,14 +486,14 @@ class _MCImagingDataset(ImagingDataset):
         offset = np.zeros(2, dtype=int)
         pixel_sums = np.zeros(self.frame_shape).astype('float64')
         # NOTE: float64 gives nan when divided by 0
-        pixel_counts = np.zeros(pixel_sums.shape)
+        pixel_counts = np.zeros(pixel_sums.shape)  # TODO: int?
         for cycle, c_shifts, c_corrs in izip(self, shifts, correlations):
             for frame, f_shifts, f_corrs in izip(cycle, c_shifts, c_corrs):
                 for p, (plane, p_shifts) in enumerate(izip(frame, f_shifts)):
                     # if frame_idx in invalid_frames:
                     #     correlations[i] = np.nan
                     #     shifts[:, i] = np.nan
-                    if not np.any(np.nonzero(pixel_counts[p])):
+                    if not np.any(pixel_counts[p]):
                         f_corrs[p] = 1.
                         p_shifts[:] = 0
                         update_sums_and_counts(pixel_sums[p], pixel_counts[p],

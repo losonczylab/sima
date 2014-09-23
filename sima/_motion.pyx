@@ -122,7 +122,7 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     return sliceLookup
 
 
-# @cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
 def log_observation_probabilities(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
         np.ndarray[Py_ssize_t, ndim=1] tmpStateIds,
@@ -164,6 +164,7 @@ def log_observation_probabilities(
                     logp += logImP[frame_row, j, chan]
             tmpLogP[i] += logp
 
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
 def _align_frame(
         np.ndarray[FLOAT_TYPE_t, ndim=4] frame,
         np.ndarray[INT_TYPE_t, ndim=3] displacements,
@@ -187,15 +188,16 @@ def _align_frame(
         corrected_frame_size)
     cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(
         corrected_frame_size[:-1], dtype=int)
-    cdef int num_cols, plane_idx, i, j, x, y
+    cdef int num_cols, p, i, j, x, y, c
     num_cols = frame.shape[2]
-    for plane_idx in range(frame.shape[0]):
+    for p in range(frame.shape[0]):
         for i in range(frame.shape[1]):
-            y = i + displacements[plane_idx, i, 0]
+            y = i + displacements[p, i, 0]
             for j in range(num_cols):
-                x = displacements[plane_idx, i, 1] + j
-                count[plane_idx, y, x] += 1
-                corrected_frame[plane_idx, y, x] += frame[plane_idx, i, j]
+                x = displacements[p, i, 1] + j
+                count[p, y, x] += 1
+                for c in range(frame.shape[3]):
+                    corrected_frame[p, y, x, c] += frame[p, i, j, c]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return (corrected_frame.T / count.T).T

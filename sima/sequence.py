@@ -321,10 +321,11 @@ class _Sequence_TIFF_Interleaved(Sequence):
     such that they retain the same relative position.
 
     """
-    def __init__(self, path, num_planes=1, num_channels=1):
+    def __init__(self, path, num_planes=1, num_channels=1, len_=None):
         self._num_planes = num_planes
         self._num_channels = num_channels
         self._path = abspath(path)
+        self._len = len_
         if not libtiff_available:
             self.stack = TiffFile(self._path)
 
@@ -353,7 +354,13 @@ class _Sequence_TIFF_Interleaved(Sequence):
         return {'path': self._path,
                 '__class__': self.__class__,
                 'num_planes': self._num_planes,
-                'num_channels': self._num_channels}
+                'num_channels': self._num_channels,
+                'len_': self._len}
+
+    def __len__(self):
+        if self._len is None:
+            self._len = sum(1 for _ in self)
+        return self._len
 
 
 class _IndexableSequence(Sequence):
