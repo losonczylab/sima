@@ -121,7 +121,7 @@ class ImagingDataset(object):
                 return sequence.pop('__class__')._from_dict(
                     sequence, self.savedir)
 
-            self._sequences = [unpack(s) for s in data.pop('sequences')]
+            self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             try:
                 self.num_frames = data.pop('num_frames')
@@ -139,17 +139,17 @@ class ImagingDataset(object):
                         raise Exception(
                             'Cannot overwrite existing ImagingDataset.'
                         )
-            self._sequences = sequences
+            self.sequences = sequences
             self._channel_names = channel_names
 
         # initialize sequences
-        self.num_sequences = len(self._sequences)
-        if not np.all([sequence.shape[1:] == self._sequences[0].shape[1:]
-                       for sequence in self._sequences]):
+        self.num_sequences = len(self.sequences)
+        if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
+                       for sequence in self.sequences]):
             raise ValueError(
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
-        self.frame_shape = self._sequences[0].shape[1:]
+        self.frame_shape = self.sequences[0].shape[1:]
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(len(c) for c in self)
         if self.channel_names is None:
@@ -579,7 +579,7 @@ class ImagingDataset(object):
             frames=self.num_frames)
 
     def __iter__(self):
-        return self._sequences.__iter__()
+        return self.sequences.__iter__()
 
     def _resolve_channel(self, chan):
         """Return the index corresponding to the channel."""
