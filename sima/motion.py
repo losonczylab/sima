@@ -342,8 +342,8 @@ class _MCImagingDataset(ImagingDataset):
         extra_buffer = (
             (max_displacement - max_shifts + min_shifts) / 2).astype(int)
         extra_buffer[max_displacement < 0] = 5
-        min_displacements = (min_shifts - extra_buffer).astype(int)
-        max_displacements = (max_shifts + extra_buffer).astype(int)
+        min_displacements = (min_shifts - extra_buffer)
+        max_displacements = (max_shifts + extra_buffer)
 
         displacements = self._neighbor_viterbi(
             log_transition_matrix, references, gains, decay_matrix,
@@ -438,11 +438,11 @@ class _MCImagingDataset(ImagingDataset):
         """
         def resize_arrays(shift, pixel_sums, pixel_counts, offset):
             """Enlarge storage arrays if necessary."""
-            l = - np.minimum(0, shift + offset).astype(int)
+            l = - np.minimum(0, shift + offset)
             r = np.maximum(
                 0, shift + offset + np.array(self.frame_shape[1:-1]) -
                 np.array(pixel_sums.shape[1:-1])
-            ).astype(int)
+            )
             assert pixel_sums.ndim == 4
             if np.any(l > 0) or np.any(r > 0):
                 # adjust Y
@@ -480,7 +480,8 @@ class _MCImagingDataset(ImagingDataset):
                        ] += np.nan_to_num(plane)
             assert pixel_sums.ndim == 3
 
-        shifts = [np.zeros(cycle.shape[:2] + (2,)) for cycle in self]
+        shifts = [np.zeros(cycle.shape[:2] + (2,), dtype=int)
+                  for cycle in self]
         correlations = [np.empty(cycle.shape[:2]) for cycle in self]
         offset = np.zeros(2, dtype=int)
         pixel_sums = np.zeros(self.frame_shape).astype('float64')
@@ -509,12 +510,9 @@ class _MCImagingDataset(ImagingDataset):
                             p_shifts, pixel_sums, pixel_counts, offset)
                         update_sums_and_counts(
                             pixel_sums[p], pixel_counts[p], offset,
-                            p_shifts.astype(int), plane)
+                            p_shifts, plane)
         # TODO: align planes to minimize shifts between them
-        return (
-            [s.astype(float) for s in shifts],
-            [c.astype(float) for c in correlations]
-        )
+        return shifts, [c.astype(float) for c in correlations]
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -543,12 +541,12 @@ class _MCImagingDataset(ImagingDataset):
             np.nanmean(list(chain(*correlations)), axis=0) - \
             2 * np.nanstd(list(chain(*correlations)), axis=0)
         # only include image frames with sufficiently high correlation
-        min_shifts = np.nanmin(np.concatenate(
+        min_shifts = np.min(np.concatenate(
             [s[c > thresh] for s, c in izip(shifts, correlations)]
-        ), axis=0).astype(int)
-        max_shifts = np.nanmax(np.concatenate(
+        ), axis=0)
+        max_shifts = np.max(np.concatenate(
             [s[c > thresh] for s, c in izip(shifts, correlations)]
-        ), axis=0).astype(int)
+        ), axis=0)
         out_shape = list(self.frame_shape)
         out_shape[1] += max_shifts[0] - min_shifts[0]
         out_shape[2] += max_shifts[1] - min_shifts[1]
@@ -560,7 +558,7 @@ class _MCImagingDataset(ImagingDataset):
             for plane, p_shifts, p_corr, th, ref, ssq, cnt in izip(
                     frame, shift, corr, thresh, reference, sum_squares, count):
                 if p_corr > th:
-                    low = p_shifts - min_shifts
+                    low = (p_shifts - min_shifts)  # TOOD: NaN considerations
                     high = low + plane.shape[:-1]
                     ref[low[0]:high[0], low[1]:high[1]] += plane
                     ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
@@ -753,10 +751,6 @@ class _MotionSequence(_WrapperSequence):
         num_retained : int
             The number of states to retain at each time step of the Viterbi
             algorithm.
-        valid_rows : dict of (int, array)
-            Channel indices index boolean arrays indicating whether the rows
-            have valid (i.e. not saturated) data.
-            Array shape: (num_cycles, num_rows*num_timepoints).
         verbose : bool, optional
             Whether to print progress. Defaults to True.
 
