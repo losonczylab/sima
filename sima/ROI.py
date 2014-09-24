@@ -36,12 +36,16 @@ class ROI(object):
 
     Parameters
     ----------
-    mask : 2D or 3D array, optional
+    mask : 2D or 3D array or list of 2D arrays or of sparse matrices, optional
         A boolean mask in which all non-zero values define the region of
-        interest.  Mask shape must match image shape?
+        interest.  Masks are assumed to follow a (z, y, x) convention,
+        corresponding to (plane, row, column) in the image.
     polygons: array_like, optional
-        Either an Nx2 np.array (single polygon), a list of array_like objects
-        (multiple polygons), or a list of shapely Polygon class instances
+        Either an Nx2 or Nx3 np.array (single polygon), a list of array_like
+        objects (multiple polygons), a single shapely Polygon class instance,
+        or a list of shapely Polygon class instances.  Because polygons are
+        stored internally as a shapely MultiPolygon, coordinates in this
+        argument should follow an (x, y) or (x, y, z) convention.
     label : str, optional
         A label associated with the ROI for reference
     tags : list of str, optional
@@ -49,10 +53,11 @@ class ROI(object):
     id : str, optional
         A unique identifier for the ROI. By default, the ROI will not have
         a unique identifier.
-    im_shape: tuple, optional
+    im_shape: 2- or 3-tuple, optional
         The shape of the image on which the ROI is drawn.  If initialized with
         a mask, should be None, since im_shape will default to shape of the
-        mask.
+        mask.  Elements should correspond to (z, y, x), equivalent to
+        (nPlanes, nRows, nCols)
 
     Raises
     ------
@@ -78,12 +83,12 @@ class ROI(object):
     >>> from sima.ROI import ROI
     >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
     >>> roi.coords
-    [array([[ 0.,  0.],
-           [ 0.,  1.],
-           [ 1.,  1.],
-           [ 1.,  0.],
-           [ 0.,  0.]])]
-    >>> roi.mask.todense()
+    [array([[ 0.,  0., 0.],
+           [ 0.,  1., 0.],
+           [ 1.,  1., 0.],
+           [ 1.,  0., 0.],
+           [ 0.,  0., 0.]])]
+    >>> roi.mask[0].todense()
     matrix([[ True, False],
             [False, False]], dtype=bool)
 
@@ -100,10 +105,10 @@ class ROI(object):
     polygons : MultiPolygon
         A MultiPolygon representation of the ROI.
     coords : list of arrays
-        Coordinates of the polygons as a list of Nx2 arrays
-    im_shape : tuple
-        The shape of the image associated with the ROI. Determines the shape
-        of the mask.
+        Coordinates of the polygons as a list of Nx3 arrays (x, y, z)
+    im_shape : 3-tuple
+        The shape of the image associated with the ROI (z, y, x). Determines
+        the shape of the mask.
 
     """
 
@@ -190,10 +195,11 @@ class ROI(object):
     def polygons(self):
         if self._polys is not None:
             return self._polys
-        if not np.all((np.array(self._mask.todense() == 0) |
-                       np.array(self._mask.todense() == 1))):
-            raise NonBooleanMask(
-                'Unable to convert a non-boolean mask to polygons')
+        for m in self._mask:
+            if not np.all((np.array(m.todense() == 0) |
+                           np.array(m.todense() == 1))):
+                raise NonBooleanMask(
+                    'Unable to convert a non-boolean mask to polygons')
         return mask2poly(self._mask)
 
     @polygons.setter
@@ -213,7 +219,9 @@ class ROI(object):
         if self._mask is None and self.im_shape is None:
             raise Exception('Polygon ROIs must have an im_shape set')
         if self._mask is not None:
-            assert len(self._mask) == self.im_shape[0]
+            # if not len(self._mask) == self.im_shape[0]:
+            #     raise ValueError('Dimension mismatch between mask size and ' +
+            #                      'im_shape parameter')
             masks = []
             for mask in self._mask:
                 if mask.shape == self.im_shape[1:]:
@@ -433,7 +441,7 @@ def poly2mask(polygons, im_size):
     >>> poly1 = [[0,0], [0,1], [1,1], [1,0]]
     >>> poly2 = [[0,1], [0,2], [2,2], [2,1]]
     >>> mask = poly2mask([poly1, poly2], (3, 3))
-    >>> mask.todense()
+    >>> mask[0].todense()
     matrix([[ True, False, False],
             [ True,  True, False],
             [False, False, False]], dtype=bool)
@@ -449,18 +457,26 @@ def poly2mask(polygons, im_size):
     Output
     ------
     mask
-        A sparse binary mask of the points contained within the polygons.
+        A list of sparse binary masks of the points contained within the
+        polygons, one mask per plane
 
     """
-    ###TODO: THIS SHOULD RETURN A LIST OF SPARSE LIL_MATRICES, ONE FOR EACH PLANE?
+    if len(im_size) == 2:
+        im_size = (1,) + im_size
 
     polygons = _reformat_polygons(polygons)
+
     mask = np.zeros(im_size, dtype=bool)
     for poly in polygons:
+        #assuming all points in the polygon share a z-coordinate
+        z = int(np.array(poly.exterior.coords)[0][2])
+        #or should you assume you want all planes in the mask?  If user passes in 2D im_size?
+        if z > im_size[0]:
+            continue
         x_min, y_min, x_max, y_max = poly.bounds
 
         # Shift all points by 0.5 to move coordinates to corner of pixel
-        shifted_poly = Polygon(np.array(poly.exterior.coords) - 0.5)
+        shifted_poly = Polygon(np.array(poly.exterior.coords)[:, :2] - 0.5)
 
         points = [Point(x, y) for x, y in
                   product(np.arange(int(x_min), np.ceil(x_max)),
@@ -469,9 +485,12 @@ def poly2mask(polygons, im_size):
         for point in points_in_poly:
             x = int(point.x)
             y = int(point.y)
-            if 0 <= y < im_size[0] and 0 <= x < im_size[1]:
-                mask[y, x] = True
-    return lil_matrix(mask)
+            if 0 <= y < im_size[1] and 0 <= x < im_size[2]:
+                mask[z, y, x] = True
+    masks = []
+    for z_coord in np.arange(mask.shape[0]):
+        masks.append(lil_matrix(mask[z_coord, :, :]))
+    return masks
 
 
 def mask2poly(mask, threshold=0.5):
@@ -492,39 +511,50 @@ def mask2poly(mask, threshold=0.5):
         Returns a MultiPolygon of all masked regions.
 
     """
+    mask = _reformat_mask(mask)
 
-    if issparse(mask):
-        mask = np.array(mask.astype('byte').todense())
+    verts_list = []
+    for z, m in enumerate(mask):
+        if issparse(m):
+            m = np.array(m.astype('byte').todense())
 
-    if (mask != 0).sum() == 0:
-        raise Exception('Empty mask cannot be converted to polygons.')
+        if (m != 0).sum() == 0:
+            raise Exception('Empty mask cannot be converted to polygons.')
 
-    # Add an empty row and column around the mask to make sure edge masks
-    # are correctly determined
-    expanded_dims = (mask.shape[0] + 2, mask.shape[1] + 2)
-    expanded_mask = np.zeros(expanded_dims, dtype=float)
-    expanded_mask[1:mask.shape[0] + 1, 1:mask.shape[1] + 1] = mask
+        # Add an empty row and column around the mask to make sure edge masks
+        # are correctly determined
+        expanded_dims = (m.shape[0] + 2, m.shape[1] + 2)
+        expanded_mask = np.zeros(expanded_dims, dtype=float)
+        expanded_mask[1:m.shape[0] + 1, 1:m.shape[1] + 1] = m
 
-    verts = find_contours(expanded_mask.T, threshold)
+        verts = find_contours(expanded_mask.T, threshold)
 
-    # Subtract off 1 to shift coords back to their real space,
-    # but also add 0.5 to move the coordinates back to the corners,
-    # so net subtract 0.5 from every coordinate
-    verts = [np.subtract(x, 0.5).tolist() for x in verts]
+        # Subtract off 1 to shift coords back to their real space,
+        # but also add 0.5 to move the coordinates back to the corners,
+        # so net subtract 0.5 from every coordinate
+        verts = [np.subtract(x, 0.5).tolist() for x in verts]
 
-    return _reformat_polygons(verts)
+        v = []
+        for poly in verts:
+            new_poly = [point + [z] for point in poly]
+            v.append(new_poly)
+        verts_list.extend(v)
+
+    return _reformat_polygons(verts_list)
 
 
 def _reformat_polygons(polygons):
     """Convert polygons to a MulitPolygon
 
-    Accepts one or more sequence of 2 or 3-element sequences (sequence of coords) or
-    Polygon objects
+    Accepts one more more sequence of 2- or 3-element sequences or a sequence
+    of shapely Polygon objects.
 
     Parameters
     ----------
-    polygons : sequence of coordinates or sequence of Polygons
-        Polygon(s) to be converted to a MulitPolygon
+    polygons : sequence of 2- or 3-element coordinates or sequence of Polygons
+        Polygon(s) to be converted to a MulitPolygon.  Coordinates are used to
+        initialize a shapely MultiPolygon, and thus should follow a (x, y, z)
+        coordinate space convention.
 
     Returns
     -------
@@ -532,7 +562,7 @@ def _reformat_polygons(polygons):
 
     """
     if isinstance(polygons, MultiPolygon):
-        return polygons
+        polygons = polygons
     if isinstance(polygons, Polygon):
         polygons = [polygons]
     elif isinstance(polygons[0], Polygon):
@@ -551,14 +581,31 @@ def _reformat_polygons(polygons):
             # polygon with co-linear points removed
             new_polygons.append(Polygon(poly).simplify(tolerance=0))
         polygons = new_polygons
-    return MultiPolygon(polygons)
+
+    #Polygon.exterior.coords is not settable, need to initialize new objects
+    z_polygons = []
+    for poly in polygons:
+        if poly.has_z:
+            z_polygons.append(poly)
+        else:
+            z_polygons.append(
+                Polygon([point + (0,) for point in poly.exterior.coords]))
+    return MultiPolygon(z_polygons)
 
 
 def _reformat_mask(mask):
-    """Convert mask to a list of sparse matrices (scipy lil_matrix)
+    """Convert mask to a list of sparse matrices (scipy.sparse.lil_matrix)
 
-    Accepts a 2 or 3D array, a list of 2D arrays, or a sequence of lil_matrices.
-    In the latter two cases, must pass one for each plane
+    Accepts a 2 or 3D array, a list of 2D arrays, or a sequence of sparse
+    matrices.
+
+    Parameters
+    ----------
+    mask : a 2 or 3 dimensional numpy array, a list of 2D numpy arrays, or a
+        sequence of sparse matrices.  Masks are assumed to follow a (z, y, x)
+        convention.  If mask is a list of 2D arrays or of sparse matrices, each
+        element is assumed to correspond to the mask for a single plane (and is
+        assumed to follow a (y, x) convention)
     """
     if isinstance(mask, np.ndarray):
         #user passed in a 2D or 3D np.array
@@ -570,7 +617,7 @@ def _reformat_mask(mask):
                 new_mask.append(lil_matrix(mask[s, :, :], dtype=mask.dtype))
             mask = new_mask
         else:
-            raise ValueError('np.array mask must have either 2 or 3 dimensions')
+            raise ValueError('numpy ndarray must be either 2 or 3 dimensions')
     elif issparse(mask):
         #user passed in a single lil_matrix
         mask = [lil_matrix(mask)]
@@ -580,36 +627,3 @@ def _reformat_mask(mask):
             new_mask.append(lil_matrix(plane, dtype=plane.dtype))
         mask = new_mask
     return mask
-
-
-# def _validate_z(multi_polygon, im_shape):
-#     """Checks that all Polygons in a MultiPolygon have a valid z-coordinate."""
-#     if not multi_polygon.has_z:
-#         z_polygons = []
-#         #it's necessary to initialize a new Polygon object in this case, as the
-#         #z-coordinate of Polygon.exterior.coords does is not "set-able"
-#         for polygon in multi_polygon:
-#             for z_coord in np.arange(im_shape[2]):
-#                 coords = np.array(polygon.exterior.coords)[:, :2]
-#                 z_coords = np.empty([coords.shape[0], 1])
-#                 z_coords.fill(z_coord)
-#                 coords = np.hstack([coords, z_coords])
-#                 z_polygons.append(Polygon(coords))
-#         multi_polygon = MultiPolygon(z_polygons)
-#     for polygon in multi_polygon:
-#         coords = np.array(polygon.exterior.coords)
-#         if not (np.all(coords[:, 2] == coords[0, 2])):
-#             raise('individual polygons must share a z-coordinate')
-#     return multi_polygon
-
-    # for polygon in MultiPolygon:
-    #     if not polygon.has_z:
-    #         coords = np.array(polygon.exterior.coords)[:, :2]
-    #         nans = np.empty([coords.shape[0], 1])
-    #         nans.fill(np.nan)
-    #         coords = np.hstack([coords, nans])
-    #         polygon.exterior.coords = coords
-    #     coords = np.array(polygon.exterior.coords)
-    #     if not np.all(coords[:, 2] == coords[0, 2]):
-    #         return False
-    # return True
