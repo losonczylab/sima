@@ -866,7 +866,6 @@ def _frame_alignment_correlation(sequences, max_displacement=None,
         assert np.prod(pixel_sums.shape) < 4 * np.prod(sequences[0].shape[1:])
         return pixel_sums, pixel_counts, offset
 
-    @profile
     def update_sums_and_counts(pixel_sums, pixel_counts, offset, shift,
                                plane):
         ref_indices = [offset + shift, offset + shift + frame.shape[1:-1]]
