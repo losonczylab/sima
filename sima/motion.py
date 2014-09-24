@@ -420,99 +420,8 @@ class _MCImagingDataset(ImagingDataset):
         return mean_est, var_est
 
     def _correlation_based_correction(self, max_displacement=None):
-        """Estimate whole-frame displacements based on pixel correlations.
+        return _frame_alignment_correlation(self.sequences, max_displacement)
 
-        Parameters
-        ----------
-        max_displacement : array
-            see estimate_displacements
-
-        Returns
-        -------
-        shifts : array
-            (2, num_frames*num_cycles)-array of integers giving the
-            estimated displacement of each frame
-        correlations : array
-            (num_frames*num_cycles)-array giving the correlation of
-            each shifted frame with the reference
-        """
-        def resize_arrays(shift, pixel_sums, pixel_counts, offset):
-            """Enlarge storage arrays if necessary."""
-            l = - np.minimum(0, shift + offset)
-            r = np.maximum(
-                0, shift + offset + np.array(self.frame_shape[1:-1]) -
-                np.array(pixel_sums.shape[1:-1])
-            )
-            assert pixel_sums.ndim == 4
-            if np.any(l > 0) or np.any(r > 0):
-                # adjust Y
-                pre_shape = (pixel_sums.shape[0], l[0]) + pixel_sums.shape[2:]
-                post_shape = (pixel_sums.shape[0], r[0]) + pixel_sums.shape[2:]
-                pixel_sums = np.concatenate(
-                    [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
-                    axis=1)
-                pixel_counts = np.concatenate(
-                    [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
-                    axis=1)
-                # adjust X
-                pre_shape = pixel_sums.shape[:2] + (l[1], pixel_sums.shape[3])
-                post_shape = pixel_sums.shape[:2] + (r[1], pixel_sums.shape[3])
-                pixel_sums = np.concatenate(
-                    [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
-                    axis=2)
-                pixel_counts = np.concatenate(
-                    [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
-                    axis=2)
-                offset += l
-            assert pixel_sums.ndim == 4
-            assert np.prod(pixel_sums.shape) < 4 * np.prod(self.frame_shape)
-            return pixel_sums, pixel_counts, offset
-
-        def update_sums_and_counts(pixel_sums, pixel_counts, offset, shift,
-                                   plane):
-            ref_indices = [offset + shift, offset + shift + frame.shape[1:-1]]
-            assert pixel_sums.ndim == 3
-            pixel_counts[ref_indices[0][0]:ref_indices[1][0],
-                         ref_indices[0][1]:ref_indices[1][1]
-                         ] += np.isfinite(plane)
-            pixel_sums[ref_indices[0][0]:ref_indices[1][0],
-                       ref_indices[0][1]:ref_indices[1][1]
-                       ] += np.nan_to_num(plane)
-            assert pixel_sums.ndim == 3
-
-        shifts = [np.zeros(cycle.shape[:2] + (2,), dtype=int)
-                  for cycle in self]
-        correlations = [np.empty(cycle.shape[:2]) for cycle in self]
-        offset = np.zeros(2, dtype=int)
-        pixel_sums = np.zeros(self.frame_shape).astype('float64')
-        # NOTE: float64 gives nan when divided by 0
-        pixel_counts = np.zeros(pixel_sums.shape)  # TODO: int?
-        for cycle, c_shifts, c_corrs in izip(self, shifts, correlations):
-            for frame, f_shifts, f_corrs in izip(cycle, c_shifts, c_corrs):
-                for p, (plane, p_shifts) in enumerate(izip(frame, f_shifts)):
-                    # if frame_idx in invalid_frames:
-                    #     correlations[i] = np.nan
-                    #     shifts[:, i] = np.nan
-                    if not np.any(pixel_counts[p]):
-                        f_corrs[p] = 1.
-                        p_shifts[:] = 0
-                        update_sums_and_counts(pixel_sums[p], pixel_counts[p],
-                                               offset, p_shifts, plane)
-                    else:
-                        # recompute reference using all aligned images
-                        with warnings.catch_warnings():  # ignore divide by 0
-                            warnings.simplefilter("ignore")
-                            reference = pixel_sums[p] / pixel_counts[p]
-                        shift, f_corrs[p] = align_cross_correlation(
-                            reference, plane)
-                        p_shifts[:] = shift - offset
-                        pixel_sums, pixel_counts, offset = resize_arrays(
-                            p_shifts, pixel_sums, pixel_counts, offset)
-                        update_sums_and_counts(
-                            pixel_sums[p], pixel_counts[p], offset,
-                            p_shifts, plane)
-        # TODO: align planes to minimize shifts between them
-        return shifts, [c.astype(float) for c in correlations]
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -907,10 +816,120 @@ def hmm(sequences, savedir, channel_names=None, info=None,
         corrected_sequences, savedir, channel_names=channel_names)
 
 
+def _frame_alignment_correlation(sequences, max_displacement=None,
+                                 method='correlation'):
+    """Estimate whole-frame displacements based on pixel correlations.
+
+    Parameters
+    ----------
+    max_displacement : array
+        see estimate_displacements
+
+    Returns
+    -------
+    shifts : array
+        (2, num_frames*num_cycles)-array of integers giving the
+        estimated displacement of each frame
+    correlations : array
+        (num_frames*num_cycles)-array giving the correlation of
+        each shifted frame with the reference
+    """
+    def resize_arrays(shift, pixel_sums, pixel_counts, offset):
+        """Enlarge storage arrays if necessary."""
+        l = - np.minimum(0, shift + offset)
+        r = np.maximum(
+            0, shift + offset + np.array(sequences[0].shape[2:-1]) -
+            np.array(pixel_sums.shape[1:-1])
+        )
+        assert pixel_sums.ndim == 4
+        if np.any(l > 0) or np.any(r > 0):
+            # adjust Y
+            pre_shape = (pixel_sums.shape[0], l[0]) + pixel_sums.shape[2:]
+            post_shape = (pixel_sums.shape[0], r[0]) + pixel_sums.shape[2:]
+            pixel_sums = np.concatenate(
+                [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
+                axis=1)
+            pixel_counts = np.concatenate(
+                [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
+                axis=1)
+            # adjust X
+            pre_shape = pixel_sums.shape[:2] + (l[1], pixel_sums.shape[3])
+            post_shape = pixel_sums.shape[:2] + (r[1], pixel_sums.shape[3])
+            pixel_sums = np.concatenate(
+                [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
+                axis=2)
+            pixel_counts = np.concatenate(
+                [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
+                axis=2)
+            offset += l
+        assert pixel_sums.ndim == 4
+        assert np.prod(pixel_sums.shape) < 4 * np.prod(sequences[0].shape[1:])
+        return pixel_sums, pixel_counts, offset
+
+    def update_sums_and_counts(pixel_sums, pixel_counts, offset, shift,
+                               plane):
+        ref_indices = [offset + shift, offset + shift + frame.shape[1:-1]]
+        assert pixel_sums.ndim == 3
+        pixel_counts[ref_indices[0][0]:ref_indices[1][0],
+                     ref_indices[0][1]:ref_indices[1][1]
+                     ] += np.isfinite(plane)
+        pixel_sums[ref_indices[0][0]:ref_indices[1][0],
+                   ref_indices[0][1]:ref_indices[1][1]
+                   ] += np.nan_to_num(plane)
+        assert pixel_sums.ndim == 3
+
+    shifts = [np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
+    correlations = [np.empty(seq.shape[:2]) for seq in sequences]
+    offset = np.zeros(2, dtype=int)
+    pixel_sums = np.zeros(sequences[0].shape[1:]).astype('float64')
+    # NOTE: float64 gives nan when divided by 0
+    pixel_counts = np.zeros(pixel_sums.shape)  # TODO: int?
+    for cycle, c_shifts, c_corrs in izip(sequences, shifts, correlations):
+        for frame, f_shifts, f_corrs in izip(cycle, c_shifts, c_corrs):
+            for p, (plane, p_shifts) in enumerate(izip(frame, f_shifts)):
+                # if frame_idx in invalid_frames:
+                #     correlations[i] = np.nan
+                #     shifts[:, i] = np.nan
+                if not np.any(pixel_counts[p]):
+                    f_corrs[p] = 1.
+                    p_shifts[:] = 0
+                    update_sums_and_counts(pixel_sums[p], pixel_counts[p],
+                                           offset, p_shifts, plane)
+                else:
+                    # recompute reference using all aligned images
+                    """
+                    LOCK AND GRAB pixel_sums, pixel_counts, offset
+                    THEN RELEASE LOCK
+                    """
+                    with warnings.catch_warnings():  # ignore divide by 0
+                        warnings.simplefilter("ignore")
+                        reference = pixel_sums[p] / pixel_counts[p]
+                    if method == 'correlation':
+                        shift, f_corrs[p] = align_cross_correlation(
+                            reference, plane)
+                    elif method == 'ECC':
+                        raise NotImplementedError
+                        cv2.findTransformECC(reference, plane)
+                    else:
+                        raise ValueError('Unrecognized alignment method')
+                    p_shifts[:] = shift - offset
+
+                    """
+                    LOCK AND READ/WRITE pixel_sums, pixel_counts, offset
+                    """
+                    pixel_sums, pixel_counts, offset = resize_arrays(
+                        p_shifts, pixel_sums, pixel_counts, offset)
+                    update_sums_and_counts(
+                        pixel_sums[p], pixel_counts[p], offset,
+                        p_shifts, plane)
+    # TODO: align planes to minimize shifts between them
+    return shifts, [c.astype(float) for c in correlations]
+
+
 def frame_alignment(
         sequences, savedir, channel_names=None, info=None,
-        method='correlation', correction_channels=None, trim_criterion=None,
-        verbose=True):
+        method='correlation', max_displacement=None,
+        correction_channels=None, trim_criterion=None, verbose=True):
     """Align whole frames.
 
     Parameters
@@ -925,7 +944,8 @@ def frame_alignment(
     else:
         mc_sequences = sequences
     if method == 'correlation':
-        raise NotImplementedError
+        displacements, correlations = _frame_alignment_correlation(
+            mc_sequences, max_displacement)
     elif method == 'ECC':
         # http://docs.opencv.org/trunk/modules/video/doc
         # /motion_analysis_and_object_tracking.html#findtransformecc
@@ -934,6 +954,30 @@ def frame_alignment(
         raise NotImplementedError
     else:
         raise ValueError("Unrecognized option for 'method'")
+    max_disp = np.max(list(chain(*chain(*displacements))), axis=0)
+    frame_shape = np.array(sequences[0].shape)[1:]
+    frame_shape[1:3] += max_disp
+    corrected_sequences = [
+        _MotionCorrectedSequence(s, d, frame_shape)
+        for s, d in izip(sequences, displacements)]
+    rows, columns = _trim_coords(
+        trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
+    )
+    corrected_sequences = [
+        s[:, :, rows, columns] for s in corrected_sequences]
+    return ImagingDataset(
+        corrected_sequences, savedir, channel_names=channel_names)
+
+
+def _observation_counts(raw_shape, displacements, untrimmed_shape):
+    count = np.zeros(untrimmed_shape, dtype=int)
+    if displacements.ndim == 2:
+        for plane in range(raw_shape[0]):
+            y, x = displacements[plane]
+            count[y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+        return count
+    elif displacements.ndim == 3:
+        return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
 
 
 def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
@@ -943,7 +987,7 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     if trim_criterion is None:
         trim_criterion = 1.
     if isinstance(trim_criterion, (float, int)):
-        obs_counts = sum(mc.observation_counts(raw_shape, d, untrimmed_shape)
+        obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
                          for d in chain(*displacements))
         num_frames = sum(len(x) for x in displacements)
         occupancy = obs_counts.astype(float) / num_frames
