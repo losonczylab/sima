@@ -337,13 +337,14 @@ class ROIList(list):
         else:
             raise ValueError('Unrecognized file format.')
 
-    def transform(self, transform, copy_properties=True):
+    def transform(self, transforms, copy_properties=True):
         """Apply a 2x3 affine transformation to the ROIs
 
         Parameters
         ----------
-        transform : 2x3 Numpy array
-            The affine transformation to be applied to the ROIs.
+        transforms : list of 2x3 Numpy arrays
+            The affine transformations to be applied to the ROIs.  Length of
+            list should equal the number of planes (im_shape[0])
 
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
@@ -354,12 +355,16 @@ class ROIList(list):
         sima.ROI.ROIList
             Returns an ROIList consisting of the transformed ROI objects.
         """
+        assert len(transforms) == self.im_shape[0]
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
             for coords in roi.coords:
-                transformed_coords = [np.dot(transform, np.hstack([vert, 1]))
+                z = coords[0][2]  # assuming all coords share a z-coordinate
+                transformed_coords = [np.dot(transforms[z], np.hstack([vert[:2], 1]))
                                       for vert in coords]
+                pass
+                #transformed_coords = 
                 transformed_polygons.append(transformed_coords)
             transformed_roi = ROI(polygons=transformed_polygons)
             if copy_properties:
@@ -558,7 +563,7 @@ def _reformat_polygons(polygons):
 
     Returns
     -------
-    MulitPolygon
+    MultiPolygon
 
     """
     if isinstance(polygons, MultiPolygon):
