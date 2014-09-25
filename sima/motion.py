@@ -922,8 +922,21 @@ def _frame_alignment_correlation(sequences, max_displacement=None,
                     update_sums_and_counts(
                         pixel_sums[p], pixel_counts[p], offset,
                         p_shifts, plane)
-    # TODO: align planes to minimize shifts between them
-    return shifts, [c.astype(float) for c in correlations]
+
+    def _align_planes(shifts):
+        """Align planes to minimize shifts between them."""
+        mean_shift = np.nanmean(list(chain(*chain(*shifts))), axis=0)
+        alteration = mean_shift - mean_shift[0]  # (num_planes, dim)
+        for seq in shifts:
+            seq -= alteration
+
+    _align_planes(shifts)
+
+    # make all the shifts non-negative
+    min_shift = np.min(list(chain(*chain(*shifts))), axis=0)
+    shifts = [s - min_shift for s in shifts]
+
+    return shifts, correlations
 
 
 def frame_alignment(
