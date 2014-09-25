@@ -18,6 +18,7 @@ import numpy as np
 import cPickle as pickle
 from itertools import product
 from datetime import datetime
+from warnings import warn
 
 from shapely.geometry import MultiPolygon, Polygon, Point
 from skimage.measure import find_contours
@@ -219,20 +220,22 @@ class ROI(object):
         if self._mask is None and self.im_shape is None:
             raise Exception('Polygon ROIs must have an im_shape set')
         if self._mask is not None:
-            # if not len(self._mask) == self.im_shape[0]:
-            #     raise ValueError('Dimension mismatch between mask size and ' +
-            #                      'im_shape parameter')
             masks = []
-            for mask in self._mask:
+            for z_idx, mask in enumerate(self._mask):
                 if mask.shape == self.im_shape[1:]:
                     masks.append(mask)
                 else:
-                    m = lil_matrix(self.im_shape, dtype=mask.dtype)
+                    m = lil_matrix(self.im_shape[1:], dtype=mask.dtype)
                     values = mask.nonzero()
                     for row, col in zip(*values):
                         if row < self.im_shape[1] and col < self.im_shape[2]:
                             m[row, col] = mask[row, col]
                     masks.append(m)
+                if z_idx + 1 == self.im_shape[0]:
+                    break
+            #Note: length of output = self.im_shape[0]
+            while len(masks) < self.im_shape[0]:
+                masks.append(lil_matrix(self.im_shape[1:], dtype=mask.dtype))
             return masks
         return poly2mask(polygons=self.polygons,
                          im_size=self.im_shape)
@@ -338,7 +341,7 @@ class ROIList(list):
             raise ValueError('Unrecognized file format.')
 
     def transform(self, transforms, copy_properties=True):
-        """Apply a 2x3 affine transformation to the ROIs
+        """Apply 2x3 affine transformations to the ROIs
 
         Parameters
         ----------
@@ -355,16 +358,17 @@ class ROIList(list):
         sima.ROI.ROIList
             Returns an ROIList consisting of the transformed ROI objects.
         """
-        assert len(transforms) == self.im_shape[0]
+        assert len(transforms) == self[0].im_shape[0]
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
             for coords in roi.coords:
                 z = coords[0][2]  # assuming all coords share a z-coordinate
-                transformed_coords = [np.dot(transforms[z], np.hstack([vert[:2], 1]))
+                transformed_coords = [np.dot(transforms[int(z)],
+                                             np.hstack([vert[:2], 1]))
                                       for vert in coords]
-                pass
-                #transformed_coords = 
+                transformed_coords = [np.hstack((coords, z)) for coords in
+                                      transformed_coords]
                 transformed_polygons.append(transformed_coords)
             transformed_roi = ROI(polygons=transformed_polygons)
             if copy_properties:
@@ -454,8 +458,9 @@ def poly2mask(polygons, im_size):
     Parameters
     ----------
     polygons : sequence of coordinates or sequence of Polygons
-        A sequence of polygons where each is either a sequence of (x,y)
-        coordinate pairs, an Nx2 numpy array, or a Polygon object.
+        A sequence of polygons where each is either a sequence of (x,y) or
+        (x,y,z) coordinate pairs, an Nx2 or Nx3 numpy array, or a Polygon
+        object.
     im_size : tuple
         Final size of the resulting mask
 
@@ -475,8 +480,9 @@ def poly2mask(polygons, im_size):
     for poly in polygons:
         #assuming all points in the polygon share a z-coordinate
         z = int(np.array(poly.exterior.coords)[0][2])
-        #or should you assume you want all planes in the mask?  If user passes in 2D im_size?
         if z > im_size[0]:
+            warn('ROI with zero-coordinate {}'.format(z) +
+                 'cropped with im_size = {}'.format(im_size))
             continue
         x_min, y_min, x_max, y_max = poly.bounds
 
@@ -593,6 +599,8 @@ def _reformat_polygons(polygons):
         if poly.has_z:
             z_polygons.append(poly)
         else:
+            warn('Warning: Polygon initialized without z-coordinate. ' +
+                 'Assigning to zeroth plane (z = 0)')
             z_polygons.append(
                 Polygon([point + (0,) for point in poly.exterior.coords]))
     return MultiPolygon(z_polygons)
