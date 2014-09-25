@@ -132,7 +132,7 @@ class Sequence(object):
 
         Mask out frame 3 entirely:
 
-        >>> from sima.sequence import  Sequence
+        >>> from sima import Sequence
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
@@ -210,10 +210,12 @@ class Sequence(object):
             the imaging data. This can be omitted if the HDF5
             group contains only a single key.
 
-        >>> from sima.sequence import  Sequence
+        >>> from sima import Sequence
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
+        >>> seq.shape
+        (20, 1, 128, 256, 1)
 
         Warning
         -------
@@ -495,10 +497,11 @@ class _Sequence_HDF5(_IndexableSequence):
                 frame = np.expand_dims(frame, -1)
         assert not any(s is None for s in swapper)
         for i in range(frame.ndim):
-            idx = np.argmin(swapper[i:]) + i
+            idx = swapper.index(i)
             if idx != i:
                 swapper[i], swapper[idx] = swapper[idx], swapper[i]
-                frame.swapaxes(i, idx)
+                frame = frame.swapaxes(i, idx)
+        assert swapper == [0, 1, 2, 3]
         assert frame.ndim == 4
         return frame.astype(float)
 
