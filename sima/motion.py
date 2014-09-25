@@ -374,6 +374,8 @@ class _MCImagingDataset(ImagingDataset):
             with open(path, 'wb') as f:
                 pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         """
+
+        # make all the displacements non-negative
         min_disp = np.min(list(chain(*chain(*chain(*displacements)))), axis=0)
         return [disp - min_disp for disp in displacements]
 
@@ -922,8 +924,21 @@ def _frame_alignment_correlation(sequences, max_displacement=None,
                     update_sums_and_counts(
                         pixel_sums[p], pixel_counts[p], offset,
                         p_shifts, plane)
-    # TODO: align planes to minimize shifts between them
-    return shifts, [c.astype(float) for c in correlations]
+
+    def _align_planes(shifts):
+        """Align planes to minimize shifts between them."""
+        mean_shift = np.nanmean(list(chain(*chain(*shifts))), axis=0)
+        alteration = (mean_shift - mean_shift[0]).astype(int)  # (num_planes, dim)
+        for seq in shifts:
+            seq -= alteration
+
+    _align_planes(shifts)
+
+    # make all the shifts non-negative
+    min_shift = np.min(list(chain(*chain(*shifts))), axis=0)
+    shifts = [s - min_shift for s in shifts]
+
+    return shifts, correlations
 
 
 def frame_alignment(
@@ -974,7 +989,7 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
     if displacements.ndim == 2:
         for plane in range(raw_shape[0]):
             y, x = displacements[plane]
-            count[y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+            count[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
         return count
     elif displacements.ndim == 3:
         return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
