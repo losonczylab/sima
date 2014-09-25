@@ -29,6 +29,7 @@
 # For convenience, we have created iterable objects that can be used with
 # common data formats.
 
+
 import itertools as it
 import warnings
 from distutils.version import StrictVersion
@@ -131,6 +132,7 @@ class Sequence(object):
 
         Mask out frame 3 entirely:
 
+        >>> from sima.sequence import  Sequence
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
@@ -208,6 +210,7 @@ class Sequence(object):
             the imaging data. This can be omitted if the HDF5
             group contains only a single key.
 
+        >>> from sima.sequence import  Sequence
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
