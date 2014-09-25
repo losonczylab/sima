@@ -131,16 +131,22 @@ class Sequence(object):
 
         Mask out frame 3 entirely:
 
-        >>> masked_seq = seq.mask([(3, None, None)]
+        >>> from sima.misc import example_hdf5
+        >>> path = example_hdf5()
+        >>> seq = Sequence.create('HDF5', path, 'yxt')
+        >>> masked_seq = seq.mask([(3, None, None)])
+        >>> [np.all(np.isnan(frame))
+        ...  for i, frame in enumerate(masked_seq) if i < 5]
+        [False, False, False, True, False]
 
         Mask out plane 0 of frame 3:
 
-        >>> masked_seq = seq.mask([(3, 0, None, None)]
+        >>> masked_seq = seq.mask([(3, 0, None, None)])
 
         Mask out certain pixels at all times in channel 0.
 
         >>> mask = np.random.binomial(1, 0.5, seq.shape[1:-1])
-        >>> masked_seq = seq.mask([(None, mask, 0)]
+        >>> masked_seq = seq.mask([(None, mask, 0)])
 
         """
         return _MaskedSequence(self, masks)
@@ -202,8 +208,9 @@ class Sequence(object):
             the imaging data. This can be omitted if the HDF5
             group contains only a single key.
 
-        >>> from sima.sequence import Sequence
-        >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
+        >>> from sima.misc import example_hdf5
+        >>> path = example_hdf5()
+        >>> seq = Sequence.create('HDF5', path, 'yxt')
 
         Warning
         -------
@@ -473,22 +480,23 @@ class _Sequence_HDF5(_IndexableSequence):
 
     def _get_frame(self, t):
         """Get the frame at time t, but not clipped"""
-        slices = [slice(None) for _ in range(len(self._dataset.shape))]
-        swapper = [None for _ in range(len(self._dataset.shape))]
-        if self._Z_DIM > -1:
-            swapper[self._Z_DIM] = 0
-        swapper[self._Y_DIM] = 1
-        swapper[self._X_DIM] = 2
-        if self._C_DIM > -1:
-            swapper[self._C_DIM] = 3
-        swapper = filter(lambda x: x is not None, swapper)
-        slices[self._T_DIM] = t
-        frame = self._dataset[tuple(slices)]
+        slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
+        frame = self._dataset[slices]
+        swapper = [None for _ in range(frame.ndim)]
+        for i, v in [(self._Z_DIM, 0), (self._Y_DIM, 1),
+                     (self._X_DIM, 2), (self._C_DIM, 3)]:
+            if i >= 0:
+                swapper[i] = v
+            else:
+                swapper.append(v)
+                frame = np.expand_dims(frame, -1)
+        assert not any(s is None for s in swapper)
         for i in range(frame.ndim):
             idx = np.argmin(swapper[i:]) + i
             if idx != i:
                 swapper[i], swapper[idx] = swapper[idx], swapper[i]
                 frame.swapaxes(i, idx)
+        assert frame.ndim == 4
         return frame.astype(float)
 
     def _todict(self):
@@ -624,18 +632,24 @@ class _MaskedSequence(_WrapperSequence):
         self._outers = outers
         self._mask_dict = {}
         self._static_masks = []
-        for i, outer in self._outers:
+        for i, outer in enumerate(self._outers):
             if outer[0] is None:
                 self._static_masks.append(i)
             else:
-                for t in outer[0]:
+                times = [outer[0]] if isinstance(outer[0], int) else outer[0]
+                for t in times:
                     try:
-                        self._frame_dict[t].append(i)
+                        self._mask_dict[t].append(i)
                     except KeyError:
-                        self._frame_dict[t] = [i]
+                        self._mask_dict[t] = [i]
 
     def _apply_masks(self, frame, t):
-        for i in self._static_masks + self._frame_dict[t]:
+        masks = self._static_masks
+        try:
+            masks = masks + self._mask_dict[t]
+        except KeyError:
+            pass
+        for i in masks:
             outer = self._outers[i][1:]
             if len(outer) == 2:  # (zyx, channels)
                 if outer[0] is None:

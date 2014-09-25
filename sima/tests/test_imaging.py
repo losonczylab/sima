@@ -63,18 +63,6 @@ class TestImagingDataset(object):
                 ds.num_rows, ds.num_columns],
             [1, 1, 100, 128, 128])
 
-    def test_ImagingDataset_2d(self):
-        global tmp_dir
-
-        frames = [np.ones((128, 128)) for _ in range(100)]
-        filepath = os.path.join(tmp_dir, "test_ImagingDataset_2d")
-        ds = ImagingDataset(
-            [[frames]], os.path.join(tmp_dir, "test_ImagingDataset_2d.sima"))
-        assert_equal(
-            [ds.num_channels, ds.num_cycles, ds.num_frames,
-                ds.num_rows, ds.num_columns],
-            [1, 1, 100, 128, 128])
-
 
 if __name__ == "__main__":
     run_module_suite()
