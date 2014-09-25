@@ -29,7 +29,7 @@
 # For convenience, we have created iterable objects that can be used with
 # common data formats.
 
-import itertools
+import itertools as it
 import warnings
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
@@ -552,19 +552,27 @@ class _MotionCorrectedSequence(_WrapperSequence):
     def __len__(self):
         return len(self._base)  # Faster to calculate len without aligning
 
+    def _align(self, frame, displacement):
+        if displacement.ndim == 3:
+            return _align_frame(frame.astype(float), displacement,
+                                self._frame_shape)
+        elif displacement.ndim == 2:
+            out = np.nan * np.ones(self._frame_shape)
+            s = frame.shape[1:]
+            for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
+                out[p, disp[0]:(disp[0]+s[0]), disp[1]:(disp[1]+s[1])] = plane
+            return out
+
     @property
     def shape(self):
         return (len(self),) + self._frame_shape  # Avoid aligning image
 
     def __iter__(self):
-        for frame, displacement in itertools.izip(self._base,
-                                                  self.displacements):
-            yield _align_frame(
-                frame.astype(float), displacement, self._frame_shape)
+        for frame, displacement in it.izip(self._base, self.displacements):
+            yield self._align(frame, displacement)
 
     def _get_frame(self, t):
-        return _align_frame(self._base._get_frame(t).astype(float),
-                            self.displacements[t], self._frame_shape)
+        return self._align(self._base._get_frame(t), self.displacements[t])
 
     def __getitem__(self, indices):
         if len(indices) > 5:

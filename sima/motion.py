@@ -374,6 +374,8 @@ class _MCImagingDataset(ImagingDataset):
             with open(path, 'wb') as f:
                 pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         """
+
+        # make all the displacements non-negative
         min_disp = np.min(list(chain(*chain(*chain(*displacements)))), axis=0)
         return [disp - min_disp for disp in displacements]
 
@@ -987,7 +989,7 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
     if displacements.ndim == 2:
         for plane in range(raw_shape[0]):
             y, x = displacements[plane]
-            count[y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+            count[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
         return count
     elif displacements.ndim == 3:
         return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
