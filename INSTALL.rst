@@ -67,6 +67,7 @@ The easy_install tool can also be used::
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
 
+    $ cython sima/*.pyx
     $ python setup.py build
     $ sudo python setup.py install
 
