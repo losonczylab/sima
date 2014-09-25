@@ -84,11 +84,11 @@ class ROI(object):
     >>> from sima.ROI import ROI
     >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
     >>> roi.coords
-    [array([[ 0.,  0., 0.],
-           [ 0.,  1., 0.],
-           [ 1.,  1., 0.],
-           [ 1.,  0., 0.],
-           [ 0.,  0., 0.]])]
+    [array([[ 0.,  0.,  0.],
+           [ 0.,  1.,  0.],
+           [ 1.,  1.,  0.],
+           [ 1.,  0.,  0.],
+           [ 0.,  0.,  0.]])]
     >>> roi.mask[0].todense()
     matrix([[ True, False],
             [False, False]], dtype=bool)
@@ -481,8 +481,8 @@ def poly2mask(polygons, im_size):
         #assuming all points in the polygon share a z-coordinate
         z = int(np.array(poly.exterior.coords)[0][2])
         if z > im_size[0]:
-            warn('ROI with zero-coordinate {}'.format(z) +
-                 'cropped with im_size = {}'.format(im_size))
+            warn('Polygon with zero-coordinate {} '.format(z) +
+                 'cropped using im_size = {}'.format(im_size))
             continue
         x_min, y_min, x_max, y_max = poly.bounds
 
@@ -599,7 +599,7 @@ def _reformat_polygons(polygons):
         if poly.has_z:
             z_polygons.append(poly)
         else:
-            warn('Warning: Polygon initialized without z-coordinate. ' +
+            warn('Polygon initialized without z-coordinate. ' +
                  'Assigning to zeroth plane (z = 0)')
             z_polygons.append(
                 Polygon([point + (0,) for point in poly.exterior.coords]))
