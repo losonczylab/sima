@@ -45,10 +45,11 @@ class ImagingDataset(object):
 
     >>> for sequence in dataset:
     ...     for frame in sequence:
-    ...         for row in frame:
-    ...             for column in row:
-    ...                 for channel in column:
-    ...                     pass
+    ...         for plane in frame:
+    ...             for row in plane:
+    ...                 for column in row:
+    ...                     for channel in column:
+    ...                         pass
 
     Datasets can also be indexed and sliced.
 
