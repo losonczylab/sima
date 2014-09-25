@@ -8,21 +8,21 @@ if 'setuptools' in sys.modules or any(
 else:
     from distutils.core import setup as setup
 
-# from distutils.extension import Extension
-# import numpy
+from distutils.extension import Extension
+import numpy
 
-# extensions = [
-#     Extension(
-#         'sima._motion',
-#         include_dirs=[numpy.get_include()],
-#         sources=['sima/_motion.c']
-#     ),
-#     Extension(
-#         'sima._opca',
-#         include_dirs=[numpy.get_include()],
-#         sources=['sima/_opca.c']
-#     )
-# ]
+extensions = [
+    Extension(
+        'sima._motion',
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_motion.c']
+    ),
+    Extension(
+        'sima._opca',
+        include_dirs=[numpy.get_include()],
+        sources=['sima/_opca.c']
+    )
+]
 
 CLASSIFIERS = """\
 Development Status :: 4 - Beta
@@ -67,7 +67,7 @@ setup(
     license="GNU GPLv2",
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-    # ext_modules=extensions,
+    ext_modules=extensions,
     # setup_requires=['setuptools_cython'],
     url="http://www.losonczylab.org/sima/",
     platforms=["Linux", "Mac OS-X", "Windows"],
