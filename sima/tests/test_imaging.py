@@ -55,13 +55,13 @@ class TestImagingDataset(object):
     def test_ImagingDataset_3d(self):
         global tmp_dir
 
-        frames = np.ones((100, 128, 128))
+        from sima import Sequence
+        from sima.misc import example_hdf5
+        path = example_hdf5()
+        seq = Sequence.create('HDF5', path, 'yxt')
         filepath = os.path.join(tmp_dir, "test_ImagingDataset_3d.sima")
-        ds = ImagingDataset([[frames]], filepath)
-        assert_equal(
-            [ds.num_channels, ds.num_cycles, ds.num_frames,
-                ds.num_rows, ds.num_columns],
-            [1, 1, 100, 128, 128])
+        ds = ImagingDataset([seq, seq], filepath)
+        assert_equal((ds.num_sequences,) + ds.frame_shape, (2, 1, 128, 256, 1))
 
 
 if __name__ == "__main__":
