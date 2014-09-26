@@ -460,7 +460,8 @@ class _Sequence_HDF5(_IndexableSequence):
         for i, v in [(self._Z_DIM, 0), (self._Y_DIM, 1),
                      (self._X_DIM, 2), (self._C_DIM, 3)]:
             if i >= 0:
-                swapper[i] = v
+                j = i if self._T_DIM > i else i - 1
+                swapper[j] = v
             else:
                 swapper.append(v)
                 frame = np.expand_dims(frame, -1)
