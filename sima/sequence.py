@@ -174,7 +174,7 @@ class Sequence(object):
 
         Parameters
         ----------
-        fmt : {'HDF5', 'TIFF'}
+        fmt : {'HDF5', 'TIFF', 'ndarray'}
             The format of the data used to create the Sequence.
         *args, **kwargs
             Additional arguments depending on the data format.
@@ -241,11 +241,20 @@ class Sequence(object):
         only be moved if the ImagingDataset path is also moved
         such that they retain the same relative position.
 
+
+        **ndarray**
+
+        array : numpy.ndarray
+            A numpy array of shape (num_frames, num_planes, num_rows,
+            num_columns, num_channels)
+
         """
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
         elif fmt == 'TIFF':
             return _Sequence_TIFF_Interleaved(*args, **kwargs)
+        elif fmt == 'ndarray':
+            return _Sequence_ndarray(*args, **kwargs)
         else:
             raise ValueError('Unrecognized format')
 
@@ -390,58 +399,18 @@ class _IndexableSequence(Sequence):
     #     pass
 
 
-# class _SequenceMultipageTIFF(_BaseSequence):
-#
-#     """
-#     Iterable for a multi-page TIFF file in which the pages
-#     correspond to sequentially acquired image frames.
-#
-#     Parameters
-#     ----------
-#     paths : list of str
-#         The TIFF filenames, one per channel.
-#     clip : tuple of tuple of int, optional
-#         The number of rows/columns to clip from each edge
-#         in order ((top, bottom), (left, right)).
-#
-#     Warning
-#     -------
-#     Moving the TIFF files may make this iterable unusable
-#     when the ImagingDataset is reloaded. The TIFF file can
-#     only be moved if the ImagingDataset path is also moved
-#     such that they retain the same relative position.
-#
-#     """
-#
-#     def __init__(self, paths, clip=None):
-#         super(MultiPageTIFF, self).__init__(clip)
-#         self.path = abspath(path)
-#         if not libtiff_available:
-#             self.stack = TiffFile(self.path)
-#
-#     def __len__(self):
-# TODO: remove this and just use
-#         if libtiff_available:
-#             tiff = TIFF.open(self.path, 'r')
-#             l = sum(1 for _ in tiff.iter_images())
-#             tiff.close()
-#             return l
-#         else:
-#             return len(self.stack.pages)
-#
-#     def __iter__(self):
-#         if libtiff_available:
-#             tiff = TIFF.open(self.path, 'r')
-#             for frame in tiff.iter_images():
-#                 yield frame
-#         else:
-#             for frame in self.stack.pages:
-#                 yield frame.asarray(colormapped=False)
-#         if libtiff_available:
-#             tiff.close()
-#
-#     def _todict(self):
-#         return {'path': self.path, 'clip': self._clip}
+class _Sequence_ndarray(_IndexableSequence):
+    def __init__(self, array):
+        self._array = array
+
+    def __len__(self):
+        return len(self._array)
+
+    def _get_frame(self, t):
+        return self._array[t]
+
+    def _todict(self):
+        return {'__class__': self.__class__, 'array': self._array}
 
 
 class _Sequence_HDF5(_IndexableSequence):
