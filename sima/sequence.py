@@ -29,7 +29,8 @@
 # For convenience, we have created iterable objects that can be used with
 # common data formats.
 
-import itertools
+
+import itertools as it
 import warnings
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
@@ -131,16 +132,23 @@ class Sequence(object):
 
         Mask out frame 3 entirely:
 
-        >>> masked_seq = seq.mask([(3, None, None)]
+        >>> from sima import Sequence
+        >>> from sima.misc import example_hdf5
+        >>> path = example_hdf5()
+        >>> seq = Sequence.create('HDF5', path, 'yxt')
+        >>> masked_seq = seq.mask([(3, None, None)])
+        >>> [np.all(np.isnan(frame))
+        ...  for i, frame in enumerate(masked_seq) if i < 5]
+        [False, False, False, True, False]
 
         Mask out plane 0 of frame 3:
 
-        >>> masked_seq = seq.mask([(3, 0, None, None)]
+        >>> masked_seq = seq.mask([(3, 0, None, None)])
 
         Mask out certain pixels at all times in channel 0.
 
         >>> mask = np.random.binomial(1, 0.5, seq.shape[1:-1])
-        >>> masked_seq = seq.mask([(None, mask, 0)]
+        >>> masked_seq = seq.mask([(None, mask, 0)])
 
         """
         return _MaskedSequence(self, masks)
@@ -166,7 +174,7 @@ class Sequence(object):
 
         Parameters
         ----------
-        fmt : {'HDF5', 'TIFF'}
+        fmt : {'HDF5', 'TIFF', 'ndarray'}
             The format of the data used to create the Sequence.
         *args, **kwargs
             Additional arguments depending on the data format.
@@ -202,8 +210,12 @@ class Sequence(object):
             the imaging data. This can be omitted if the HDF5
             group contains only a single key.
 
-        >>> from sima.sequence import Sequence
-        >>> Sequence.create('HDF5', 'path.h5', 'tzyxc')
+        >>> from sima import Sequence
+        >>> from sima.misc import example_hdf5
+        >>> path = example_hdf5()
+        >>> seq = Sequence.create('HDF5', path, 'yxt')
+        >>> seq.shape
+        (20, 1, 128, 256, 1)
 
         Warning
         -------
@@ -229,11 +241,20 @@ class Sequence(object):
         only be moved if the ImagingDataset path is also moved
         such that they retain the same relative position.
 
+
+        **ndarray**
+
+        array : numpy.ndarray
+            A numpy array of shape (num_frames, num_planes, num_rows,
+            num_columns, num_channels)
+
         """
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
         elif fmt == 'TIFF':
             return _Sequence_TIFF_Interleaved(*args, **kwargs)
+        elif fmt == 'ndarray':
+            return _Sequence_ndarray(*args, **kwargs)
         else:
             raise ValueError('Unrecognized format')
 
@@ -378,58 +399,18 @@ class _IndexableSequence(Sequence):
     #     pass
 
 
-# class _SequenceMultipageTIFF(_BaseSequence):
-#
-#     """
-#     Iterable for a multi-page TIFF file in which the pages
-#     correspond to sequentially acquired image frames.
-#
-#     Parameters
-#     ----------
-#     paths : list of str
-#         The TIFF filenames, one per channel.
-#     clip : tuple of tuple of int, optional
-#         The number of rows/columns to clip from each edge
-#         in order ((top, bottom), (left, right)).
-#
-#     Warning
-#     -------
-#     Moving the TIFF files may make this iterable unusable
-#     when the ImagingDataset is reloaded. The TIFF file can
-#     only be moved if the ImagingDataset path is also moved
-#     such that they retain the same relative position.
-#
-#     """
-#
-#     def __init__(self, paths, clip=None):
-#         super(MultiPageTIFF, self).__init__(clip)
-#         self.path = abspath(path)
-#         if not libtiff_available:
-#             self.stack = TiffFile(self.path)
-#
-#     def __len__(self):
-# TODO: remove this and just use
-#         if libtiff_available:
-#             tiff = TIFF.open(self.path, 'r')
-#             l = sum(1 for _ in tiff.iter_images())
-#             tiff.close()
-#             return l
-#         else:
-#             return len(self.stack.pages)
-#
-#     def __iter__(self):
-#         if libtiff_available:
-#             tiff = TIFF.open(self.path, 'r')
-#             for frame in tiff.iter_images():
-#                 yield frame
-#         else:
-#             for frame in self.stack.pages:
-#                 yield frame.asarray(colormapped=False)
-#         if libtiff_available:
-#             tiff.close()
-#
-#     def _todict(self):
-#         return {'path': self.path, 'clip': self._clip}
+class _Sequence_ndarray(_IndexableSequence):
+    def __init__(self, array):
+        self._array = array
+
+    def __len__(self):
+        return len(self._array)
+
+    def _get_frame(self, t):
+        return self._array[t]
+
+    def _todict(self):
+        return {'__class__': self.__class__, 'array': self._array}
 
 
 class _Sequence_HDF5(_IndexableSequence):
@@ -473,22 +454,25 @@ class _Sequence_HDF5(_IndexableSequence):
 
     def _get_frame(self, t):
         """Get the frame at time t, but not clipped"""
-        slices = [slice(None) for _ in range(len(self._dataset.shape))]
-        swapper = [None for _ in range(len(self._dataset.shape))]
-        if self._Z_DIM > -1:
-            swapper[self._Z_DIM] = 0
-        swapper[self._Y_DIM] = 1
-        swapper[self._X_DIM] = 2
-        if self._C_DIM > -1:
-            swapper[self._C_DIM] = 3
-        swapper = filter(lambda x: x is not None, swapper)
-        slices[self._T_DIM] = t
-        frame = self._dataset[tuple(slices)]
+        slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
+        frame = self._dataset[slices]
+        swapper = [None for _ in range(frame.ndim)]
+        for i, v in [(self._Z_DIM, 0), (self._Y_DIM, 1),
+                     (self._X_DIM, 2), (self._C_DIM, 3)]:
+            if i >= 0:
+                j = i if self._T_DIM > i else i - 1
+                swapper[j] = v
+            else:
+                swapper.append(v)
+                frame = np.expand_dims(frame, -1)
+        assert not any(s is None for s in swapper)
         for i in range(frame.ndim):
-            idx = np.argmin(swapper[i:]) + i
+            idx = swapper.index(i)
             if idx != i:
                 swapper[i], swapper[idx] = swapper[idx], swapper[i]
-                frame.swapaxes(i, idx)
+                frame = frame.swapaxes(i, idx)
+        assert swapper == [0, 1, 2, 3]
+        assert frame.ndim == 4
         return frame.astype(float)
 
     def _todict(self):
@@ -552,19 +536,27 @@ class _MotionCorrectedSequence(_WrapperSequence):
     def __len__(self):
         return len(self._base)  # Faster to calculate len without aligning
 
+    def _align(self, frame, displacement):
+        if displacement.ndim == 3:
+            return _align_frame(frame.astype(float), displacement,
+                                self._frame_shape)
+        elif displacement.ndim == 2:
+            out = np.nan * np.ones(self._frame_shape)
+            s = frame.shape[1:]
+            for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
+                out[p, disp[0]:(disp[0]+s[0]), disp[1]:(disp[1]+s[1])] = plane
+            return out
+
     @property
     def shape(self):
         return (len(self),) + self._frame_shape  # Avoid aligning image
 
     def __iter__(self):
-        for frame, displacement in itertools.izip(self._base,
-                                                  self.displacements):
-            yield _align_frame(
-                frame.astype(float), displacement, self._frame_shape)
+        for frame, displacement in it.izip(self._base, self.displacements):
+            yield self._align(frame, displacement)
 
     def _get_frame(self, t):
-        return _align_frame(self._base._get_frame(t).astype(float),
-                            self.displacements[t], self._frame_shape)
+        return self._align(self._base._get_frame(t), self.displacements[t])
 
     def __getitem__(self, indices):
         if len(indices) > 5:
@@ -616,18 +608,24 @@ class _MaskedSequence(_WrapperSequence):
         self._outers = outers
         self._mask_dict = {}
         self._static_masks = []
-        for i, outer in self._outers:
+        for i, outer in enumerate(self._outers):
             if outer[0] is None:
                 self._static_masks.append(i)
             else:
-                for t in outer[0]:
+                times = [outer[0]] if isinstance(outer[0], int) else outer[0]
+                for t in times:
                     try:
-                        self._frame_dict[t].append(i)
+                        self._mask_dict[t].append(i)
                     except KeyError:
-                        self._frame_dict[t] = [i]
+                        self._mask_dict[t] = [i]
 
     def _apply_masks(self, frame, t):
-        for i in self._static_masks + self._frame_dict[t]:
+        masks = self._static_masks
+        try:
+            masks = masks + self._mask_dict[t]
+        except KeyError:
+            pass
+        for i in masks:
             outer = self._outers[i][1:]
             if len(outer) == 2:  # (zyx, channels)
                 if outer[0] is None:

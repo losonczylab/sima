@@ -333,7 +333,7 @@ class _MCImagingDataset(ImagingDataset):
         references, variances, offset = self._whole_frame_shifting(
             shifts, correlations)
         gains = nanmedian(
-            (references / variances).reshape(-1, references.shape[-1]))
+            (variances / references).reshape(-1, references.shape[-1]))
         # gains = self._estimate_gains(references, offset,
         #                              shifts.astype(int), correlations)
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
@@ -379,6 +379,8 @@ class _MCImagingDataset(ImagingDataset):
             with open(path, 'wb') as f:
                 pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         """
+
+        # make all the displacements non-negative
         min_disp = np.min(list(chain(*chain(*chain(*displacements)))), axis=0)
         return [disp - min_disp for disp in displacements]
 
@@ -839,7 +841,7 @@ def _align_frame(inputs):
     are updated.
 
     """
-    
+
     frame_idx, frame, cycle_idx, method = inputs
 
     # Pulls in the shared namespace and lock across all processes
@@ -985,9 +987,10 @@ def _frame_alignment_correlation(
     global namespace
     global lock
     namespace = multiprocessing.Manager().Namespace()
-    namespace.offset = np.array([0, 0])
-    namespace.pixel_counts = np.zeros(sequences[0].shape[1:])
-    namespace.pixel_sums = np.zeros(sequences[0].shape[1:])
+    namespace.offset = np.zeros(2, dtype=int)
+    namespace.pixel_counts = np.zeros(sequences[0].shape[1:])  # TODO: int?
+    namespace.pixel_sums = np.zeros(sequences[0].shape[1:]).astype('float64')
+    # NOTE: float64 gives nan when divided by 0
     namespace.shifts = [
         np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
     namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
@@ -1006,7 +1009,22 @@ def _frame_alignment_correlation(
     pool.close()
     pool.join()
 
-    return namespace.shifts, [c.astype(float) for c in namespace.correlations]
+    def _align_planes(shifts):
+        """Align planes to minimize shifts between them."""
+        mean_shift = np.nanmean(list(chain(*chain(*shifts))), axis=0)
+        alteration = (mean_shift - mean_shift[0]).astype(int)  # (num_planes, dim)
+        for seq in shifts:
+            seq -= alteration
+
+    shifts = namespace.shifts
+    _align_planes(shifts)
+
+    # make all the shifts non-negative
+    min_shift = np.min(list(chain(*chain(*shifts))), axis=0)
+    shifts = [s - min_shift for s in shifts]
+
+    # return namespace.shifts, [c.astype(float) for c in namespace.correlations]
+    return shifts, namespace.correlations
 
 
 def frame_alignment(
@@ -1057,7 +1075,7 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
     if displacements.ndim == 2:
         for plane in range(raw_shape[0]):
             y, x = displacements[plane]
-            count[y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+            count[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
         return count
     elif displacements.ndim == 3:
         return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
