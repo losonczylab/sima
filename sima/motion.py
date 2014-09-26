@@ -328,7 +328,7 @@ class _MCImagingDataset(ImagingDataset):
         references, variances, offset = self._whole_frame_shifting(
             shifts, correlations)
         gains = nanmedian(
-            (references / variances).reshape(-1, references.shape[-1]))
+            (variances / references).reshape(-1, references.shape[-1]))
         # gains = self._estimate_gains(references, offset,
         #                              shifts.astype(int), correlations)
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
