@@ -1397,9 +1397,11 @@ class UI_tSeries(QListWidgetItem):
         self.dataset = ImagingDataset.load(sima_path)
         self.parent = parent
 
-        self.shape = self.dataset.time_averages[0].shape
+        self.num_planes = self.dataset.frame_shape[0]
+        self.shape = self.dataset.frame_shape[1:3]
         self.transform_shape = tuple(3 * np.array(self.shape))
         self.active_channel = self.dataset.channel_names[0]
+        self.active_plane = 0
 
         # Lock ROI ids
         self.roi_id_lock = False
@@ -1421,12 +1423,14 @@ class UI_tSeries(QListWidgetItem):
 
     def initialize_base_images(self):
         self.base_images = {}
-        for name, img in zip(
-                self.dataset.channel_names, self.dataset.time_averages):
-            self.base_images[name] = img
+        for channel_name in self.dataset.channel_names:
+            self.base_images[channel_name] = []
+        for plane in self.dataset.time_averages:
+            for ch_idx in np.arange(plane.shape[2]):
+                self.base_images[self.dataset.channel_names[ch_idx]].append(
+                    plane[:, :, ch_idx])
 
     def show(self):
-
         try:
             self.parent.plot.del_item(self.parent.base_im)
         except AttributeError:
@@ -1436,6 +1440,7 @@ class UI_tSeries(QListWidgetItem):
             self.parent.base_im = None
 
         channel_name = self.active_channel
+        plane_idx = self.active_plane
 
         if self.parent.processed_checkbox.isChecked():
             key = 'processed_' + channel_name
@@ -1444,10 +1449,9 @@ class UI_tSeries(QListWidgetItem):
                 self.base_images[key] = _processed_image_ca1pc(
                     self.dataset, channel_idx=channel_idx, x_diameter=14,
                     y_diameter=7)
-                #TODO: should radius be None?
             data = self.base_images[key]
         else:
-            data = self.base_images[channel_name]
+            data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
             data = transform_array(data, self.transform(self),
