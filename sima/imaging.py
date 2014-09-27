@@ -55,7 +55,7 @@ class ImagingDataset(object):
 
     >>> dataset[0].num_sequences
     1
-    >>> dataset[:, 0].num_chanels
+    >>> dataset[:, 0].num_frames
     1
 
     The resulting sliced datasets are not saved by default.
