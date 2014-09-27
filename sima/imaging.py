@@ -159,11 +159,15 @@ class ImagingDataset(object):
             self._save(self.savedir)
 
     def __getitem__(self, indices):
-
+        if isinstance(indices, int):
+            return ImagingDataset([self.sequences[indices]], None,
+                                  info=self.info)
+        indices = list(indices)
         seq_indices = indices.pop(0)
-        sequences = [
-            [seq[indices] for seq in self][seq_indices]
-        ]
+        if isinstance(seq_indices, int):
+            seq_indices = slice(seq_indices, seq_indices + 1)
+        sequences = [seq[tuple(indices)] for seq in self.sequences][
+            seq_indices]
         return ImagingDataset(sequences, None, info=self.info)
 
     @property
