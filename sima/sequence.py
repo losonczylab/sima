@@ -168,6 +168,10 @@ class Sequence(object):
         """
         return np.concatenate(np.expand_dims(x, 0) for x in self)
 
+    @staticmethod
+    def join(sequences):
+        return _Joined_Sequence(sequences)
+
     @classmethod
     def create(cls, fmt, *args, **kwargs):
         """Create a Sequence object.
@@ -483,6 +487,53 @@ class _Sequence_HDF5(_IndexableSequence):
             'group': self._group.name,
             'key': self._key,
         }
+
+
+class _Joined_Sequence(Sequence):
+
+    def __init__(self, sequences):
+        shape = None
+        num_channels = 0
+        self._sequences = sequences
+        for seq in sequences:
+            if shape is None:
+                shape = seq.shape[:-1]
+            if not shape == seq.shape[:-1]:
+                raise ValueError(
+                    'Sequences being joined must have the same number '
+                    'of frames, planes, rows, and columns.')
+            num_channels += seq.shape[-1]
+        self._shape = shape + (num_channels,)
+
+    def __len__(self):
+        return self._shape[0]
+
+    @property
+    def shape(self):
+        return self._shape
+
+    def __iter__(self):
+        for frames in it.izip(self._sequences):
+            yield np.concatenate(frames, axis=4)
+
+    def _get_frame(self, t):
+        return np.concatenate([seq._get_frame(t) for seq in self._sequences],
+                              axis=4)
+
+    def _todict(self):
+        return {
+            '__class__': self.__class__,
+            'sequences': [s._todict() for s in self._sequences],
+        }
+
+    @classmethod
+    def _from_dict(cls, d, savedir=None):
+        sequences = []
+        for s in d.pop('sequences'):
+            seq_dict = s.pop('base')
+            seq_class = seq_dict.pop('__class__')
+            sequences.append(seq_class._from_dict(seq_dict, savedir))
+        return cls(sequences)
 
 
 class _WrapperSequence(Sequence):
