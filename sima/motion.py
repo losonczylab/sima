@@ -426,7 +426,8 @@ class _MCImagingDataset(ImagingDataset):
         assert np.all(var_est > 0)
         return mean_est, var_est
 
-    def _correlation_based_correction(self, max_displacement=None, n_processes=None):
+    def _correlation_based_correction(
+            self, max_displacement=None, n_processes=None):
         return _frame_alignment_correlation(
             self.sequences, max_displacement, n_processes=n_processes)
 
@@ -487,92 +488,6 @@ class _MCImagingDataset(ImagingDataset):
             assert not np.any(variances < 0)
         offset = - min_shifts
         return reference, variances, offset
-
-    # def _estimate_gains(self, references, offset, shifts, correlations):
-    #     """Estimate the photon-pixel transformation gain for each channel
-
-    #     Parameters
-    #     ----------
-    #     references : array
-    #         Time average of each channel after frame-by-frame alignment.
-    #         Shape: (num_channels, num_rows, num_columns)
-    #     offset : array
-    #         The displacement to add to each shift to align the minimal shift
-    #         with the edge of the corrected image.
-    #     shifts : array
-    #         The estimated shifts for each frame.  Shape: (2, T).
-    #     correlations : array
-    #         Intensity correlations between shifted frames and reference.
-
-    #     Returns
-    #     -------
-    #     array
-    #         The photon-to-intensity gains for each channel.
-    #     """
-    #     corr_means = np.nanmean(list(chain(*correlations)), axis=0)
-    #     corr_stdevs = np.nanstd(list(chain(*correlations)), axis=0)
-
-    #     # Calculate displacements between consecutive images
-    #     diffs = np.diff(shifts, axis=1)
-    #     # Threshold the gradient of the smoothed reference image to minimize
-    #     # estimation errors due to uncorrected movements
-    #     smooth_references = np.array([gaussian_filter(chan, sigma=1)
-    #                                   for chan in references])
-    #     grad_below_threshold = _threshold_gradient(smooth_references)
-    #     # Initialize variables for the loop
-    #     count = np.zeros(self.num_channels)
-    #     sum_estimates = np.zeros(self.num_channels)
-    #     sum_square_estimates = np.zeros(self.num_channels)
-    #     im2 = None
-    #     t = - 1
-    #     for cycle in self:
-    #         for frame_idx, frame in enumerate(cycle):
-    #             im1 = im2
-    #             im2 = np.concatenate([np.expand_dims(x, 0) for x in frame],
-    #                                  axis=0).astype(float)
-    #             if frame_idx > 0 and (
-    #                     correlations[t + 1] > corr_mean - 2 * corr_stdev and
-    #                     correlations[t] > corr_mean - 2 * corr_stdev):
-    #                 # calculate the coordinates of the overlap of the images
-    #                 im1_min_coords = np.maximum(diffs[:, t], 0)
-    #                 im1_max_coords = im1.shape[1:] + np.minimum(diffs[:, t], 0)
-    #                 im2_min_coords = np.maximum(-diffs[:, t], 0)
-    #                 im2_max_coords = im1.shape[1:] + np.minimum(
-    #                     -diffs[:, t], 0)
-    #                 # select the overlap regions
-    #                 x0 = im1[:, im1_min_coords[0]:im1_max_coords[0],
-    #                          im1_min_coords[1]:im1_max_coords[1]]
-    #                 x1 = im2[:, im2_min_coords[0]:im2_max_coords[0],
-    #                          im2_min_coords[1]:im2_max_coords[1]]
-    #                 # Include only values where x0 > x1 because the calcium
-    #                 # signal increases more quickly than it decays)
-    #                 scaling_estimates = ((x1 - x0) ** 2) / (x1 + x0)
-    #                 scaling_estimates = scaling_estimates * (x0 > x1)
-    #                 shifted_thresholds = grad_below_threshold[
-    #                     :,
-    #                     (im1_min_coords[0] + shifts[0, t] + offset[0]):
-    #                     (im1_max_coords[0] + shifts[0, t] + offset[0]),
-    #                     (im1_min_coords[1] + shifts[1, t] + offset[1]):
-    #                     (im1_max_coords[1] + shifts[1, t] + offset[1])]
-    #                 # Discard if grad > threshold
-    #                 scaling_estimates = scaling_estimates * shifted_thresholds
-    #                 sum_estimates += np.nansum(
-    #                     np.nansum(scaling_estimates, axis=2), axis=1)
-    #                 sum_square_estimates += np.nansum(np.nansum(
-    #                     scaling_estimates ** 2, axis=2), axis=1)
-    #                 # Keep track of which indices provide valid estimates
-    #                 valid_matrix = np.isfinite(scaling_estimates) * (
-    #                     x0 > x1) * shifted_thresholds
-    #                 # update the count of the number of estimates
-    #                 count += valid_matrix.sum(axis=2).sum(axis=1)
-    #                 mean_est = sum_estimates / count
-    #                 var_est = ((sum_square_estimates / count) - (mean_est ** 2)
-    #                            ) / count
-    #                 # Stop if rel error below threshold and >10 frames examined
-    #                 if np.all(np.sqrt(var_est) / mean_est < 0.01) and t > 10:
-    #                     break
-    #             t += 1  # increment time
-    #     return sum_estimates / count
 
 
 class _MotionSequence(_WrapperSequence):
@@ -708,7 +623,8 @@ class _MotionSequence(_WrapperSequence):
         t = 0
         log_p_old = None  # for flaking purposes; does nothing
         for frame in iter_processed:
-            for plane, log_plane_fac, log_plane_p, plane_ref, log_plane_ref, stbl in izip(
+            for (plane, log_plane_fac, log_plane_p, plane_ref, log_plane_ref,
+                 stbl) in izip(
                     *(frame + (scaled_refs, log_scaled_refs, slice_tbls))):
                 for row_idx, row in enumerate(plane):
                     if t == 0:
@@ -808,7 +724,8 @@ def hmm(sequences, savedir, channel_names=None, info=None,
     else:
         mc_sequences = sequences
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
-        num_states_retained, max_displacement, verbose, n_processes=n_processes)
+        num_states_retained, max_displacement, verbose,
+        n_processes=n_processes)
     max_disp = np.max(list(chain(*chain(*chain(*displacements)))), axis=0)
     frame_shape = np.array(sequences[0].shape)[1:]
     frame_shape[1:3] += max_disp
@@ -895,7 +812,6 @@ def _align_frame(inputs):
                 axis=2)
             offset += l
         assert pixel_sums.ndim == 4
-        # assert np.prod(pixel_sums.shape) < 4 * np.prod(sequences[0].shape[1:])
         assert np.prod(pixel_sums.shape) < 4 * np.prod(frame_shape)
         return pixel_sums, pixel_counts, offset
 
@@ -1017,7 +933,8 @@ def _frame_alignment_correlation(
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
         mean_shift = np.nanmean(list(chain(*chain(*shifts))), axis=0)
-        alteration = (mean_shift - mean_shift[0]).astype(int)  # (num_planes, dim)
+        # calculate alteration of shape (num_planes, dim)
+        alteration = (mean_shift - mean_shift[0]).astype(int)
         for seq in shifts:
             seq -= alteration
 
@@ -1028,7 +945,6 @@ def _frame_alignment_correlation(
     min_shift = np.min(list(chain(*chain(*shifts))), axis=0)
     shifts = [s - min_shift for s in shifts]
 
-    # return namespace.shifts, [c.astype(float) for c in namespace.correlations]
     return shifts, namespace.correlations
 
 

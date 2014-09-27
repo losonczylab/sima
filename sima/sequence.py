@@ -301,7 +301,8 @@ class Sequence(object):
             if not h5py_available:
                 raise ImportError('h5py >= 2.3.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty(self.shape, dtype='uint16')  # TODO: change dtype?
+            output_array = np.empty(self.shape, dtype='uint16')
+            # TODO: change dtype?
 
         if fill_gaps:
             save_frames = _fill_gaps(iter(self), iter(self))

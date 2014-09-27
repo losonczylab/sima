@@ -233,7 +233,7 @@ class ROI(object):
                     masks.append(m)
                 if z_idx + 1 == self.im_shape[0]:
                     break
-            #Note: length of output = self.im_shape[0]
+            # Note: length of output = self.im_shape[0]
             while len(masks) < self.im_shape[0]:
                 masks.append(lil_matrix(self.im_shape[1:], dtype=mask.dtype))
             return masks
@@ -478,7 +478,7 @@ def poly2mask(polygons, im_size):
 
     mask = np.zeros(im_size, dtype=bool)
     for poly in polygons:
-        #assuming all points in the polygon share a z-coordinate
+        # assuming all points in the polygon share a z-coordinate
         z = int(np.array(poly.exterior.coords)[0][2])
         if z > im_size[0]:
             warn('Polygon with zero-coordinate {} '.format(z) +
@@ -577,7 +577,7 @@ def _reformat_polygons(polygons):
     if isinstance(polygons, Polygon):
         polygons = [polygons]
     elif isinstance(polygons[0], Polygon):
-        #polygons is already a list of polygons
+        # polygons is already a list of polygons
         pass
     else:
         # We got some sort of sequence of sequences, ensure it has the
@@ -593,7 +593,7 @@ def _reformat_polygons(polygons):
             new_polygons.append(Polygon(poly).simplify(tolerance=0))
         polygons = new_polygons
 
-    #Polygon.exterior.coords is not settable, need to initialize new objects
+    # Polygon.exterior.coords is not settable, need to initialize new objects
     z_polygons = []
     for poly in polygons:
         if poly.has_z:
@@ -621,7 +621,7 @@ def _reformat_mask(mask):
         assumed to follow a (y, x) convention)
     """
     if isinstance(mask, np.ndarray):
-        #user passed in a 2D or 3D np.array
+        # user passed in a 2D or 3D np.array
         if mask.ndim == 2:
             mask = [lil_matrix(mask, dtype=mask.dtype)]
         elif mask.ndim == 3:
@@ -632,7 +632,7 @@ def _reformat_mask(mask):
         else:
             raise ValueError('numpy ndarray must be either 2 or 3 dimensions')
     elif issparse(mask):
-        #user passed in a single lil_matrix
+        # user passed in a single lil_matrix
         mask = [lil_matrix(mask)]
     else:
         new_mask = []
