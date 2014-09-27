@@ -301,7 +301,7 @@ class _MCImagingDataset(ImagingDataset):
 
     def estimate_displacements(
             self, num_states_retained=50, max_displacement=None,
-            verbose=True, path=None):
+            verbose=True, path=None, n_processes=None):
         """Estimate and save the displacements for the time series.
 
         Parameters
@@ -329,7 +329,7 @@ class _MCImagingDataset(ImagingDataset):
             max_displacement = np.array([-1, -1])
 
         shifts, correlations = self._correlation_based_correction(
-            max_displacement=max_displacement)
+            max_displacement=max_displacement, n_processes=n_processes)
         references, variances, offset = self._whole_frame_shifting(
             shifts, correlations)
         gains = nanmedian(
@@ -426,8 +426,9 @@ class _MCImagingDataset(ImagingDataset):
         assert np.all(var_est > 0)
         return mean_est, var_est
 
-    def _correlation_based_correction(self, max_displacement=None):
-        return _frame_alignment_correlation(self.sequences, max_displacement)
+    def _correlation_based_correction(self, max_displacement=None, n_processes=None):
+        return _frame_alignment_correlation(
+            self.sequences, max_displacement, n_processes=n_processes)
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -748,7 +749,8 @@ class _MotionSequence(_WrapperSequence):
 
 def hmm(sequences, savedir, channel_names=None, info=None,
         num_states_retained=50, max_displacement=None,
-        correction_channels=None, trim_criterion=None, verbose=True):
+        correction_channels=None, trim_criterion=None, verbose=True,
+        n_processes=None):
     """
     Create a motion-corrected ImagingDataset using a row-wise hidden
     Markov model (HMM).
@@ -806,7 +808,7 @@ def hmm(sequences, savedir, channel_names=None, info=None,
     else:
         mc_sequences = sequences
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
-        num_states_retained, max_displacement, verbose)
+        num_states_retained, max_displacement, verbose, n_processes=n_processes)
     max_disp = np.max(list(chain(*chain(*chain(*displacements)))), axis=0)
     frame_shape = np.array(sequences[0].shape)[1:]
     frame_shape[1:3] += max_disp
@@ -991,19 +993,22 @@ def _frame_alignment_correlation(
     namespace.pixel_counts = np.zeros(sequences[0].shape[1:])  # TODO: int?
     namespace.pixel_sums = np.zeros(sequences[0].shape[1:]).astype('float64')
     # NOTE: float64 gives nan when divided by 0
-    namespace.shifts = [
-        np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
-    namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
+    if n_pools > 1:
+        namespace.shifts = [
+            np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
+        namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
 
-    lock = multiprocessing.Lock()
-    pool = multiprocessing.Pool(processes=n_pools)
+        lock = multiprocessing.Lock()
+        pool = multiprocessing.Pool(processes=n_pools)
 
     for cycle_idx, cycle in izip(count(), sequences):
-        pool.map(_align_frame,
-                 izip(count(), cycle, repeat(cycle_idx), repeat(method)),
-                 chunksize=1 + len(cycle) / n_pools)
-        # map(_align_frame,
-        #     izip(count(), cycle, repeat(cycle_idx), repeat(method)))
+        if n_processes > 1:
+            pool.map(_align_frame,
+                     izip(count(), cycle, repeat(cycle_idx), repeat(method)),
+                     chunksize=1 + len(cycle) / n_pools)
+        else:
+            map(_align_frame,
+                izip(count(), cycle, repeat(cycle_idx), repeat(method)))
 
     # TODO: align planes to minimize shifts between them
     pool.close()
