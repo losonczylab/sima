@@ -213,7 +213,7 @@ class ROI(object):
         if self._mask is None and self.im_shape is None:
             raise Exception('Polygon ROIs must have an im_shape set')
         if self._mask is not None:
-            if self._mask.shape == self.im_shape:
+            if self.im_shape is None or self._mask.shape == self.im_shape:
                 return self._mask
             else:
                 mask = lil_matrix(self.im_shape, dtype=self._mask.dtype)

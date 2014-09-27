@@ -13,9 +13,18 @@ except ImportError:
 else:
     cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
 
+from scipy import nanmean
+try:
+    from sklearn.decomposition import FastICA
+except ImportError:
+    SKLEARN_AVAILABLE = False
+else:
+    SKLEARN_AVAILABLE = True
+
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
+from scipy.ndimage import measurements
 
 try:
     import sima._opca as _opca
@@ -464,7 +473,7 @@ def normcut(
 
     Notes
     -----
-    The normalized cut procedure [1]_ is iteratively applied, first to the
+    The normalized cut procedure [3]_ is iteratively applied, first to the
     entire image, and then to each cut made from the previous application of
     the procedure.
 
@@ -484,7 +493,7 @@ def normcut(
 
     References
     ----------
-    .. [1] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
+    .. [3] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
        Segmentation.  IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
 
@@ -566,3 +575,489 @@ def ca1pc(
     return _rois_from_cuts(cuts, 'ca1pc', dataset, circularity_threhold,
                            min_roi_size, min_cut_size, channel, x_diameter,
                            y_diameter)
+
+
+def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
+    """Perform spatio-temporal ICA given spatial and temporal Principal
+    Components
+
+    Parameters
+    ----------
+    space_pcs : array
+        The spatial representations of the PCs.
+        Shape: (num_rows, num_columns, num_pcs).
+    time_pcs : array
+        The temporal representations of the PCs.
+        Shape: (num_times, num_pcs).
+    mu : float
+        Weighting parameter for the trade off between spatial and temporal
+        information. Must be between 0 and 1. Low values give higher weight
+        to temporal information. Default: 0.01
+    n_components : int
+        The maximum number of ICA components to generate. Default: 30
+    path : str
+        Directory for saving or loading stICA results.
+
+    Returns
+    -------
+    st_components : array
+        stICA components
+        Shape: (num_rows, num_columns, n_components)
+    """
+
+    # attempt to retrive the stICA data from a save file
+    ret = None
+    if path is not None:
+        try:
+            data = np.load(path)
+        except IOError:
+            pass
+        else:
+            if data['st_components'].shape[2] == n_components and \
+                    data['mu'].item() == mu and \
+                    data['num_pcs'] == time_pcs.shape[1]:
+                ret = data['st_components']
+            data.close()
+
+    if ret is not None:
+        return ret
+
+    # preprocess the PCA data
+    for i in range(space_pcs.shape[2]):
+        space_pcs[:, :, i] = mu*(space_pcs[:, :, i] -
+                                 nanmean(space_pcs[:, :, i]))/np.max(space_pcs)
+    for i in range(time_pcs.shape[1]):
+        time_pcs[:, i] = (1-mu)*(time_pcs[:, i]-nanmean(time_pcs[:, i])) / \
+            np.max(time_pcs)
+
+    # concatenate the space and time PCs
+    y = np.concatenate((space_pcs.reshape(
+        space_pcs.shape[0]*space_pcs.shape[1],
+        space_pcs.shape[2]), time_pcs))
+
+    # execute the FastICA algorithm
+    ica = FastICA(n_components=n_components, max_iter=1500)
+    st_components = np.real(np.array(ica.fit_transform(y)))
+
+    # pull out the spacial portion of the st_components
+    st_components = \
+        st_components[:(space_pcs.shape[0]*space_pcs.shape[1]), :]
+    st_components = st_components.reshape(space_pcs.shape[0],
+                                          space_pcs.shape[1],
+                                          st_components.shape[1])
+
+    # normalize the ica results
+    for i in range(st_components.shape[2]):
+        st_component = st_components[:, :, i]
+        st_component = abs(st_component-np.mean(st_component))
+        st_component = st_component/np.max(st_component)
+        st_components[:, :, i] = st_component
+
+    # save the ica components if a path has been provided
+    if path is not None:
+        np.savez(path, st_components=st_components, mu=mu,
+                 num_pcs=time_pcs.shape[1])
+
+    return st_components
+
+
+def _find_useful_components(st_components, threshold, x_smoothing=4):
+    """ finds ICA components with axons and brings them to the foreground
+
+    Parameters
+    ----------
+    st_components : array
+        stICA components
+        Shape: (num_rows, num_columns, n_components)
+    threshold : float
+        threshold on gradient measures to cut off
+    x_smoothing : int
+        number of times to apply gaussiian blur smoothing process to
+        each component. Default: 4
+
+    Returns
+    -------
+    accepted : list
+        stICA components which contain axons have been processed
+        Shape: n_components
+    accepted_components : list
+        stICA components which are found to contain axons but without image
+        processing applied
+    rejected : list
+        stICA components that are determined to have no axon information
+        in them
+    """
+
+    accepted = []
+    accepted_components = []
+    rejected = []
+    for i in xrange(st_components.shape[2]):
+
+        # copy the component, remove pixels with low weights
+        frame = st_components[:, :, i].copy()
+        frame[frame < 2*np.std(frame)] = 0
+
+        # smooth the component via static removal and gaussian blur
+        for n in xrange(x_smoothing):
+            check = frame[1:-1, :-2]+frame[1:-1, 2:]+frame[:-2, 1:-1] + \
+                frame[2, 1:-1]
+            z = np.zeros(frame.shape)
+            z[1:-1, 1:-1] = check
+            frame[np.logical_not(z)] = 0
+
+            blurred = ndimage.gaussian_filter(frame, sigma=1)
+            frame = blurred+frame
+
+            frame = frame/np.max(frame)
+            frame[frame < 2*np.std(frame)] = 0
+
+        # calculate the remaining static in the component
+        static = np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, :-2]))
+
+        static = static*2.0/(frame.shape[0]*frame.shape[1])
+
+        # decide if the component should be accepted or rejected
+        if np.sum(static) < threshold:
+            accepted.append(frame)
+            accepted_components.append(st_components[:, :, i])
+        else:
+            rejected.append(frame)
+    return accepted, accepted_components, rejected
+
+
+def _extract_st_rois(frames, min_area=50, spatial_sep=True):
+    """ Extract ROIs from the spatio-temporal components
+
+    Parameters
+    ----------
+    frames : list
+        list of arrays containing stICA components
+    min_area : int
+        The minimum size in number of pixels that an ROI can be. Default: 50
+    spatial_sep : bool
+        If True, the stICA components will be segmented spatially and
+        non-contiguous poitns will be made into sparate ROIs. Default: True
+
+    Returns
+    -------
+    rois : list
+        A list of sima.ROI ROI objects
+    """
+
+    rois = []
+    for frame_no in range(len(frames)):
+        img = np.array(frames[frame_no])
+
+        img[np.where(img > 0)] = 1
+        img, seg_count = measurements.label(img)
+        component_mask = np.zeros(img.shape, 'bool')
+
+        for i in xrange(seg_count):
+            segment = np.where(img == i+1)
+            if segment[0].size >= min_area:
+                if spatial_sep:
+                    thisroi = np.zeros(img.shape, 'bool')
+                    thisroi[segment] = True
+                    rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
+                else:
+                    component_mask[segment] = True
+        if not spatial_sep and np.any(component_mask):
+            rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
+
+        frame_no = frame_no+1
+
+    return rois
+
+
+def _remove_overlapping(rois, percent_overlap=0.9):
+    """ Remove overlapping ROIs
+
+    Parameters
+    ----------
+    rois : list
+        list of sima.ROI ROIs
+    percent_overlap : float
+        percent of the smaller ROIs total area which must be covered in order
+        for the ROIs to be evaluated as overlapping
+
+    Returns
+    -------
+    rois : list
+        A list of sima.ROI ROI objects with the overlapping ROIs combined
+    """
+
+    if percent_overlap > 0 and percent_overlap <= 1:
+        for roi in rois:
+            roi.mask = roi.mask
+
+        for i in xrange(len(rois)):
+            for j in [j for j in xrange(len(rois)) if j != i]:
+                if rois[i] is not None and rois[j] is not None:
+                    overlap = np.logical_and(rois[i].mask.toarray(),
+                                             rois[j].mask.toarray())
+                    small_area = np.min(
+                        (rois[i].mask.size, rois[j].mask.size))
+
+                    if len(np.where(overlap)[0]) > percent_overlap*small_area:
+                        new_shape = np.logical_or(rois[i].mask.toarray(),
+                                                  rois[j].mask.toarray())
+
+                        rois[i] = ROI(mask=new_shape.astype('bool'),
+                                      im_shape=rois[i].mask.shape)
+                        rois[j] = None
+    return [roi for roi in rois if roi is not None]
+
+
+def _smooth_roi(roi, radius=3):
+    """ Smooth out the ROI boundaries and reduce the number of points in the
+    ROI polygons.
+
+    Parameters
+    ----------
+    roi : sima.ROI
+        ROI object to be smoothed
+    radius : initial radius of the smoothing
+
+    Returns
+    -------
+    roi : sima.ROI
+        If successful, an ROI object which have been smoothed, otherwise, the
+        original ROI is returned
+    success : bool
+        True if the smoothing has been successful, False otherwise
+    """
+
+    frame = roi.mask.todense().copy()
+
+    frame[frame > 0] = 1
+    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2] + \
+        frame[:-2, 1:-1]+frame[2:, 1:-1]+frame[:-2:, 2:] + \
+        frame[1:-1, 2:]+frame[2:, 2:]
+    z = np.zeros(frame.shape)
+    z[1:-1, 1:-1] = check
+
+    # initialize and array to hold the new polygon and find the first point
+    b = []
+    rows, cols = np.where(z > 0)
+    p = [cols[0], rows[0]]
+    base = p
+
+    # establish an iteration limit to ensue the loop terminates if smoothing
+    # is unsuccessful
+    limit = 1500
+
+    # store wether the radius of search is increased aboved the initial value
+    tmp_rad = False
+    for i in range(limit-1):
+        b.append(p)
+        # find the ist of all points at the given radius and adjust to be lined
+        # up for clockwise traversal
+        x = np.roll(np.array(list(p[0]+range(-radius, radius)) +
+                             [p[0]+radius]*(2*radius+1) +
+                             list(p[0]+range(-radius, radius)[::-1]) +
+                             [p[0]-(radius+1)]*(2*radius+1)), -2)
+        y = np.roll(np.array([p[1]-radius]*(2*radius)+list(p[1] +
+                             range(-radius, radius)) + [p[1] + radius] *
+                             (2*radius+1)+list(p[1] +
+                             range(-radius, (radius + 1))[::-1])), -radius)
+
+        # insure that the x and y points are within the image
+        x[x < 0] = 0
+        y[y < 0] = 0
+        x[x >= z.shape[1]] = z.shape[1]-1
+        y[y >= z.shape[0]] = z.shape[0]-1
+
+        vals = z[y, x]
+
+        # ensure that the vals array has a valid transition from 0 to 1
+        # otherwise the algorithm has failed
+        if len(np.where(np.roll(vals, 1) == 0)[0]) == 0 or \
+                len(np.where(vals > 0)[0]) == 0:
+            return roi, False
+
+        idx = np.intersect1d(np.where(vals > 0)[0],
+                             np.where(np.roll(vals, 1) == 0)[0])[0]
+        p = [x[idx], y[idx]]
+
+        # check if the traveral is near to the starting point indicating that
+        # the algirthm has completed. If less then 3 points are found this is
+        # not yet a valid ROI
+        if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
+                len(b) > 3:
+            new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
+            if new_roi.mask.size != 0:
+                # "well formed ROI"
+                return new_roi, True
+
+        # if p is already in the list of polygon points, increase the radius of
+        # search. if radius is already larger then 6, blur the mask and try
+        # again
+        if p in b:
+            if radius > 6:
+                radius = 3
+                z = ndimage.gaussian_filter(z, sigma=1)
+
+                b = []
+                rows, cols = np.where(z > 0)
+                p = [cols[0], rows[0]]
+                base = p
+                tmp_rad = False
+
+            else:
+                radius = radius+1
+                tmp_rad = True
+                if len(b) > 3:
+                    p = b[-3]
+                    del b[-3:]
+
+        elif tmp_rad:
+            tmp_rad = False
+            radius = 3
+
+    # The maximum number of cycles has completed and no suitable smoothed ROI
+    # has been determined
+    return roi, False
+
+
+def stica(dataset, channel=0, mu=0.01, components=75,
+          static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
+          smooth_rois=True, spatial_sep=True):
+    """
+    Segmentation using spatiotemporial indepenent component analysis (stICA).
+
+    Parameters
+    ----------
+    dataset : sima.ImagingDataset
+        dataset to be segmented
+    channel : int, optional
+        The index of the channel to be used. Default: 0
+    mu : float, optional
+        Weighting parameter for the trade off between spatial and temporal
+        information. Must be between 0 and 1. Low values give higher weight
+        to temporal information. Default: 0.01
+    components : int or list, optional
+        Number of principal components to use. If list is given, then use
+        only the principcal componenets indexed by the list Default: 75
+    static_threshold : float, optional
+        threhold on the static allowable in an ICA components, eliminating
+        high scoring components speeds the ROI extraction and may improve
+        the results. Default: 0.5
+    min_area : int, optional
+        minimum ROI size in number of pixels
+    x_smoothing : int, optional
+        number of itereations of static removial and gaussian blur to perform
+        on each stICA component. 0 provides no gaussian blur, larger values
+        produce stICA components with less static but the ROIs loose
+        defination. Default: 5
+    overlap_per : float, optional
+        percentage of an ROI that must be covered in order to combine the two
+        segments. Values outside of (0,1] will result in no removal of
+        overlapping ROIs. Requires x_smoothing to be > 0. Default: 0
+    smooth_rois : bool, optional
+        Set to True in order to translate the ROIs into polygons and execute
+        smoothing algorithm. Requires x_smoothing to be > 0. Default: True
+    spatial_sep : bool, optional
+        If True, the stICA components will be segmented spatially and
+        non-contiguous points will be made into sparate ROIs. Requires
+        x_smoothing to be > 0. Default: True
+
+    Returns
+    -------
+    rois : list
+        A list of sima.ROI ROI objects
+
+    Notes
+    -----
+    Spatiotemporal (stICA) [1]_ is a procedure which applys ICA to extracted
+    PCA components in a process that takes into consideration both the spatial
+    and temporal character of these components. This method has been used to
+    segment calcium imaging data [2]_, and can be used to segment cell bodies,
+    dendrites, and axons.
+
+    In order to implement spatio and temporal ICA, temporal components from PCA
+    are concatenated to the spatial ones.  The following spatiotemporal
+    variable :math:`y_i` and the resulting ICA components :math:`z_i` are
+    defined by:
+
+    .. math::
+
+        y_i &= \\begin{cases} \\mu U_{ki}      & i \\leq N_x \\\\
+                (1-\\mu)V_{ki} & N_x < i \\leq (N_x+N_t)
+                \\end{cases} \\\\
+        z_i^{k} &= \\sum_j \\mathbf{W}_{i,j}^{(n)} y^{(j)},
+
+    where :math:`U` corresponds to the spatio PCA component matrix with
+    dimensions :math:`N_x`, pixels, by :math:`k` principal components and
+    :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k`
+    temporal PCA component matrix. :math:`\\mu` is a weighting parameter to
+    balance the tradeoff between the spatio and temporal information with low
+    values of :math:`\\mu` giving higher weight to the signals temporal
+    components. ICA is performed on :math:`y_i` to extract the independent
+    components :math:`z_i`.
+
+    References
+    ----------
+    .. [1] Stone JV, Porrill J, Porter NR, Wilkinson ID.  Spatiotemporal
+       independent component analysis of event-related fMRI data using skewed
+       probability density functions. Neuroimage. 2002 Feb;15(2):407-21.
+
+    .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
+       cellular signals from large-scale calcium imaging data.  Neuron. 2009
+       Sep 24;63(6):747-60.
+    """
+    if not SKLEARN_AVAILABLE:
+        raise ImportError('scikit-learn >= 0.11 required')
+
+    if dataset.savedir is not None:
+        pca_path = os.path.join(
+            dataset.savedir, 'opca_' + str(channel) + '.npz')
+    else:
+        pca_path = None
+
+    if dataset.savedir is not None:
+        ica_path = os.path.join(
+            dataset.savedir, 'ica_' + str(channel) + '.npz')
+    else:
+        ica_path = None
+
+    print 'performing PCA...'
+    if isinstance(components, int):
+        components = range(components)
+    _, space_pcs, time_pcs = _OPCA(dataset, channel, components[-1]+1,
+                                   path=pca_path)
+    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
+                        dataset.num_columns, space_pcs.shape[2]))
+    space_pcs = np.array([space_pcs[:, :, i]
+                          for i in components]).transpose((1, 2, 0))
+    time_pcs = np.array([time_pcs[:, i] for i in components]).transpose((1, 0))
+
+    print 'performing ICA...'
+    st_components = _stica(space_pcs, time_pcs, mu=mu, path=ica_path,
+                           n_components=space_pcs.shape[2])
+
+    if x_smoothing > 0 or static_threshold > 0:
+        accepted, _, _ = _find_useful_components(
+            st_components, static_threshold, x_smoothing=x_smoothing)
+
+        if min_area > 0 or spatial_sep:
+            rois = _extract_st_rois(accepted, min_area=min_area,
+                                    spatial_sep=spatial_sep)
+
+        if smooth_rois:
+            print 'smoothing ROIs...'
+            rois = [_smooth_roi(roi)[0] for roi in rois]
+
+        print 'removing overlapping ROIs...'
+        rois = _remove_overlapping(rois, percent_overlap=overlap_per)
+    else:
+        rois = [ROI(st_components[:, :, i]) for i in
+                xrange(st_components.shape[2])]
+
+    return rois

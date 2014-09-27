@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 import sys
 
-if 'setuptools' in sys.modules:
+if 'setuptools' in sys.modules or any(
+        s.startswith('bdist') for s in sys.argv) or any(
+        s.startswith('develop') for s in sys.argv):
     from setuptools import setup as setup
 else:
     from distutils.core import setup as setup

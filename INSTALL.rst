@@ -39,6 +39,7 @@ to install the following packages:
 
 * OpenCV 2.4 (http://opencv.org), required for segmentation, registration of
   ROIs across multiple datasets, and the ROI Buddy GUI
+* scikit-learn >= 0.11 (http://scikit-learn.org), required for stICA segmentation
 * h5py >= 2.3.1 (http://http://www.h5py.org), required for HDF5 file format
 * pylibtiff (https://code.google.com/p/pylibtiff/), required for more efficient
   handling of large TIFF files
@@ -66,6 +67,7 @@ The easy_install tool can also be used::
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
 
+    $ cython sima/*.pyx
     $ python setup.py build
     $ sudo python setup.py install
 
