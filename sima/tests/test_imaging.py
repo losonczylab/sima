@@ -58,11 +58,11 @@ class TestImagingDataset(object):
         from sima import Sequence
         from sima.misc import example_hdf5
         path = example_hdf5()
-        seq = Sequence.create('HDF5', path, 'tzyxc')
+        seq = Sequence.create('HDF5', path, 'yxt')
         filepath = os.path.join(tmp_dir, "test_ImagingDataset_3d.sima")
         ds = ImagingDataset([seq, seq], filepath)
         assert_equal((ds.num_sequences,) + (ds.num_frames,) + ds.frame_shape,
-                     (2, 20, 3, 50, 100, 1))
+                     (2, 40, 1, 128, 256, 1))
 
 
 if __name__ == "__main__":
