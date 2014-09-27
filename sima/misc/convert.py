@@ -83,7 +83,9 @@ def _load_version0(path):
         dataset_dict = unpickler.load()
     iterables = dataset_dict.pop('iterables')
     sequences = [parse_sequence(seq) for seq in iterables]
-    return ImagingDataset(sequences, None)
+    ds = ImagingDataset(sequences, None)
+    ds.savedir = path
+    return ds
 
 
 def _0_to_1(source, target):
@@ -95,6 +97,15 @@ def _0_to_1(source, target):
         The path (ending in .sima) of the version 0.x dataset.
     target : str
         The path (ending in .sima) for saving the version 0.x dataset.
+
+    Examples
+    --------
+
+    >>> from sima import ImagingDataset
+    >>> from sima.misc import example_data
+    >>> from sima.misc.convert import _0_to_1
+    >>> _0_to_1(example_data(), '0_to_1.sima')
+    >>> ds = ImagingDataset.load('0_to_1.sima')
 
     """
     ds0 = _load_version0(source)

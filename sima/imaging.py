@@ -115,13 +115,14 @@ class ImagingDataset(object):
             if not self.savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
-            with open(join(savedir, 'dataset.pkl'), 'rb') as f:
-                data = pickle.load(f)
 
             def unpack(sequence):
+                """Parse a saved Sequence dictionary."""
                 return sequence.pop('__class__')._from_dict(
                     sequence, self.savedir)
 
+            with open(join(savedir, 'dataset.pkl'), 'rb') as f:
+                data = pickle.load(f)
             self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             try:
@@ -213,7 +214,11 @@ class ImagingDataset(object):
     @classmethod
     def load(cls, path):
         """Load a saved ImagingDataset object."""
-        return cls(None, path)
+        try:
+            return cls(None, path)
+        except ImportError:
+            from sima.misc.convert import _load_version0
+            return _load_version0(path)
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
