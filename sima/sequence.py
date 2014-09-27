@@ -530,9 +530,8 @@ class _Joined_Sequence(Sequence):
     def _from_dict(cls, d, savedir=None):
         sequences = []
         for s in d.pop('sequences'):
-            seq_dict = s.pop('base')
-            seq_class = seq_dict.pop('__class__')
-            sequences.append(seq_class._from_dict(seq_dict, savedir))
+            seq_class = s.pop('__class__')
+            sequences.append(seq_class._from_dict(s, savedir))
         return cls(sequences)
 
 
