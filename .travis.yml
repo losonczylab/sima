@@ -40,10 +40,10 @@ before_install:
   # - pip install --upgrade scikits-image h5py
   - python -V
 script: 
-    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py
-    - pep8 *.py sima --exclude tifffile.py
+    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/misc/align.py
     - cython sima/*.pyx
     - python runtests.py --doctests -m $TESTMODE $COVERAGE
+    - cd doc && make html && cd ..
 branches:
   only:
     - master
