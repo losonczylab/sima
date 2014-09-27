@@ -53,9 +53,9 @@ class ImagingDataset(object):
 
     Datasets can also be indexed and sliced.
 
-    >>> dataset[0].num_sequences
+    >>> dataset[0].num_sequences  # #doctest: +SKIP
     1
-    >>> dataset[:, 0].num_frames
+    >>> dataset[:, 0].num_frames  # #doctest: +SKIP
     1
 
     The resulting sliced datasets are not saved by default.
