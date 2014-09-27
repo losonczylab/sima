@@ -390,6 +390,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
             demixed_signal[cycle_idx] = demix
 
     pool.close()
+    pool.join()
 
     def put_back_nan_rois(signals, included_rois, n_rois):
         """Put NaN rows back in the signals file for ROIs that were never
