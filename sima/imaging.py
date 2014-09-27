@@ -156,7 +156,7 @@ class ImagingDataset(object):
         if self.channel_names is None:
             self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
         if save and self.savedir is not None:
-            self._save(self.savedir)
+            self.save()
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -178,7 +178,7 @@ class ImagingDataset(object):
     def channel_names(self, names):
         self._channel_names = [str(n) for n in names]
         if self.savedir is not None:
-            self._save()
+            self.save()
 
     @property
     def time_averages(self):
@@ -514,10 +514,20 @@ class ImagingDataset(object):
             return extract_rois(self, rois, signal_channel, remove_overlap,
                                 n_processes, demix_channel)
 
-    def _save(self, savedir=None):
+    def save(self, savedir=None):
         """Save the ImagingDataset to a file."""
         if savedir is None:
             savedir = self.savedir
+        else:
+            try:
+                os.makedirs(savedir)
+            except OSError as exc:
+                if exc.errno == errno.EEXIST and \
+                        os.path.isdir(savedir):
+                    raise ValueError(
+                        'Cannot overwrite existing ImagingDataset.'
+                    )
+        self.savedir = savedir
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
 
