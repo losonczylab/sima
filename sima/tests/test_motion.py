@@ -165,7 +165,7 @@ def test_hmm():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         corrected = motion.hmm([frames],
                                os.path.join(tmp_dir, 'test_hmm.sima'),
-                               verbose=False)
+                               verbose=False, n_processes=1)
 
     with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
         displacements = [d.reshape((20, 1, 128, 2))
