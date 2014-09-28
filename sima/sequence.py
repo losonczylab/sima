@@ -67,6 +67,26 @@ class Sequence(object):
 
     Sequences are created with a call to the create method.
 
+    >>> from sima import Sequence
+    >>> from sima.misc import example_hdf5
+    >>> path = example_hdf5()
+    >>> seq = Sequence.create('HDF5', path, 'yxt')
+
+    Sequences are array like, and can be converted to numpy arrays or
+    passed as arguments into numpy functions that take arrays.
+
+    >>> import numpy as np
+    >>> arr = np.array(seq)
+    >>> time_avg = np.mean(seq, axis=0)
+    >>> np.shape(seq) == seq.shape
+    True
+
+    Note, however, that the application of numpy functions to Sequence objects
+    may force the entire sequence to be loaded into memory at once.  Depending
+    on the size of the data and the available memory, this may result in memory
+    errors. If possible, consider slicing the array prior prior to applying the
+    numpy function.
+
 
     Attributes
     ----------
@@ -152,21 +172,6 @@ class Sequence(object):
 
         """
         return _MaskedSequence(self, masks)
-
-    def toarray(self, squeeze=False):
-        """Convert to a numpy array.
-
-        Parameters
-        ----------
-        squeeze : bool
-
-        Returns
-        -------
-        array : numpy.ndarray
-            The pixel values from the dataset as a numpy array
-            with the same shape as the Sequence.
-        """
-        return np.concatenate(np.expand_dims(x, 0) for x in self)
 
     @staticmethod
     def join(sequences):
