@@ -175,6 +175,22 @@ class Sequence(object):
 
     @staticmethod
     def join(sequences):
+        """Join together sequences representing different channels.
+
+        Examples
+        --------
+
+        >>> from sima import Sequence
+        >>> from sima.misc import example_hdf5
+        >>> path = example_hdf5()
+        >>> seq = Sequence.create('HDF5', path, 'yxt')
+        >>> joined = Sequence.join([seq, seq])
+        >>> joined.shape[:4] == seq.shape[:4]
+        True
+        >>> joined.shape[4] == 2 * seq.shape[4]
+        True
+
+        """
         return _Joined_Sequence(sequences)
 
     @classmethod
@@ -519,8 +535,8 @@ class _Joined_Sequence(Sequence):
         return self._shape
 
     def __iter__(self):
-        for frames in it.izip(self._sequences):
-            yield np.concatenate(frames, axis=4)
+        for frames in it.izip(*self._sequences):
+            yield np.concatenate(frames, axis=3)
 
     def _get_frame(self, t):
         return np.concatenate([seq._get_frame(t) for seq in self._sequences],
