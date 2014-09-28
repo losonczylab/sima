@@ -1,9 +1,18 @@
 import os
 import sys
 from pickle import Unpickler as _Unpickler
+import cPickle as pkl
+from itertools import chain
+try:
+    from future_builtins import zip
+except ImportError:  # Python 3.x
+    pass
+
+import numpy as np
 
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
+from sima.motion import _MotionCorrectedSequence
 
 
 class Unpickler(_Unpickler):
@@ -83,6 +92,37 @@ def _load_version0(path):
         dataset_dict = unpickler.load()
     iterables = dataset_dict.pop('iterables')
     sequences = [parse_sequence(seq) for seq in iterables]
+
+    # Apply displacements if they exist
+    try:
+        with open(os.path.join(path, 'displacements.pkl'), 'rb') as f:
+            displacements = pkl.load(f)
+    except IOError:
+        pass
+    else:
+        assert all(np.all(d >= 0) for d in displacements)
+        max_disp = np.max(list(chain(*displacements)), axis=0)
+        frame_shape = np.array(sequences[0].shape)[1:]
+        frame_shape[1:3] += max_disp
+        sequences = [
+            _MotionCorrectedSequence(
+                s, d.reshape(s.shape[:3] + (2,)), frame_shape)
+            for s, d in zip(sequences, displacements)]
+        try:
+            trim_coords = dataset_dict.pop('_lazy__trim_coords')
+        except KeyError:
+            try:
+                trim_criterion = dataset_dict.pop('trim_criterion')
+            except KeyError:
+                pass
+            else:
+                raise Exception(
+                    'Parsing of trim_criterion ' + str(trim_criterion) +
+                    ' not yet implemented')
+        else:
+            sequences = [s[:, :, trim_coords[0][0]:trim_coords[1][0],
+                           trim_coords[0][1]:trim_coords[1][1]]
+                         for s in sequences]
     ds = ImagingDataset(sequences, None)
     ds.savedir = path
     return ds
