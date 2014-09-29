@@ -13,7 +13,7 @@ Methods
 -------
 
 """
-from itertools import chain, izip, count, repeat
+from itertools import chain, izip, count, repeat, imap
 import warnings
 
 import numpy as np
@@ -839,15 +839,12 @@ def _align_frame(inputs):
                 p_sums = namespace.pixel_sums[p]
                 p_counts = namespace.pixel_counts[p]
                 p_offset = namespace.offset
-                corrs = namespace.correlations
             with warnings.catch_warnings():  # ignore divide by 0
                 warnings.simplefilter("ignore")
                 reference = p_sums / p_counts
             if method == 'correlation':
-                shift, corrs[cycle_idx][frame_idx][p] \
+                shift, p_corr \
                     = align_cross_correlation(reference, plane)
-                with lock:
-                    namespace.correlations = corrs
             elif method == 'ECC':
                 raise NotImplementedError
                 # cv2.findTransformECC(reference, plane)
@@ -857,6 +854,9 @@ def _align_frame(inputs):
                 s = namespace.shifts
                 s[cycle_idx][frame_idx][p][:] = shift - p_offset
                 namespace.shifts = s
+                corrs = namespace.correlations
+                corrs[cycle_idx][frame_idx][p] = p_corr
+                namespace.correlations = corrs
 
             with lock:
                 namespace.pixel_sums, namespace.pixel_counts, namespace.offset\
@@ -899,8 +899,6 @@ def _frame_alignment_correlation(
         n_pools = n_processes
     if n_pools == 0:
         n_pools = 1
-    if n_pools > multiprocessing.cpu_count() - 1:
-        n_pools = multiprocessing.cpu_count() - 1
 
     global namespace
     global lock
@@ -909,22 +907,30 @@ def _frame_alignment_correlation(
     namespace.pixel_counts = np.zeros(sequences[0].shape[1:])  # TODO: int?
     namespace.pixel_sums = np.zeros(sequences[0].shape[1:]).astype('float64')
     # NOTE: float64 gives nan when divided by 0
-    if n_pools > 1:
-        namespace.shifts = [
-            np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
-        namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
+    namespace.shifts = [
+        np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
+    namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
 
-        lock = multiprocessing.Lock()
-        pool = multiprocessing.Pool(processes=n_pools)
+    lock = multiprocessing.Lock()
+    pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
 
     for cycle_idx, cycle in izip(count(), sequences):
         if n_processes > 1:
-            pool.map(_align_frame,
-                     izip(count(), cycle, repeat(cycle_idx), repeat(method)),
-                     chunksize=1 + len(cycle) / n_pools)
+            map_generator = pool.imap_unordered(
+                _align_frame,
+                izip(count(), cycle, repeat(cycle_idx), repeat(method)),
+                chunksize=1 + len(cycle) / n_pools)
         else:
-            map(_align_frame,
+            map_generator = imap(
+                _align_frame,
                 izip(count(), cycle, repeat(cycle_idx), repeat(method)))
+
+        # Loop over generator and calculate frame alignments
+        while True:
+            try:
+                next(map_generator)
+            except StopIteration:
+                break
 
     # TODO: align planes to minimize shifts between them
     pool.close()
