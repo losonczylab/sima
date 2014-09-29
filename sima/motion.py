@@ -911,7 +911,7 @@ def _frame_alignment(
             partitions = (2, 2)
         else:
             partitions = np.maximum(
-                np.array(shape[2:4]) / np.array(3 * max_displacement),
+                np.array(shape[2:4]) / (3 * np.array(max_displacement)),
                 [1, 1])
     dy = shape[2] / partitions[0]
     dx = shape[3] / partitions[1]
