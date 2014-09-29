@@ -13,8 +13,13 @@ Methods
 -------
 
 """
-from itertools import chain, izip, count, repeat, imap
+
+import itertools as it
 import warnings
+try:
+    from future_builtins import zip
+except ImportError:  # Python 3.x
+    pass
 
 import numpy as np
 from numpy.linalg import det, svd, pinv
@@ -92,7 +97,7 @@ def _estimate_movement_model(shifts, num_rows):
     log_transition_matrix : array
         The log transition probabilities for nearest neighbor discrete jumps.
     """
-    shifts = np.array(list(chain(*chain(*shifts))))
+    shifts = np.array(list(it.chain(*it.chain(*shifts))))
     assert shifts.shape[1] == 2
     diffs = np.diff(shifts, axis=0)
     num_frames = len(shifts)
@@ -342,8 +347,8 @@ class _MCImagingDataset(ImagingDataset):
             _estimate_movement_model(shifts, self.frame_shape[1])
 
         # add a bit of extra room to move around
-        min_shifts = np.nanmin(list(chain(*chain(*shifts))), 0)
-        max_shifts = np.nanmax(list(chain(*chain(*shifts))), 0)
+        min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
+        max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
         extra_buffer = (
             (max_displacement - max_shifts + min_shifts) / 2).astype(int)
         extra_buffer[max_displacement < 0] = 5
@@ -381,7 +386,8 @@ class _MCImagingDataset(ImagingDataset):
         """
 
         # make all the displacements non-negative
-        min_disp = np.min(list(chain(*chain(*chain(*displacements)))), axis=0)
+        min_disp = np.min(
+            list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
         return [disp - min_disp for disp in displacements]
 
     def _pixel_distribution(self, tolerance=0.001, min_frames=1000):
@@ -408,7 +414,7 @@ class _MCImagingDataset(ImagingDataset):
         sum_squares = np.zeros(self.frame_shape[-1]).astype(float)
         count = 0
         t = 0
-        for frame in chain(*chain(*self)):
+        for frame in it.chain(*it.chain(*self)):
             if t > 0:
                 mean_est = sums / count
                 var_est = (sum_squares / count) - (mean_est ** 2)
@@ -428,7 +434,7 @@ class _MCImagingDataset(ImagingDataset):
 
     def _correlation_based_correction(
             self, max_displacement=None, n_processes=None):
-        return _frame_alignment_correlation(
+        return _frame_alignment(
             self.sequences, max_displacement, n_processes=n_processes)
 
     def _whole_frame_shifting(self, shifts, correlations):
@@ -455,14 +461,14 @@ class _MCImagingDataset(ImagingDataset):
         """
         # Calculate a correlation threshold for each plane of the frame
         thresh = \
-            np.nanmean(list(chain(*correlations)), axis=0) - \
-            2 * np.nanstd(list(chain(*correlations)), axis=0)
+            np.nanmean(list(it.chain(*correlations)), axis=0) - \
+            2 * np.nanstd(list(it.chain(*correlations)), axis=0)
         # only include image frames with sufficiently high correlation
         min_shifts = np.min(np.concatenate(
-            [s[c > thresh] for s, c in izip(shifts, correlations)]
+            [s[c > thresh] for s, c in zip(shifts, correlations)]
         ), axis=0)
         max_shifts = np.max(np.concatenate(
-            [s[c > thresh] for s, c in izip(shifts, correlations)]
+            [s[c > thresh] for s, c in zip(shifts, correlations)]
         ), axis=0)
         out_shape = list(self.frame_shape)
         out_shape[1] += max_shifts[0] - min_shifts[0]
@@ -470,9 +476,9 @@ class _MCImagingDataset(ImagingDataset):
         reference = np.zeros(out_shape)
         sum_squares = np.zeros_like(reference)
         count = np.zeros_like(reference)
-        for frame, shift, corr in izip(
-                chain(*self), chain(*shifts), chain(*correlations)):
-            for plane, p_shifts, p_corr, th, ref, ssq, cnt in izip(
+        for frame, shift, corr in zip(
+                it.chain(*self), it.chain(*shifts), it.chain(*correlations)):
+            for plane, p_shifts, p_corr, th, ref, ssq, cnt in zip(
                     frame, shift, corr, thresh, reference, sum_squares, count):
                 if p_corr > th:
                     low = (p_shifts - min_shifts)  # TOOD: NaN considerations
@@ -624,7 +630,7 @@ class _MotionSequence(_WrapperSequence):
         log_p_old = None  # for flaking purposes; does nothing
         for frame in iter_processed:
             for (plane, log_plane_fac, log_plane_p, plane_ref, log_plane_ref,
-                 stbl) in izip(
+                 stbl) in zip(
                     *(frame + (scaled_refs, log_scaled_refs, slice_tbls))):
                 for row_idx, row in enumerate(plane):
                     if t == 0:
@@ -726,12 +732,13 @@ def hmm(sequences, savedir, channel_names=None, info=None,
     displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
         num_states_retained, max_displacement, verbose,
         n_processes=n_processes)
-    max_disp = np.max(list(chain(*chain(*chain(*displacements)))), axis=0)
+    max_disp = np.max(
+        list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
     frame_shape = np.array(sequences[0].shape)[1:]
     frame_shape[1:3] += max_disp
     corrected_sequences = [
         _MotionCorrectedSequence(s, d, frame_shape)
-        for s, d in izip(sequences, displacements)]
+        for s, d in zip(sequences, displacements)]
     rows, columns = _trim_coords(
         trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
     )
@@ -815,7 +822,7 @@ def _align_frame(inputs):
         assert np.prod(pixel_sums.shape) < 4 * np.prod(frame_shape)
         return pixel_sums, pixel_counts, offset
 
-    for p, plane in izip(count(), frame):
+    for p, plane in zip(it.count(), frame):
         # if frame_idx in invalid_frames:
         #     correlations[i] = np.nan
         #     shifts[:, i] = np.nan
@@ -871,7 +878,82 @@ def _align_frame(inputs):
                         namespace.shifts[cycle_idx][frame_idx], plane, p)
 
 
-def _frame_alignment_correlation(
+def _frame_alignment(
+        sequences, max_displacement=None, method='correlation',
+        n_processes=None, partitions=None):
+    """Estimate whole-frame displacements based on pixel correlations.
+
+    Parameters
+    ----------
+    max_displacement : array
+        see estimate_displacements
+
+    Returns
+    -------
+    shifts : array
+        (2, num_frames*num_cycles)-array of integers giving the
+        estimated displacement of each frame
+    correlations : array
+        (num_frames*num_cycles)-array giving the correlation of
+        each shifted frame with the reference
+    n_processes : (None, int)
+        Number of pool processes to spawn to parallelize frame alignment
+    partitions : tuple of int, optional
+        The number of partitions in y and x respectively. The alignement
+        will be calculated separately on each partition and then the
+        results compared. Default: calculates an appropriate value based
+        on max_displacement and the frame shape.
+    """
+    shape = sequences[0].shape
+    DIST_CRITERION = 2.
+    if partitions is None:
+        if max_displacement is None:
+            partitions = (2, 2)
+        else:
+            partitions = np.maximum(
+                np.array(shape[2:4]) / np.array(3 * max_displacement),
+                [1, 1])
+    dy = shape[2] / partitions[0]
+    dx = shape[3] / partitions[1]
+
+    shifts_record = []
+    corr_record = []
+    for ny, nx in it.product(range(partitions[0]), range(partitions[1])):
+        partioned_sequences = [s[:, :, ny*dy:(ny+1)*dy, nx*dx:(nx+1)*dx]
+                               for s in sequences]
+        shifts, correlations = _frame_alignment_base(
+            partioned_sequences, max_displacement, method, n_processes)
+        shifts_record.append(shifts)
+        corr_record.append(correlations)
+        if len(shifts_record) > 1:
+            first_shifts = []  # shifts to be return
+            second_shifts = []
+            out_corrs = []  # correlations to be returned
+            for corrs, shifts in zip(zip(*corr_record), zip(*shifts_record)):
+                corr_array = np.array(corrs)  # (partions, frames, planes)
+                shift_array = np.array(shifts)
+                assert corr_array.ndim is 3 and shift_array.ndim is 4
+                second, first = np.argpartition(corr_array, -2, axis=0)[-2:]
+                first_shifts.append(np.concatenate(
+                    [np.expand_dims(first.choose(s), -1)
+                     for s in np.rollaxis(shift_array, -1)],
+                    axis=-1))
+                second_shifts.append(np.concatenate(
+                    [np.expand_dims(second.choose(s), -1)
+                     for s in np.rollaxis(shift_array, -1)],
+                    axis=-1))
+                out_corrs.append(first.choose(corr_array))
+            if np.mean([np.sum((f - s)**2, axis=-1)
+                        for f, s in zip(first_shifts, second_shifts)]
+                       ) < (DIST_CRITERION ** 2):
+                break
+    try:
+        return first_shifts, out_corrs
+    except NameError:  # single parition case
+        return shifts, correlations
+
+
+def _frame_alignment_base(
         sequences, max_displacement=None, method='correlation',
         n_processes=None):
     """Estimate whole-frame displacements based on pixel correlations.
@@ -914,16 +996,18 @@ def _frame_alignment_correlation(
     lock = multiprocessing.Lock()
     pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
 
-    for cycle_idx, cycle in izip(count(), sequences):
+    for cycle_idx, cycle in zip(it.count(), sequences):
         if n_processes > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
-                izip(count(), cycle, repeat(cycle_idx), repeat(method)),
+                zip(it.count(), cycle, it.repeat(cycle_idx),
+                    it.repeat(method)),
                 chunksize=1 + len(cycle) / n_pools)
         else:
-            map_generator = imap(
+            map_generator = it.imap(
                 _align_frame,
-                izip(count(), cycle, repeat(cycle_idx), repeat(method)))
+                zip(it.count(), cycle, it.repeat(cycle_idx),
+                    it.repeat(method)))
 
         # Loop over generator and calculate frame alignments
         while True:
@@ -938,7 +1022,7 @@ def _frame_alignment_correlation(
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
-        mean_shift = np.nanmean(list(chain(*chain(*shifts))), axis=0)
+        mean_shift = np.nanmean(list(it.chain(*it.chain(*shifts))), axis=0)
         # calculate alteration of shape (num_planes, dim)
         alteration = (mean_shift - mean_shift[0]).astype(int)
         for seq in shifts:
@@ -948,7 +1032,7 @@ def _frame_alignment_correlation(
     _align_planes(shifts)
 
     # make all the shifts non-negative
-    min_shift = np.min(list(chain(*chain(*shifts))), axis=0)
+    min_shift = np.min(list(it.chain(*it.chain(*shifts))), axis=0)
     shifts = [s - min_shift for s in shifts]
 
     return shifts, namespace.correlations
@@ -972,7 +1056,7 @@ def frame_alignment(
     else:
         mc_sequences = sequences
     if method == 'correlation':
-        displacements, correlations = _frame_alignment_correlation(
+        displacements, correlations = _frame_alignment(
             mc_sequences, max_displacement)
     elif method == 'ECC':
         # http://docs.opencv.org/trunk/modules/video/doc
@@ -982,12 +1066,12 @@ def frame_alignment(
         raise NotImplementedError
     else:
         raise ValueError("Unrecognized option for 'method'")
-    max_disp = np.max(list(chain(*chain(*displacements))), axis=0)
+    max_disp = np.max(list(it.chain(*it.chain(*displacements))), axis=0)
     frame_shape = np.array(sequences[0].shape)[1:]
     frame_shape[1:3] += max_disp
     corrected_sequences = [
         _MotionCorrectedSequence(s, d, frame_shape)
-        for s, d in izip(sequences, displacements)]
+        for s, d in zip(sequences, displacements)]
     rows, columns = _trim_coords(
         trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
     )
@@ -1016,7 +1100,7 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
         trim_criterion = 1.
     if isinstance(trim_criterion, (float, int)):
         obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
-                         for d in chain(*displacements))
+                         for d in it.chain(*displacements))
         num_frames = sum(len(x) for x in displacements)
         occupancy = obs_counts.astype(float) / num_frames
         row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (

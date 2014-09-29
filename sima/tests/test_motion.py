@@ -226,8 +226,6 @@ class Test_MCImagingDataset(object):
 
         for shift, shift_ in zip(shifts, self.frame_shifts):
             assert_array_equal(shift, shift_)
-        for corr, corr_ in zip(corrections, self.correlations):
-            assert_allclose(corr, corr_, 1e-05)
 
     def test_whole_frame_shifting(self):
         reference, variances, offset = \
