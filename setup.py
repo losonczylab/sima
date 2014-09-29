@@ -36,7 +36,7 @@ Operating System :: MacOS
 """
 setup(
     name="sima",
-    version="1.0.0-alpha",
+    version="1.0.0-dev",
     packages=['sima', 'sima.misc'],
     #   scripts = [''],
     #
