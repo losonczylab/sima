@@ -2,7 +2,7 @@ SIMA: sequential image analysis
 ===============================
 
 :Release: |release|
-:Date: September 17, 2014
+:Date: |today|
 :Email: software@losonczylab.org
 :Forum: https://groups.google.com/forum/#!forum/sima-users
 :GitHub: https://github.com/losonczylab/sima
