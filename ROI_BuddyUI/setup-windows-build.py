@@ -47,7 +47,7 @@ INCLUDES = ['numpy', 'cPickle', 'sima', 'sima.iterables', 'sima.ROI',
 dist = dh.Distribution()
 
 dist.setup(name='ROI_Buddy',
-           version='0.2.0',
+           version='0.2.1',
            description='ROI Buddy GUI',
            script='roi_buddy.py',
            target_name='ROI_Buddy.exe',

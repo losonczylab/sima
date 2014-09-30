@@ -2,8 +2,7 @@ SIMA: sequential image analysis
 ===============================
 
 :Release: |release|
-:Date: |today|
-:Developers: Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson
+:Date: September 17, 2014
 :Email: software@losonczylab.org
 :Forum: https://groups.google.com/forum/#!forum/sima-users
 :GitHub: https://github.com/losonczylab/sima
@@ -32,7 +31,6 @@ Documenation
 
 .. toctree::
    :maxdepth: 2
-   :titlesonly:
 
    install
    tutorial
@@ -40,6 +38,7 @@ Documenation
    roi_buddy
    publications
    credits
+   support
 
 
 Citing SIMA
@@ -55,7 +54,7 @@ resulting publications:
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

@@ -46,6 +46,8 @@ from sima.misc.align import align_cross_correlation
 lock = 0
 namespace = 0
 
+np.seterr(invalid='ignore', divide='ignore')
+
 
 def _discrete_transition_prob(r, r0, transition_probs, n):
     """Calculate the transition probability between two discrete position

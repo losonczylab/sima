@@ -1,7 +1,7 @@
 from setuptools import setup
 setup(
     name='ROIBuddy',
-    version='0.2.0',
+    version='0.2.1',
     author_email='software@losonczylab.org',
     url='http://www.losonczylab.org/sima/roibuddy',
     license='GNU General Public License (GPL)',
