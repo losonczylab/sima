@@ -24,7 +24,10 @@ except ImportError:  # Python 3.x
 import numpy as np
 from numpy.linalg import det, svd, pinv
 from scipy.special import gammaln
-from scipy.stats import nanmedian
+try:
+    from bottleneck import nansum, nanmedian
+except ImportError:
+    from scipy.stats import nansum, nanmedian
 from scipy.stats.mstats import mquantiles
 import multiprocessing
 # from scipy.ndimage.filters import gaussian_filter
@@ -413,22 +416,25 @@ class _MCImagingDataset(ImagingDataset):
         """
         # TODO: separate distributions for each plane
         sums = np.zeros(self.frame_shape[-1]).astype(float)
-        sum_squares = np.zeros(self.frame_shape[-1]).astype(float)
-        count = 0
+        sum_squares = np.zeros_like(sums)
+        counts = np.zeros_like(sums)
         t = 0
-        for frame in it.chain(*it.chain(*self)):
+        for plane in it.chain(*it.chain(*self)):
             if t > 0:
-                mean_est = sums / count
-                var_est = (sum_squares / count) - (mean_est ** 2)
+                mean_est = sums / counts
+                var_est = (sum_squares / counts) - (mean_est ** 2)
             if t > min_frames and np.all(
-                    np.sqrt(var_est / count) / mean_est < tolerance):
+                    np.sqrt(var_est / counts) / mean_est < tolerance):
                 break
-            im = np.concatenate(
-                [np.expand_dims(x, 0) for x in frame],
-                axis=0).astype(float)  # NOTE: integers overflow
-            sums += im.sum(axis=0).sum(axis=0)
-            sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
-            count += np.prod(im.shape[0] * im.shape[1])
+            # im = np.concatenate(
+            #     [np.expand_dims(x, 0) for x in plane],
+            #     axis=0).astype(float)  # NOTE: integers overflow
+            # sums += im.sum(axis=0).sum(axis=0)
+            # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
+            # cnt += np.prod(im.shape[0] * im.shape[1])
+            sums += nansum(nansum(plane, axis=0), axis=0)
+            sum_squares += nansum(nansum(plane ** 2, axis=0), axis=0)
+            counts += np.isfinite(plane).sum(axis=0).sum(axis=0)
             t += 1
         assert np.all(mean_est > 0)
         assert np.all(var_est > 0)
@@ -478,9 +484,9 @@ class _MCImagingDataset(ImagingDataset):
         reference = np.zeros(out_shape)
         sum_squares = np.zeros_like(reference)
         count = np.zeros_like(reference)
-        for frame, shift, corr in zip(
+        for frame, shift, corr in it.izip(
                 it.chain(*self), it.chain(*shifts), it.chain(*correlations)):
-            for plane, p_shifts, p_corr, th, ref, ssq, cnt in zip(
+            for plane, p_shifts, p_corr, th, ref, ssq, cnt in it.izip(
                     frame, shift, corr, thresh, reference, sum_squares, count):
                 if p_corr > th:
                     low = (p_shifts - min_shifts)  # TOOD: NaN considerations
@@ -1084,12 +1090,12 @@ def frame_alignment(
 
 
 def _observation_counts(raw_shape, displacements, untrimmed_shape):
-    count = np.zeros(untrimmed_shape, dtype=int)
+    cnt = np.zeros(untrimmed_shape, dtype=int)
     if displacements.ndim == 2:
         for plane in range(raw_shape[0]):
             y, x = displacements[plane]
-            count[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
-        return count
+            cnt[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+        return cnt
     elif displacements.ndim == 3:
         return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
 
