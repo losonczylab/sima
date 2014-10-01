@@ -136,7 +136,7 @@ def cross_correlation_2d(pixels1, pixels2):
 
     return corrnorm
 
-def align_cross_correlation(pixels1, pixels2):
+def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
     '''Align the second image with the first using max cross-correlation
 
     returns the y,x offsets to add to image1's indexes to align it with
@@ -151,16 +151,20 @@ def align_cross_correlation(pixels1, pixels2):
     fshape = s*2
     corrnorm = sum(cross_correlation_2d(pixels1[:, :, c], pixels2[:, :, c])
                    for c in range(pixels1.shape[2])) / pixels1.shape[2]
+    offset = fshape - np.array(pixels1.shape[:2])
+    corrnorm = np.roll(corrnorm, offset[0], axis=0)
+    corrnorm = np.roll(corrnorm, offset[1], axis=1)
+
+    if displacement_bounds is not None:
+        idx_bounds = displacement_bounds + offset
+        corrnorm[:idx_bounds[0][0]] = -np.Inf
+        corrnorm[idx_bounds[1][0]:] = -np.Inf
+        corrnorm[:, :idx_bounds[0][1]] = -np.Inf
+        corrnorm[:, idx_bounds[1][1]:] = -np.Inf
+
     i, j = np.unravel_index(np.argmax(corrnorm), fshape)
     max_corr = corrnorm[i, j]
-    #
-    # Reflect values that fall into the second half
-    #
-    if i > pixels1.shape[0]:
-        i = i - fshape[0]
-    if j > pixels1.shape[1]:
-        j = j - fshape[1]
-    return [i, j], max_corr
+    return np.array([i, j]) - offset, max_corr
 
 def align_mutual_information(pixels1, pixels2, mask1, mask2):
     '''Align the second image with the first using mutual information

@@ -774,13 +774,15 @@ def _align_frame(inputs):
         The index of the current cycle
     method : string
         Method to use for correlation calculation
+    max_displacement : list of int
+        See motion.hmm
 
     There is no return, but shifts and correlations in the shared namespace
     are updated.
 
     """
 
-    frame_idx, frame, cycle_idx, method = inputs
+    frame_idx, frame, cycle_idx, method, max_displacement = inputs
 
     # Pulls in the shared namespace and lock across all processes
     global namespace
@@ -858,12 +860,24 @@ def _align_frame(inputs):
                 p_sums = namespace.pixel_sums[p]
                 p_counts = namespace.pixel_counts[p]
                 p_offset = namespace.offset
+                shifts = namespace.shifts
             with warnings.catch_warnings():  # ignore divide by 0
                 warnings.simplefilter("ignore")
                 reference = p_sums / p_counts
             if method == 'correlation':
-                shift, p_corr \
-                    = align_cross_correlation(reference, plane)
+                if max_displacement is not None and np.all(
+                        max_displacement > 0):
+                    min_shift = np.min(list(it.chain(*it.chain(*shifts))),
+                                       axis=0)
+                    max_shift = np.max(list(it.chain(*it.chain(*shifts))),
+                                       axis=0)
+                    displacement_bounds = np.array(
+                        [np.minimum(max_shift - max_displacement, min_shift),
+                         np.maximum(min_shift + max_displacement, max_shift)])
+                else:
+                    displacement_bounds = None
+                shift, p_corr = align_cross_correlation(
+                    reference, plane, displacement_bounds)
             elif method == 'ECC':
                 raise NotImplementedError
                 # cv2.findTransformECC(reference, plane)
@@ -1013,13 +1027,13 @@ def _frame_alignment_base(
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
-                    it.repeat(method)),
+                    it.repeat(method), it.repeat(max_displacement)),
                 chunksize=1 + len(cycle) / n_pools)
         else:
             map_generator = it.imap(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
-                    it.repeat(method)))
+                    it.repeat(method), it.repeat(max_displacement)))
 
         # Loop over generator and calculate frame alignments
         while True:
