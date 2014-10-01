@@ -27,7 +27,7 @@ from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
 except ImportError:
-    from scipy.stats import nansum, nanmedian
+    from numpy import nansum, nanmedian
 from scipy.stats.mstats import mquantiles
 import multiprocessing
 # from scipy.ndimage.filters import gaussian_filter
