@@ -549,15 +549,19 @@ class _MotionSequence(_WrapperSequence):
         variances = pixel_variances / gains ** 2
         for frame in self:
             im = frame / gains
+            # replace NaN pixels with the mean value
+            for ch_idx, ch_mean in enumerate(means):
+                im_nans = np.isnan(im[..., ch_idx])
+                im[..., ch_idx][im_nans] = ch_mean
+            assert(np.all(np.isfinite(im)))
             # take the log of the factorial of each pixel
             log_im_fac = gammaln(im + 1)
             # probability of observing the pixels (ignoring reference)
             log_im_p = -(im - means) ** 2 / (2 * variances) \
                 - 0.5 * np.log(2. * np.pi * variances)
-            assert(np.all(np.isfinite(im)))
-            inf_indices = np.logical_not(np.isfinite(log_im_fac))
-            log_im_fac[inf_indices] = im[inf_indices] * (
-                np.log(im[inf_indices]) - 1)
+            # inf_indices = np.logical_not(np.isfinite(log_im_fac))
+            # log_im_fac[inf_indices] = im[inf_indices] * (
+            #     np.log(im[inf_indices]) - 1)
             assert(np.all(np.isfinite(log_im_fac)))
             assert(np.all(np.isfinite(log_im_p)))
             yield im, log_im_fac, log_im_p
