@@ -55,7 +55,7 @@ else:
     h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
 
 import sima.misc
-from sima._motion import _align_frame
+from sima.motion._motion import _align_frame
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from sima.misc.tifffile import TiffFileWriter
@@ -129,6 +129,9 @@ class Sequence(object):
     @property
     def shape(self):
         return (len(self),) + iter(self).next().shape
+
+    def apply_displacements(self, displacements, frame_shape=None):
+        return _MotionCorrectedSequence(self, displacements, frame_shape)
 
     def mask(self, masks):
         """Apply a mask to the sequence.
@@ -603,6 +606,11 @@ class _MotionCorrectedSequence(_WrapperSequence):
     def __init__(self, base, displacements, frame_shape):
         super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
+        if frame_shape is None:
+            max_disp = np.max(
+                list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
+            frame_shape = np.array(sequences[0].shape)[1:]
+            frame_shape[1:3] += max_disp
         self._frame_shape = frame_shape  # (planes, rows, columns)
 
     def __len__(self):

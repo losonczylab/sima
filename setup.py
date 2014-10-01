@@ -13,9 +13,9 @@ import numpy
 
 extensions = [
     Extension(
-        'sima._motion',
+        'sima.motion._motion',
         include_dirs=[numpy.get_include()],
-        sources=['sima/_motion.c']
+        sources=['sima/motion/_motion.c']
     ),
     Extension(
         'sima._opca',
@@ -37,7 +37,7 @@ Operating System :: MacOS
 setup(
     name="sima",
     version="1.0.0-dev",
-    packages=['sima', 'sima.misc'],
+    packages=['sima', 'sima.misc', 'sima.motion'],
     #   scripts = [''],
     #
     # Project uses reStructuredText, so ensure that the docutils get

@@ -1,4 +1,4 @@
-# Unit tests for sima/motion.py
+# Unit tests for sima/motion/_hmm.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
 
@@ -73,10 +73,10 @@ def test_descrete_transition_prob():
         2 * np.pi * det(cov_matrix)) * np.exp(
         -np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)) / 2.)
 
-    assert_almost_equal(motion._discrete_transition_prob(
+    assert_almost_equal(motion._hmm._discrete_transition_prob(
         np.array([1., 1.]), np.array([0., 0.]), transition_probs, 8), 0)
     assert_almost_equal(
-        motion._discrete_transition_prob(
+        motion._hmm._discrete_transition_prob(
             np.array([0., 0.]), np.array([0., 0.]), transition_probs, 8),
         3.09625122)
 
@@ -95,7 +95,8 @@ def test_estimate_movement_model():
                           [-4.44306493, -4.02117885]]),
                 np.array([-0.66666667,  4.83333333]))
 
-    for x, y in zip(motion._estimate_movement_model(shifts, 10), expected):
+    for x, y in zip(
+            motion._hmm._estimate_movement_model(shifts, 10), expected):
         assert_array_almost_equal(x, y)
 
     expected = (np.diag([0.01, 0.01]),
@@ -104,7 +105,7 @@ def test_estimate_movement_model():
                           [-4.20179324, -9.39166108]]),
                 np.array([0., 0.]))
     for x, y in zip(
-            motion._estimate_movement_model([np.zeros((10, 1, 2))], 10),
+            motion._hmm._estimate_movement_model([np.zeros((10, 1, 2))], 10),
             expected):
         assert_array_almost_equal(x, y)
 
@@ -113,11 +114,11 @@ def test_threshold_gradient():
     test = [np.arange(4) + 4 * i for i in range(4)]
     res = np.zeros((4, 4), dtype=bool)
     res[3, 3] = True
-    assert_equal(motion._threshold_gradient(np.array([test]))[0], res)
+    assert_equal(motion._hmm._threshold_gradient(np.array([test]))[0], res)
 
 
 def test_initial_distribution():
-    initial_dist = motion._initial_distribution(
+    initial_dist = motion._hmm._initial_distribution(
         np.diag([0.9, 0.9]),
         10 * np.ones((2, 2)), np.array([-1, 1]))
     assert_almost_equal(initial_dist(0), 0.00754154839)
@@ -137,9 +138,9 @@ def test_lookup_tables():
     offset = np.array([0, 0])
 
     position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbl = \
-        motion._lookup_tables(min_displacements, max_displacements,
-                              log_markov_matrix, num_columns, references,
-                              offset)
+        motion._hmm._lookup_tables(
+            min_displacements, max_displacements,
+            log_markov_matrix, num_columns, references, offset)
 
     pos_tbl = [[i % 3 - 1, int(i / 3) - 1] for i in range(9)]
     assert_array_equal(position_tbl, pos_tbl)
@@ -152,7 +153,7 @@ def test_backtrace():
     position_tbl = np.array([[i % 5 - 2, int(i / 5) - 2] for i in range(25)])
     backpointer = [np.arange(5) for i in range(2)]
 
-    traj = motion._backtrace(2, backpointer, states, position_tbl)
+    traj = motion._hmm._backtrace(2, backpointer, states, position_tbl)
     assert_array_equal(traj, [[0, -2], [0, 0], [0, 2]])
 
 
@@ -163,7 +164,7 @@ def test_hmm():
     frames = Sequence.create('TIFF', example_tiff())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion.hmm([frames],
+        corrected = motion._hmm.hmm([frames],
                                os.path.join(tmp_dir, 'test_hmm.sima'),
                                verbose=False, n_processes=1)
 
@@ -181,7 +182,7 @@ def test_hmm_tmp():  # TODO: remove when displacements.pkl is updated
     frames = Sequence.create('TIFF', example_tiff())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion.hmm([frames],
+        corrected = motion._hmm.hmm([frames],
                                os.path.join(tmp_dir, 'test_hmm_2.sima'),
                                verbose=False)
 
@@ -209,7 +210,7 @@ class Test_MCImagingDataset(object):
         shifted = np.roll(shifted, -frame_shifts[0][1, 0, 0], axis=1)
         frames = np.array([frame, shifted])
 
-        self.mc_ds = motion._MCImagingDataset(
+        self.mc_ds = motion._hmm._MCImagingDataset(
             [Sequence.create('ndarray', frames)])
 
     def test_pixel_distribution(self):

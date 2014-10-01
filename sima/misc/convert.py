@@ -12,7 +12,6 @@ import numpy as np
 
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
-from sima.motion import _MotionCorrectedSequence
 from sima.ROI import ROI, ROIList
 
 
@@ -106,8 +105,7 @@ def _load_version0(path):
         frame_shape = np.array(sequences[0].shape)[1:]
         frame_shape[1:3] += max_disp
         sequences = [
-            _MotionCorrectedSequence(
-                s, d.reshape(s.shape[:3] + (2,)), frame_shape)
+            s.apply_displacements(d.reshape(s.shape[:3] + (2,)), frame_shape)
             for s, d in zip(sequences, displacements)]
         try:
             trim_coords = dataset_dict.pop('_lazy__trim_coords')
