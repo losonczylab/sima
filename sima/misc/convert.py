@@ -13,6 +13,7 @@ import numpy as np
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
 from sima.motion import _MotionCorrectedSequence
+from sima.ROI import ROI, ROIList
 
 
 class Unpickler(_Unpickler):
@@ -125,6 +126,35 @@ def _load_version0(path):
                          for s in sequences]
     ds = ImagingDataset(sequences, None)
     ds.savedir = path
+
+    # Add ROIs if they exist
+    try:
+        with open(os.path.join(path, 'rois.pkl'), 'rb') as f:
+            rois = pkl.load(f)
+    except IOError:
+        pass
+    else:
+        roi_lists = {}
+        for label, roi_list_dict in rois.iteritems():
+            roi_list = []
+            for roi in roi_list_dict['rois']:
+                mask = roi['mask']
+                polygons = roi['polygons']
+                if mask is not None:
+                    new_roi = ROI(mask=mask)
+                else:
+                    new_roi = ROI(polygons=polygons)
+                new_roi.id = roi['id']
+                new_roi.label = roi['label']
+                new_roi.tags = roi['tags']
+                new_roi.im_shape = roi['im_shape']
+
+                roi_list.append(new_roi)
+            roi_lists[label] = ROIList(roi_list)
+            roi_lists[label].timestamp = roi_list_dict['timestamp']
+
+        for label, roi_list in roi_lists.iteritems():
+            ds.add_ROIs(roi_list, label=label)
     return ds
 
 
@@ -136,7 +166,7 @@ def _0_to_1(source, target):
     source : str
         The path (ending in .sima) of the version 0.x dataset.
     target : str
-        The path (ending in .sima) for saving the version 0.x dataset.
+        The path (ending in .sima) for saving the version 1.x dataset.
 
     Examples
     --------
