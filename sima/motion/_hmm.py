@@ -275,13 +275,12 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
     return trajectory
 
 
-class _MCImagingDataset(ImagingDataset):
+class _MCImagingDataset(object):
 
     """ImagingDataset sub-classed with motion correction functionality"""
 
     def __init__(self, sequences):
-        super(_MCImagingDataset, self).__init__(
-            [_MotionSequence(s) for s in sequences], None)
+        self.dataset = ImagingDataset(sequences, None)
 
     def _neighbor_viterbi(
             self, log_transition_matrix, references, gains, decay_matrix,
@@ -292,11 +291,11 @@ class _MCImagingDataset(ImagingDataset):
 
         See _MCCycle.neighbor_viterbi for details."""
         displacements = []
-        for i, cycle in enumerate(self):
+        for i, cycle in enumerate(self.dataset):
             if verbose:
                 print 'Estimating displacements for cycle ', i
             displacements.append(
-                cycle.neighbor_viterbi(
+                SolverHMM(cycle).neighbor_viterbi(
                     log_transition_matrix, references, gains, decay_matrix,
                     cov_matrix_est, mean_shift, offset, min_displacements,
                     max_displacements, pixel_means, pixel_variances,
@@ -345,7 +344,7 @@ class _MCImagingDataset(ImagingDataset):
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
         pixel_means, pixel_variances = self._pixel_distribution()
         cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
-            _estimate_movement_model(shifts, self.frame_shape[1])
+            _estimate_movement_model(shifts, self.dataset.frame_shape[1])
 
         # add a bit of extra room to move around
         min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
@@ -411,11 +410,11 @@ class _MCImagingDataset(ImagingDataset):
             Variances of the intensity of each channel.
         """
         # TODO: separate distributions for each plane
-        sums = np.zeros(self.frame_shape[-1]).astype(float)
+        sums = np.zeros(self.dataset.frame_shape[-1]).astype(float)
         sum_squares = np.zeros_like(sums)
         counts = np.zeros_like(sums)
         t = 0
-        for plane in it.chain(*it.chain(*self)):
+        for plane in it.chain(*it.chain(*self.dataset)):
             if t > 0:
                 mean_est = sums / counts
                 var_est = (sum_squares / counts) - (mean_est ** 2)
@@ -439,7 +438,7 @@ class _MCImagingDataset(ImagingDataset):
     def _correlation_based_correction(
             self, max_displacement=None, n_processes=None):
         return sima.motion.frame_align.estimate(
-            self.sequences, max_displacement, n_processes=n_processes)
+            self.dataset.sequences, max_displacement, n_processes=n_processes)
 
     def _whole_frame_shifting(self, shifts, correlations):
         """Line up the data by the frame-shift estimates
@@ -474,14 +473,15 @@ class _MCImagingDataset(ImagingDataset):
         max_shifts = np.max(np.concatenate(
             [s[c > thresh] for s, c in zip(shifts, correlations)]
         ), axis=0)
-        out_shape = list(self.frame_shape)
+        out_shape = list(self.dataset.frame_shape)
         out_shape[1] += max_shifts[0] - min_shifts[0]
         out_shape[2] += max_shifts[1] - min_shifts[1]
         reference = np.zeros(out_shape)
         sum_squares = np.zeros_like(reference)
         count = np.zeros_like(reference)
         for frame, shift, corr in it.izip(
-                it.chain(*self), it.chain(*shifts), it.chain(*correlations)):
+                it.chain(*self.dataset), it.chain(*shifts),
+                it.chain(*correlations)):
             for plane, p_shifts, p_corr, th, ref, ssq, cnt in it.izip(
                     frame, shift, corr, thresh, reference, sum_squares, count):
                 if p_corr > th:
@@ -500,7 +500,7 @@ class _MCImagingDataset(ImagingDataset):
         return reference, variances, offset
 
 
-class _MotionSequence(object):
+class SolverHMM(object):
 
     """_ImagingCycle sub-classed with motion correction methods.
 
@@ -515,15 +515,8 @@ class _MotionSequence(object):
     num_frames, num_channels, num_rows, num_columns : int
     """
 
-    def __init__(self, base):
-        self._base = base
-
-    def __getattr__(self, name):
-        return getattr(self._base, name)
-
-    def __iter__(self):
-        for frame in self._base:
-            yield frame.astype(float)
+    def __init__(self, sequence):
+        self.sequence = sequence
 
     def _iter_processed(self, gains, pixel_means, pixel_variances):
         """Generator of preprocessed frames for efficient computation.
@@ -549,7 +542,7 @@ class _MotionSequence(object):
         """
         means = pixel_means / gains
         variances = pixel_variances / gains ** 2
-        for frame in self:
+        for frame in self.sequence:
             im = frame / gains
             # replace NaN pixels with the mean value
             for ch_idx, ch_mean in enumerate(means):
@@ -611,7 +604,7 @@ class _MotionSequence(object):
             The maximum aposteriori displacement trajectory.  Shape: (2, T).
         """
         offset = np.array(offset, dtype=int)  # type verification
-        T = np.prod(self.shape[:3])  # determine number of timesteps
+        T = np.prod(self.sequence.shape[:3])  # determine number of timesteps
         backpointer = []
         states = []
 
@@ -622,8 +615,8 @@ class _MotionSequence(object):
         log_scaled_refs = np.log(scaled_refs)
         position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbls = \
             _lookup_tables(min_displacements, max_displacements,
-                           log_markov_matrix, self.shape[3], references,
-                           offset)
+                           log_markov_matrix, self.sequence.shape[3],
+                           references, offset)
         initial_dist = _initial_distribution(mov_decay, mov_cov, mean_shift)
         iter_processed = iter(self._iter_processed(gains, pixel_means,
                                                    pixel_variances))
@@ -680,7 +673,7 @@ class _MotionSequence(object):
         displacements = _backtrace(np.argmax(log_p_old), backpointer, states,
                                    position_tbl)
         assert displacements.dtype == int
-        return displacements.reshape(self.shape[:3] + (2,))
+        return displacements.reshape(self.sequence.shape[:3] + (2,))
 
 
 def hmm(sequences, savedir, channel_names=None, info=None,
@@ -760,14 +753,3 @@ def hmm(sequences, savedir, channel_names=None, info=None,
         s[:, :, rows, columns] for s in corrected_sequences]
     return ImagingDataset(
         corrected_sequences, savedir, channel_names=channel_names)
-
-
-def _observation_counts(raw_shape, displacements, untrimmed_shape):
-    cnt = np.zeros(untrimmed_shape, dtype=int)
-    if displacements.ndim == 2:
-        for plane in range(raw_shape[0]):
-            y, x = displacements[plane]
-            cnt[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
-        return cnt
-    elif displacements.ndim == 3:
-        return mc.observation_counts(raw_shape, displacements, untrimmed_shape)

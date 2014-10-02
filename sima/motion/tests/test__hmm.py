@@ -232,7 +232,7 @@ class Test_MCImagingDataset(object):
         reference, variances, offset = \
             self.mc_ds._whole_frame_shifting(self.frame_shifts,
                                              self.correlations)
-        ref_shape = np.array(self.mc_ds.frame_shape)
+        ref_shape = np.array(self.mc_ds.dataset.frame_shape)
         ref_shape[1:3] += self.frame_shifts[0][0, 0]
         assert_array_equal(reference.shape, ref_shape)
         assert_equal(len(np.where(variances > 0)[0]), 0)

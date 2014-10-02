@@ -1,4 +1,8 @@
+import itertools as it
+
 import numpy as np
+
+import _motion as mc
 
 
 def trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
@@ -27,3 +31,14 @@ def trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     else:
         raise TypeError('Invalid type for trim_criterion')
     return rows, columns
+
+
+def _observation_counts(raw_shape, displacements, untrimmed_shape):
+    cnt = np.zeros(untrimmed_shape, dtype=int)
+    if displacements.ndim == 2:
+        for plane in range(raw_shape[0]):
+            y, x = displacements[plane]
+            cnt[plane, y:(y + raw_shape[1]), x:(x + raw_shape[2])] += 1
+        return cnt
+    elif displacements.ndim == 3:
+        return mc.observation_counts(raw_shape, displacements, untrimmed_shape)

@@ -393,7 +393,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
         if libtiff_available:
             tiff = TIFF.open(self._path, 'r')
             for frame in tiff.iter_images():
-                yield frame
+                yield frame.astype(float)
         else:
             for frame in self.stack.pages:
                 yield frame.asarray(colormapped=False)
