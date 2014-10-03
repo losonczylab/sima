@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import os
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -23,6 +24,11 @@ extensions = [
         sources=['sima/_opca.c']
     )
 ]
+
+if not os.path.isfile('sima/_opca.c'):
+    os.system('cython sima/_opca.pyx')
+if not os.path.isfile('sima/motion/_motion.c'):
+    os.system('cython sima/motion/_motion.pyx')
 
 CLASSIFIERS = """\
 Development Status :: 4 - Beta
