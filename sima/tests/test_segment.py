@@ -10,13 +10,9 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
-from sima import extract
 from sima import ImagingDataset
 from sima.misc import example_data
 from sima import segment
-import os
-import tempfile
-import numpy as np
 
 
 def setup():
@@ -31,10 +27,23 @@ def test_extract_rois():
     return
 
 
-def test_stica():
+def test_PlaneSTICA():
     ds = ImagingDataset.load(example_data())
-    method = segment.PlaneSTICA(channel=0, components=5)
-    rois = ds.segment(method)
+    method = segment.PlaneSTICA(components=5)
+    ds.segment(method)
+
+
+def test_PlaneNormalizedCuts():
+    ds = ImagingDataset.load(example_data())
+    affinty_method = segment.BasicAffinityMatrix(num_pcs=3)
+    method = segment.PlaneNormalizedCuts(affinty_method)
+    ds.segment(method)
+
+
+def test_PlaneCA1PC():
+    ds = ImagingDataset.load(example_data())
+    method = segment.PlaneCA1PC(num_pcs=3)
+    ds.segment(method)
 
 
 if __name__ == "__main__":
