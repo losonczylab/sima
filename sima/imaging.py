@@ -17,7 +17,6 @@ else:
     h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
 
 import sima
-import sima.segment as segment
 import sima.misc
 from sima.misc import mkdir_p, most_recent_key, affine_transform
 from sima.extract import extract_rois, save_extracted_signals
@@ -536,7 +535,7 @@ class ImagingDataset(object):
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
 
-    def segment(self, method='normcut', label=None, planes=None, **kwargs):
+    def segment(self, method, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
 
         Parameters
@@ -547,25 +546,13 @@ class ImagingDataset(object):
             Label to be associated with the segmented set of ROIs.
         planes : list of int
             List of the planes that are to be segmented.
-        kwargs : dict
-            Additional keyword arguments are passed to the function
-            implementing the selected segmentation method.
 
         Returns
         -------
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
         """
-        if 'channel' in kwargs:
-            kwargs['channel'] = self._resolve_channel(kwargs['channel'])
-        if method is 'normcut':
-            rois = segment.normcut(self, **kwargs)
-        elif method is 'ca1pc':
-            rois = segment.ca1pc(self, **kwargs)
-        elif method is 'ca1pc':
-            rois = segment.stica(self, **kwargs)
-        else:
-            raise ValueError('Unrecognized segmentation method.')
+        rois = method.segment(self)
         if self.savedir is not None:
             rois.save(join(self.savedir, 'rois.pkl'), label)
         return rois

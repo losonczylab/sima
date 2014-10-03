@@ -31,10 +31,10 @@ def test_extract_rois():
     return
 
 
-@dec.knownfailureif(True)  # TODO: update example_data to new format
 def test_stica():
     ds = ImagingDataset.load(example_data())
-    rois = segment.stica(ds, channel=0, components=5)
+    method = segment.PlaneSTICA(channel=0, components=5)
+    rois = ds.segment(method)
 
 
 if __name__ == "__main__":

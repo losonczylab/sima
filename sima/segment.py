@@ -1,4 +1,5 @@
 import os
+import abc
 import itertools as it
 from distutils.version import StrictVersion
 
@@ -33,6 +34,49 @@ except ImportError:
     pyximport.install(setup_args={"include_dirs": np.get_include()},
                       reload_support=True)
     import sima._opca as _opca
+
+
+class SegmentationStrategy(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def segment(self, dataset):
+        return []
+
+
+class PlaneSegmentationStrategy(SegmentationStrategy):
+    __metaclass__ = abc.ABCMeta
+
+    @classmethod
+    def _check_dataset(self, dataset):
+        if dataset.frame_shape[0] is not 1:
+            raise ValueError('This segmentation strategy requires a '
+                             'dataset with exactly one plane.')
+
+
+class PlaneWiseSegmentationStrategy(SegmentationStrategy):
+    """Segmentation approach with each plane segmented separately.
+
+    Parameters
+    ----------
+    plane_strategy : PlaneSegmentationStrategy
+        The strategy to be applied to each plane.
+    """
+
+    def __init__(self, plane_strategy):
+        self.strategy = plane_strategy
+
+    def segment(self, dataset):
+        def set_z(roi, z):
+            raise NotImplementedError
+
+        rois = []
+        for plane in range(dataset.frame_shape[0]):
+            plane_rois = self.strategy.segment(dataset[:, :, plane])
+            for roi in plane_rois:
+                set_z(roi, plane)
+            rois.extend(plane_rois)
+        return rois
 
 
 def _rois_from_cuts_full(cuts):
@@ -205,7 +249,7 @@ def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
         dm = time_avg.max() - time_avg.min()
 
     Y, X = spatial_decay
-    shape = (dataset.num_rows, dataset.num_columns)
+    shape = dataset.frame_shape[1:3]
     A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
 
     pairs = []
@@ -414,7 +458,7 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):
             data.close()
     if ret is not None:
         return ret
-    shape = (dataset.num_rows, dataset.num_columns)
+    shape = dataset.frame_shape[1:3]
     oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(
         dataset_iterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
     oPCs = oPCs.reshape(shape + (-1,))
@@ -437,7 +481,7 @@ def _normcut(dataset, channel=0, num_pcs=75, pc_list=None,
              **kwargs):
     affinity = _affinity_matrix(dataset, channel, max_dist, spatial_decay,
                                 variant, num_pcs, **kwargs)
-    shape = (dataset.num_rows, dataset.num_columns)
+    shape = dataset.frame_shape[1:3]
     cuts = itercut(affinity, shape, cut_max_pen, cut_min_size, cut_max_size)
     return cuts
 
@@ -834,7 +878,7 @@ def _smooth_roi(roi, radius=3):
         True if the smoothing has been successful, False otherwise
     """
 
-    frame = roi.mask.todense().copy()
+    frame = roi.mask[0].todense().copy()
 
     frame[frame > 0] = 1
     check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2] + \
@@ -892,7 +936,7 @@ def _smooth_roi(roi, radius=3):
         if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
                 len(b) > 3:
             new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
-            if new_roi.mask.size != 0:
+            if new_roi.mask[0].size != 0:
                 # "well formed ROI"
                 return new_roi, True
 
@@ -926,16 +970,12 @@ def _smooth_roi(roi, radius=3):
     return roi, False
 
 
-def stica(dataset, channel=0, mu=0.01, components=75,
-          static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
-          smooth_rois=True, spatial_sep=True):
+class PlaneSTICA(PlaneSegmentationStrategy):
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
     Parameters
     ----------
-    dataset : sima.ImagingDataset
-        dataset to be segmented
     channel : int, optional
         The index of the channel to be used. Default: 0
     mu : float, optional
@@ -1012,52 +1052,76 @@ def stica(dataset, channel=0, mu=0.01, components=75,
        cellular signals from large-scale calcium imaging data.  Neuron. 2009
        Sep 24;63(6):747-60.
     """
-    if not SKLEARN_AVAILABLE:
-        raise ImportError('scikit-learn >= 0.11 required')
 
-    if dataset.savedir is not None:
-        pca_path = os.path.join(
-            dataset.savedir, 'opca_' + str(channel) + '.npz')
-    else:
-        pca_path = None
+    def __init__(self, channel=0, mu=0.01, components=75, static_threshold=0.5,
+                 min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
+                 spatial_sep=True):
 
-    if dataset.savedir is not None:
-        ica_path = os.path.join(
-            dataset.savedir, 'ica_' + str(channel) + '.npz')
-    else:
-        ica_path = None
+        class Struct:
+            def __init__(self, **entries):
+                self.__dict__.update(entries)
 
-    print 'performing PCA...'
-    if isinstance(components, int):
-        components = range(components)
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, components[-1]+1,
-                                   path=pca_path)
-    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
-                        dataset.num_columns, space_pcs.shape[2]))
-    space_pcs = np.array([space_pcs[:, :, i]
-                          for i in components]).transpose((1, 2, 0))
-    time_pcs = np.array([time_pcs[:, i] for i in components]).transpose((1, 0))
+        d = locals()
+        d.pop('self')
+        self._params = Struct(**d)
 
-    print 'performing ICA...'
-    st_components = _stica(space_pcs, time_pcs, mu=mu, path=ica_path,
-                           n_components=space_pcs.shape[2])
+    def segment(self, dataset):
 
-    if x_smoothing > 0 or static_threshold > 0:
-        accepted, _, _ = _find_useful_components(
-            st_components, static_threshold, x_smoothing=x_smoothing)
+        if not SKLEARN_AVAILABLE:
+            raise ImportError('scikit-learn >= 0.11 required')
+        self._check_dataset(dataset)
 
-        if min_area > 0 or spatial_sep:
-            rois = _extract_st_rois(accepted, min_area=min_area,
-                                    spatial_sep=spatial_sep)
+        if dataset.savedir is not None:
+            pca_path = os.path.join(
+                dataset.savedir, 'opca_' + str(self._params.channel) + '.npz')
+        else:
+            pca_path = None
 
-        if smooth_rois:
-            print 'smoothing ROIs...'
-            rois = [_smooth_roi(roi)[0] for roi in rois]
+        if dataset.savedir is not None:
+            ica_path = os.path.join(
+                dataset.savedir, 'ica_' + str(self._params.channel) + '.npz')
+        else:
+            ica_path = None
 
-        print 'removing overlapping ROIs...'
-        rois = _remove_overlapping(rois, percent_overlap=overlap_per)
-    else:
-        rois = [ROI(st_components[:, :, i]) for i in
-                xrange(st_components.shape[2])]
+        print 'performing PCA...'
+        if isinstance(self._params.components, int):
+            self._params.components = range(self._params.components)
+        _, space_pcs, time_pcs = _OPCA(
+            dataset, self._params.channel, self._params.components[-1]+1,
+            path=pca_path)
+        space_pcs = np.real(space_pcs.reshape(
+            dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
+        space_pcs = np.array(
+            [space_pcs[:, :, i] for i in self._params.components]
+        ).transpose((1, 2, 0))
+        time_pcs = np.array(
+            [time_pcs[:, i] for i in self._params.components]
+        ).transpose((1, 0))
 
-    return rois
+        print 'performing ICA...'
+        st_components = _stica(
+            space_pcs, time_pcs, mu=self._params.mu, path=ica_path,
+            n_components=space_pcs.shape[2])
+
+        if self._params.x_smoothing > 0 or self._params.static_threshold > 0:
+            accepted, _, _ = _find_useful_components(
+                st_components, self._params.static_threshold,
+                x_smoothing=self._params.x_smoothing)
+
+            if self._params.min_area > 0 or self._params.spatial_sep:
+                rois = _extract_st_rois(
+                    accepted, min_area=self._params.min_area,
+                    spatial_sep=self._params.spatial_sep)
+
+            if self._params.smooth_rois:
+                print 'smoothing ROIs...'
+                rois = [_smooth_roi(roi)[0] for roi in rois]
+
+            print 'removing overlapping ROIs...'
+            rois = _remove_overlapping(
+                rois, percent_overlap=self._params.overlap_per)
+        else:
+            rois = [ROI(st_components[:, :, i]) for i in
+                    xrange(st_components.shape[2])]
+
+        return ROIList(rois)
