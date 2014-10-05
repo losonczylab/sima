@@ -1,7 +1,7 @@
 import os
 import abc
 import itertools as it
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 
 import numpy as np
 from scipy import sparse, ndimage
@@ -12,7 +12,7 @@ try:
 except ImportError:
     cv2_available = False
 else:
-    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
+    cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
 from scipy import nanmean
 try:

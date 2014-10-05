@@ -7,7 +7,7 @@ Reference
     IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,
     VOL. 22, NO. 8, AUGUST 2000.
 """
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 
 import numpy as np
 from scipy.sparse.linalg import eigsh
@@ -19,7 +19,7 @@ try:
 except ImportError:
     cv2_available = False
 else:
-    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
+    cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
 
 def normcut_vectors(affinity_matrix, k):
