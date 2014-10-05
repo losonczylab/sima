@@ -1,7 +1,7 @@
 import os
 import itertools as it
 import errno
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 
 from numpy import nanmax
 try:
@@ -9,7 +9,7 @@ try:
 except ImportError:
     cv2_available = False
 else:
-    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
+    cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
 
 def lazyprop(fn):
