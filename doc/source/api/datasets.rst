@@ -1,13 +1,3 @@
-=======
-Classes
-=======
-
-Sequence objects
-================
-
-.. autoclass:: sima.Sequence
-    :members:
-
 ImagingDataset objects
 ======================
 
