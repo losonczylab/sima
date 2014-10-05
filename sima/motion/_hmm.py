@@ -1,19 +1,3 @@
-"""
-Motion correction
-=================
-
-The SIMA package can be used to motion correct sequentially
-acquired images.
-
-Currently, there is only one implemented method, which uses a
-hidden Markov model (HMM) to correct for motion artifacts both
-between frames and within frame.
-
-Methods
--------
-
-"""
-
 import itertools as it
 import warnings
 try:
