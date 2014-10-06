@@ -52,10 +52,12 @@ class ImagingDataset(object):
 
     Datasets can also be indexed and sliced.
 
-    >>> dataset[0].num_sequences  # #doctest: +SKIP
+    >>> dataset[0].num_sequences
     1
-    >>> dataset[:, 0].num_frames  # #doctest: +SKIP
+    >>> dataset[:, 0].num_frames
     1
+    >>> dataset[:, 0].frame_shape == dataset.frame_shape
+    True
 
     The resulting sliced datasets are not saved by default.
 
@@ -168,7 +170,11 @@ class ImagingDataset(object):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None, info=self.info)
+        sliced_set = ImagingDataset(sequences, None, info=self.info)
+        if sliced_set.frame_shape[:-1] == self.frame_shape[:-1]:
+            for label, roi_list in self.ROIs.iteritems():
+                sliced_set.add_ROIs(roi_list, label)
+        return sliced_set
 
     @property
     def channel_names(self):
