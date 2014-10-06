@@ -72,7 +72,7 @@ class Sequence(object):
     >>> path = example_hdf5()
     >>> seq = Sequence.create('HDF5', path, 'yxt')
 
-    For numpy 0.9 or higher, Sequences are array like, and can be converted to
+    For numpy 1.9 or higher, Sequences are array like, and can be converted to
     numpy arrays or passed as arguments into numpy functions that take arrays.
 
     >>> import numpy as np
