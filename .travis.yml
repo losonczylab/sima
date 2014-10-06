@@ -42,7 +42,7 @@ before_install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn sphinx numpydoc pandas'
+  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn sphinx numpydoc pandas bottleneck'
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
   - pip install sphinxcontrib-napoleon 
