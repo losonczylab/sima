@@ -3,7 +3,10 @@ import itertools as it
 import errno
 from distutils.version import LooseVersion
 
-from numpy import nanmax
+try:
+    from bottleneck import nanmax
+except ImportError:
+    from numpy import nanmax
 try:
     import cv2
 except ImportError:

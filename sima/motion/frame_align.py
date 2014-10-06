@@ -3,6 +3,10 @@ import multiprocessing
 import warnings
 
 import numpy as np
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy import nanmean
 
 import sima.misc
 from sima.misc.align import align_cross_correlation
@@ -157,7 +161,7 @@ def _frame_alignment_base(
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
-        mean_shift = np.nanmean(list(it.chain(*it.chain(*shifts))), axis=0)
+        mean_shift = nanmean(list(it.chain(*it.chain(*shifts))), axis=0)
         # calculate alteration of shape (num_planes, dim)
         alteration = (mean_shift - mean_shift[0]).astype(int)
         for seq in shifts:

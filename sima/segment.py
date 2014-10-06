@@ -14,7 +14,11 @@ except ImportError:
 else:
     cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
-from scipy import nanmean
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy import nanmean
+
 try:
     from sklearn.decomposition import FastICA
 except ImportError:

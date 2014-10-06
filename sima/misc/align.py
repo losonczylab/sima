@@ -17,8 +17,13 @@ try:
     from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
 except ImportError:
     from scipy.fftpack import fft2, ifft2
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy import nanmean
 import scipy.ndimage as scind
 import scipy.sparse
+
 
 def cross_correlation_2d(pixels1, pixels2):
     '''Align the second image with the first using max cross-correlation
@@ -55,8 +60,8 @@ def cross_correlation_2d(pixels1, pixels2):
     # correlation, keeps some of the sums of multiplications from
     # losing precision and precomputes t(x-u,y-v) - t_mean
     #
-    pixels1 = np.nan_to_num(pixels1-np.nanmean(pixels1))
-    pixels2 = np.nan_to_num(pixels2-np.nanmean(pixels2))
+    pixels1 = np.nan_to_num(pixels1-nanmean(pixels1))
+    pixels2 = np.nan_to_num(pixels2-nanmean(pixels2))
     #
     # Lewis uses an image, f and a template t. He derives a normalized
     # cross correlation, ncc(u,v) =
