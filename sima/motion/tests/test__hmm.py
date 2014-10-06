@@ -164,9 +164,9 @@ def test_hmm():
     frames = Sequence.create('TIFF', example_tiff())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion._hmm.hmm([frames],
-                               os.path.join(tmp_dir, 'test_hmm.sima'),
-                               verbose=False, n_processes=1)
+        corrected = motion._hmm.hmm(
+            [frames], os.path.join(tmp_dir, 'test_hmm.sima'), verbose=False,
+            n_processes=1)
 
     with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
         displacements = [d.reshape((20, 1, 128, 2))
@@ -178,20 +178,50 @@ def test_hmm():
 
 def test_hmm_tmp():  # TODO: remove when displacements.pkl is updated
     global tmp_dir
-
     frames = Sequence.create('TIFF', example_tiff())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion._hmm.hmm([frames],
-                               os.path.join(tmp_dir, 'test_hmm_2.sima'),
-                               verbose=False)
-
+        corrected = motion._hmm.hmm(
+            [frames], os.path.join(tmp_dir, 'test_hmm_2.sima'), verbose=False)
     with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
         displacements = [d.reshape((20, 1, 128, 2))
                          for d in pickle.load(fh)]
-
     displacements_ = [seq.displacements for seq in corrected]
     assert_(abs(displacements_[0] - displacements[0]).max() <= 1)
+
+
+@dec.knownfailureif(True)
+def test_hmm_missing_frame():
+    global tmp_dir
+    frames = Sequence.create('TIFF', example_tiff())
+    masked_seq = frames.mask([(5, None, None)])
+    corrected = motion._hmm.hmm(
+        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
+    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
+
+
+@dec.knownfailureif(True)
+def test_hmm_missing_row():
+    global tmp_dir
+    frames = Sequence.create('TIFF', example_tiff())
+    mask = np.zeros(frames.shape[1:-1], dtype=bool)
+    mask[:, 20, :] = True
+    masked_seq = frames.mask([(None, mask, None)])
+    corrected = motion._hmm.hmm(
+        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
+    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
+
+
+@dec.knownfailureif(True)
+def test_hmm_missing_column():
+    global tmp_dir
+    frames = Sequence.create('TIFF', example_tiff())
+    mask = np.zeros(frames.shape[1:-1], dtype=bool)
+    mask[:, :, 30] = True
+    masked_seq = frames.mask([(None, mask, None)])
+    corrected = motion._hmm.hmm(
+        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
+    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
 
 
 class Test_MCImagingDataset(object):
