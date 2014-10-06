@@ -1,6 +1,7 @@
 import os
+import abc
 import itertools as it
-from distutils.version import StrictVersion
+from distutils.version import LooseVersion
 
 import numpy as np
 from scipy import sparse, ndimage
@@ -11,7 +12,7 @@ try:
 except ImportError:
     cv2_available = False
 else:
-    cv2_available = StrictVersion(cv2.__version__) >= StrictVersion('2.4.8')
+    cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
 from scipy import nanmean
 try:
@@ -21,6 +22,7 @@ except ImportError:
 else:
     SKLEARN_AVAILABLE = True
 
+import sima.misc
 from sima.normcut import itercut
 from sima.ROI import ROI, ROIList, mask2poly
 import sima.oPCA as oPCA
@@ -35,229 +37,81 @@ except ImportError:
     import sima._opca as _opca
 
 
-def _rois_from_cuts_full(cuts):
-    """Return ROI structures each containing the full extent of a cut.
+class SegmentationStrategy(object):
+    """Abstract segmentation method."""
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self):
+        self._post_processing_steps = []
+
+    def segment(self, dataset):
+        """Apply the segmentation method to a dataset.
+
+        Parameters
+        ----------
+        dataset : ImagingDataset
+            The dataset whose affinity matrix is being calculated.
+            return self._segment(dataset)
+
+        Returns
+        -------
+        rois : sima.ROI.ROIList
+            A list of sima.ROI ROI objects.
+        """
+        rois = self._segment(dataset)
+        for step in self._post_processing_steps:
+            rois = step.apply(rois, dataset)
+        return rois
+
+    def append(self, post_processing_step):
+        """Add a post processing step.
+
+        Parameters
+        ----------
+        post_processing_step : PostProcessingStep
+
+        """
+        self._post_processing_steps.append(post_processing_step)
+
+    @abc.abstractmethod
+    def _segment(self, dataset):
+        return
+
+
+class PlaneSegmentationStrategy(SegmentationStrategy):
+    __metaclass__ = abc.ABCMeta
+
+    def _segment(self, dataset):
+        if dataset.frame_shape[0] is not 1:
+            raise ValueError('This segmentation strategy requires a '
+                             'dataset with exactly one plane.')
+        return self._segment(dataset)
+
+
+class PlaneWiseSegmentationStrategy(SegmentationStrategy):
+    """Segmentation approach with each plane segmented separately.
 
     Parameters
     ----------
-    cuts : list of sima.normcut.CutRegion
-        The segmented regions identified by normalized cuts.
-
-    Returns
-    -------
-    sima.ROI.ROIList
-        ROI structures corresponding to each cut.
-    """
-    ROIs = ROIList([])
-    for cut in cuts:
-        if len(cut.indices):
-            mask = np.zeros(cut.shape)
-            for x in cut.indices:
-                mask[np.unravel_index(x, cut.shape)] = 1
-            ROIs.append(ROI(mask=mask))
-    return ROIs
-
-
-def _rois_from_cuts_ca1pc(cuts, im_set, circularity_threhold=0.5,
-                          min_roi_size=20, min_cut_size=30,
-                          channel=0, x_diameter=8, y_diameter=8):
-    """Return ROI structures containing CA1 pyramidal cell somata.
-
-    Parameters
-    ----------
-    cuts : list of sima.normcut.CutRegion
-        The segmented regions identified by normalized cuts.
-    circularity_threhold : float
-        ROIs with circularity below threshold are discarded. Default: 0.5.
-    min_roi_size : int, optional
-        ROIs with fewer than min_roi_size pixels are discarded. Default: 20.
-    min_cut_size : int, optional
-        No ROIs are made from cuts with fewer than min_cut_size pixels.
-        Default: 30.
-    channel : int, optional
-        The index of the channel to be used.
-    x_diameter : int, optional
-        The estimated x-diameter of the nuclei in pixels
-    y_diameter : int, optional
-        The estimated y_diameter of the nuclei in pixels
-
-    Returns
-    -------
-    sima.ROI.ROIList
-        ROI structures each corresponding to a CA1 pyramidal cell soma.
+    plane_strategy : PlaneSegmentationStrategy
+        The strategy to be applied to each plane.
     """
 
-    processed_im = _processed_image_ca1pc(im_set, channel, x_diameter,
-                                          y_diameter)
-    shape = processed_im.shape[:2]
-    ROIs = ROIList([])
-    for cut in cuts:
-        if len(cut.indices) > min_cut_size:
-            # pixel values in the cut
-            vals = processed_im.flat[cut.indices]
+    def __init__(self, plane_strategy):
+        super(PlaneWiseSegmentationStrategy, self).__init__()
+        self.strategy = plane_strategy
 
-            # indices of those values below the otsu threshold
-            # if all values are identical, continue without adding an ROI
-            try:
-                roi_indices = cut.indices[vals < threshold_otsu(vals)]
-            except ValueError:
-                continue
+    def _segment(self, dataset):
+        def set_z(roi, z):
+            raise NotImplementedError  # TODO
 
-            # apply binary opening and closing to the surviving pixels
-            # expand the shape by 1 in all directions to correct for edge
-            # effects of binary opening/closing
-            twoD_indices = [np.unravel_index(x, shape) for x in roi_indices]
-            mask = np.zeros([x + 2 for x in shape])
-            for indices in twoD_indices:
-                mask[indices[0] + 1, indices[1] + 1] = 1
-            mask = ndimage.binary_closing(ndimage.binary_opening(mask))
-            mask = mask[1:-1, 1:-1]
-            roi_indices = np.where(mask.flat)[0]
-
-            # label blobs in each cut
-            labeled_array, num_features = label(mask)
-            for feat in range(num_features):
-                blob_inds = np.where(labeled_array.flat == feat + 1)[0]
-
-                # Apply min ROI size threshold
-                if len(blob_inds) > min_roi_size:
-                    twoD_indices = [np.unravel_index(x, shape)
-                                    for x in blob_inds]
-                    mask = np.zeros(shape)
-                    for x in twoD_indices:
-                        mask[x] = 1
-
-                    # APPLY CIRCULARITY THRESHOLD
-                    poly_pts = np.array(mask2poly(mask)[0].exterior.coords)
-                    p = 0
-                    for x in range(len(poly_pts) - 1):
-                        p += np.linalg.norm(poly_pts[x] - poly_pts[x + 1])
-
-                    shape_area = len(roi_indices)
-                    circle_area = np.square(p) / (4 * np.pi)
-                    if shape_area / circle_area > circularity_threhold:
-                        ROIs.append(ROI(mask=mask))
-
-    return ROIs
-
-
-def _rois_from_cuts(cuts, method, *args, **kwargs):
-    """Generate ROIs from the normalized cuts.
-
-    Parameters
-    ----------
-    cuts : list of CutRegion
-        The normalized cuts from which ROIs are to be made.
-    method : {'FULL', 'CA1PC'}
-        The method to be called.
-    Additional parameters args and kwargs are passed onto
-    the method specific function.
-    """
-    if method == 'full':
-        return _rois_from_cuts_full(cuts)
-    elif method == 'ca1pc':
-        return _rois_from_cuts_ca1pc(cuts, *args, **kwargs)
-    else:
-        raise ValueError('Unrecognized method')
-
-
-def _affinity_matrix(dataset, channel, max_dist=None, spatial_decay=None,
-                     variant=None, num_pcs=75, processed_image=None,
-                     verbose=False):
-    """Return a sparse affinity matrix for use with normalized cuts.
-
-    .. math::
-
-        A_{ij} = e^{k_cc_{ij}} \cdot
-        e^{-\\frac{|\mathbf X_i-\mathbf X_j|_2^2}{\\sigma_{\\mathbf X}^2}}
-
-
-    Parameters
-    ----------
-    dataset : sima.ImagingDataset
-        The dataset for which the affinity matrix is being calculated.
-    channel : int, optional
-        The channel whose signals will be used in the calculations.
-    max_dist : tuple of int, optional
-        Defaults to (2, 2).
-    spatial_decay : tuple of int, optional
-        Defaults to (2, 2).
-    variant : str, optional
-        Specifies a modification to the affinity matrix calculation.
-        Extra kwargs can be used with the variant.
-    processed_image : numpy.ndarry, optional
-        See _processed_image_ca1pc. Only used if variant='ca1pc'.
-
-    Returns
-    -------
-    affinities : scipy.sparse.coo_matrix
-        The affinities between the image pixels.
-    """
-    if max_dist is None:
-        max_dist = (2, 2)
-    if spatial_decay is None:
-        spatial_decay = (2, 2)
-    if variant == 'ca1pc':
-        time_avg = processed_image
-        std = np.std(time_avg)
-        time_avg = np.minimum(time_avg, 2 * std)
-        time_avg = np.maximum(time_avg, -2 * std)
-        dm = time_avg.max() - time_avg.min()
-
-    Y, X = spatial_decay
-    shape = (dataset.num_rows, dataset.num_columns)
-    A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
-
-    pairs = []
-    for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
-        for dx in range(max_dist[1] + 1):
-            if dx == 0:
-                yrange = range(1, max_dist[0] + 1)
-            else:
-                yrange = range(-max_dist[0], max_dist[0] + 1)
-            for dy in yrange:
-                if (x + dx < shape[1]) and (y + dy >= 0) and \
-                        (y + dy < shape[0]):
-                    pairs.append(np.reshape([y, x, y + dy, x + dx], (1, 4)))
-    correlations = _offset_corrs(dataset, np.concatenate(pairs, 0), channel,
-                                 num_pcs=num_pcs, verbose=verbose)
-    for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
-        for dx in range(max_dist[1] + 1):
-            if dx == 0:
-                yrange = range(1, max_dist[0] + 1)
-            else:
-                yrange = range(-max_dist[0], max_dist[0] + 1)
-            for dy in yrange:
-                if (x + dx < shape[1]) and (y + dy >= 0) and \
-                        (y + dy < shape[0]):
-                    a = x + y * shape[1]
-                    b = a + dx + dy * shape[1]
-                    w = np.exp(
-                        9. * correlations[((y, x), (y + dy, x + dx))]
-                    ) * np.exp(
-                        -0.5 * ((float(dx) / X) ** 2 + (float(dy) / Y) ** 2)
-                    )
-                    if variant == 'ca1pc':
-                        m = -np.Inf
-                        for xt in range(dx + 1):
-                            if dx != 0:
-                                ya = y + 0.5 + max(0., xt - 0.5) * \
-                                    float(dy) / float(dx)
-                                yb = y + 0.5 + min(xt + 0.5, dx) * \
-                                    float(dy) / float(dx)
-                            else:
-                                ya = y
-                                yb = y + dy
-                            ym = int(min(ya, yb))
-                            yM = int(max(ya, yb))
-                            for yt in range(ym, yM + 1):
-                                m = max(m, time_avg[yt, x + xt])
-                        w *= np.exp(-3. * m / dm)
-                    # TODO: Use symmetric matrix structure
-                    assert np.isfinite(w)
-                    A[a, b] = w
-                    A[b, a] = w
-    return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
+        rois = []
+        for plane in range(dataset.frame_shape[0]):
+            plane_rois = self.strategy.segment(dataset[:, :, plane])
+            for roi in plane_rois:
+                set_z(roi, plane)
+            rois.extend(plane_rois)
+        return rois
 
 
 def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
@@ -275,10 +129,15 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
     channel : int, optional
         The channel to be used for estimating the pixel correlations.
         Defaults to 0.
-    method : {'EM', 'fast'}
+    method : {'EM', 'fast'}, optional
         The method for estimating the correlations. EM uses the EM
         algorithm to perform OPCA. Fast calculates the offset correlations
-        directly, but is more noisy since all PCs are used.
+        directly, but is more noisy since all PCs are used. Default: EM.
+    num_pcs : int, optional
+        The number of principal components to be used in the estimated
+        correlations with the EM method. Default: 75.
+    verbose : bool, optional
+        Whether to print progress status. Default: False.
 
     Returns
     -------
@@ -319,18 +178,18 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
             for pair_idx, PAIR in enumerate(pixel_pairs)}
 
 
-class dataset_iterable():
+class DatasetIterable():
 
     def __init__(self, dataset, channel):
         self.dataset = dataset
         self.channel = channel
-        self.means = dataset.time_averages[self.channel].reshape(-1)
+        self.means = dataset.time_averages[..., self.channel].reshape(-1)
 
     def __iter__(self):
         for cycle in self.dataset:
             for frame in cycle:
                 yield np.nan_to_num(
-                    frame[self.channel].reshape(-1) - self.means)
+                    frame[..., self.channel].reshape(-1) - self.means)
         raise StopIteration
 
 
@@ -339,10 +198,10 @@ def _unsharp_mask(image, mask_weight, image_weight=1.35, sigma_x=10,
     """Perform unsharp masking on an image.."""
     if not cv2_available:
         raise ImportError('OpenCV >= 2.4.8 required')
-    return cv2.addWeighted(_to8bit(image), image_weight,
-                           cv2.GaussianBlur(_to8bit(image), (0, 0), sigma_x,
-                                            sigma_y),
-                           -mask_weight, 0)
+    return cv2.addWeighted(
+        sima.misc.to8bit(image), image_weight,
+        cv2.GaussianBlur(sima.misc.to8bit(image), (0, 0), sigma_x, sigma_y),
+        -mask_weight, 0)
 
 
 def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
@@ -353,19 +212,14 @@ def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
                                 tileGridSize=(
                                     int(image.shape[1] / float(x_tile_size)),
                                     int(image.shape[0] / float(y_tile_size))))
-    return transform.apply(_to8bit(image))
-
-
-def _to8bit(array):
-    """Convert an arry to 8 bit."""
-    return ((255. * array) / array.max()).astype('uint8')
+    return transform.apply(sima.misc.to8bit(image))
 
 
 def _processed_image_ca1pc(dataset, channel_idx=-1, x_diameter=10,
                            y_diameter=10):
     """Create a processed image for identifying CA1 pyramidal cell ROIs."""
     unsharp_mask_mask_weight = 0.5
-    im = dataset.time_averages[channel_idx]
+    im = dataset.time_averages[0][..., channel_idx]
     return _unsharp_mask(_clahe(im, x_diameter, y_diameter),
                          unsharp_mask_mask_weight,
                          1 + unsharp_mask_mask_weight,
@@ -414,9 +268,9 @@ def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):
             data.close()
     if ret is not None:
         return ret
-    shape = (dataset.num_rows, dataset.num_columns)
+    shape = dataset.frame_shape[1:3]
     oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(
-        dataset_iterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
+        DatasetIterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
     oPCs = oPCs.reshape(shape + (-1,))
     if path is not None:
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
@@ -431,51 +285,31 @@ def _direction(vects, weights=None):
     return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=2).T)).T
 
 
-def _normcut(dataset, channel=0, num_pcs=75, pc_list=None,
-             max_dist=None, spatial_decay=None,
-             cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, variant=None,
-             **kwargs):
-    affinity = _affinity_matrix(dataset, channel, max_dist, spatial_decay,
-                                variant, num_pcs, **kwargs)
-    shape = (dataset.num_rows, dataset.num_columns)
-    cuts = itercut(affinity, shape, cut_max_pen, cut_min_size, cut_max_size)
-    return cuts
+class AffinityMatrixMethod(object):
+    """Method for calculating the affinity matrix"""
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def calculate(self, dataset):
+        """Calculate the afinity matrix for a dataset.
+
+        Parameters
+        ----------
+        dataset : sima.ImagingDataset
+            The dataset for which the affinity matrix is to be calculated.
 
 
-def normcut(
-        dataset, channel=0, num_pcs=75, max_dist=None,
-        spatial_decay=None, cut_max_pen=0.01, cut_min_size=40,
-        cut_max_size=200):
-    """Segment image by iteratively performing normalized cuts.
+        Returns
+        -------
+        affinities : scipy.sparse.coo_matrix
+            The affinities between the image pixels.
+        """
+        return
 
-    Parameters
-    ----------
-    dataset : ImagingDataset
-        The dataset whose affinity matrix is being calculated.
-    channel : int, optional
-        The channel whose signals will be used in the calculations.
-    max_dist : tuple of int, optional
-        Defaults to (2, 2).
-    spatial_decay : tuple of int, optional
-        Defaults to (2, 2).
-    max_pen : float
-        Iterative cutting will continue as long as the cut cost is less than
-        max_pen.
-    cut_min_size, cut_max_size : int
-        Regardless of the cut cost, iterative cutting will not be performed on
-        regions with fewer pixels than min_size and will always be performed
-        on regions larger than max_size.
 
-    Returns
-    -------
-    list of sima.ROI.ROI
-        Segmented ROI structures.
+class BasicAffinityMatrix(AffinityMatrixMethod):
 
-    Notes
-    -----
-    The normalized cut procedure [3]_ is iteratively applied, first to the
-    entire image, and then to each cut made from the previous application of
-    the procedure.
+    """Return a sparse affinity matrix for use with normalized cuts.
 
     The affinity :math:`A_{ij}` between each pair of pixels :math:`i,j` is a
     function of the correlation :math:`c_{i,j}` of the pixel-intensity time
@@ -490,6 +324,143 @@ def normcut(
     with :math:`k_c` and :math:`\\sigma_{\mathbf X}^2` being automatically
     determined constants.
 
+    Parameters
+    ----------
+    channel : int, optional
+        The channel whose signals will be used in the calculations.
+    max_dist : tuple of int, optional
+        Defaults to (2, 2).
+    spatial_decay : tuple of int, optional
+        Defaults to (2, 2).
+    num_pcs : int, optional
+        The number of principal component to use. Default: 75.
+    verbose : bool, optional
+        Whether to print progress status. Default: False.
+    """
+    def __init__(self, channel=0, max_dist=None, spatial_decay=None,
+                 num_pcs=75, verbose=False):
+        if max_dist is None:
+            max_dist = (2, 2)
+        if spatial_decay is None:
+            spatial_decay = (2, 2)
+        d = locals()
+        d.pop('self')
+        self._params = Struct(**d)
+
+    def _calculate_correlations(self, dataset):
+        shape = dataset.frame_shape[1:3]
+        max_dist = self._params.max_dist
+        pairs = []
+        for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
+            for dx in range(max_dist[1] + 1):
+                if dx == 0:
+                    yrange = range(1, max_dist[0] + 1)
+                else:
+                    yrange = range(-max_dist[0], max_dist[0] + 1)
+                for dy in yrange:
+                    if (x + dx < shape[1]) and (y + dy >= 0) and \
+                            (y + dy < shape[0]):
+                        pairs.append(
+                            np.reshape([y, x, y + dy, x + dx], (1, 4)))
+        return _offset_corrs(
+            dataset, np.concatenate(pairs, 0), self._params.channel,
+            num_pcs=self._params.num_pcs, verbose=self._params.verbose)
+
+    def _weight(self, r0, r1):
+        Y, X = self._params.spatial_decay
+        dy = r1[0] - r0[0]
+        dx = r1[1] - r0[1]
+        return np.exp(9. * self._correlations[(r0, r1)]) * np.exp(
+            -0.5 * ((float(dx) / X) ** 2 + (float(dy) / Y) ** 2))
+
+    def _setup(self, dataset):
+        self._correlations = self._calculate_correlations(dataset)
+
+    def calculate(self, dataset):
+        self._setup(dataset)
+        max_dist = self._params.max_dist
+        shape = dataset.frame_shape[1:3]
+        A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
+        for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
+            for dx in range(max_dist[1] + 1):
+                if dx == 0:
+                    yrange = range(1, max_dist[0] + 1)
+                else:
+                    yrange = range(-max_dist[0], max_dist[0] + 1)
+                for dy in yrange:
+                    r0 = (y, x)
+                    r1 = (y+dy, x+dx)
+                    if (x + dx < shape[1]) and (y + dy >= 0) and \
+                            (y + dy < shape[0]):
+                        w = self._weight(r0, r1)
+                        assert np.isfinite(w)
+                        a = x + y * shape[1]
+                        b = a + dx + dy * shape[1]
+                        A[a, b] = w
+                        A[b, a] = w  # TODO: Use symmetric matrix structure
+        return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
+
+
+class AffinityMatrixCA1PC(BasicAffinityMatrix):
+
+    def __init__(self, channel=0, max_dist=None, spatial_decay=None,
+                 num_pcs=75, x_diameter=10, y_diameter=10, verbose=False):
+        super(AffinityMatrixCA1PC, self).__init__(
+            channel, max_dist, spatial_decay, num_pcs, verbose)
+        self._params.x_diameter = x_diameter
+        self._params.y_diameter = y_diameter
+
+    def _setup(self, dataset):
+        super(AffinityMatrixCA1PC, self)._setup(dataset)
+        processed_image = _processed_image_ca1pc(
+            dataset, self._params.channel, self._params.x_diameter,
+            self._params.y_diameter)
+        time_avg = processed_image
+        std = np.std(time_avg)
+        time_avg = np.minimum(time_avg, 2 * std)
+        self._time_avg = np.maximum(time_avg, -2 * std)
+        self._dm = time_avg.max() - time_avg.min()
+
+    def _weight(self, r0, r1):
+        w = super(AffinityMatrixCA1PC, self)._weight(r0, r1)
+        dy = r1[0] - r0[0]
+        dx = r1[1] - r0[1]
+        m = -np.Inf
+        for xt in range(dx + 1):
+            if dx != 0:
+                ya = r0[0] + 0.5 + max(0., xt - 0.5) * float(dy) / float(dx)
+                yb = r0[0] + 0.5 + min(xt + 0.5, dx) * float(dy) / float(dx)
+            else:
+                ya = r0[0]
+                yb = r1[0]
+            ym = int(min(ya, yb))
+            yM = int(max(ya, yb))
+            for yt in range(ym, yM + 1):
+                m = max(m, self._time_avg[yt, r0[1] + xt])
+        return w * np.exp(-3. * m / self._dm)
+
+
+class PlaneNormalizedCuts(PlaneSegmentationStrategy):
+
+    """Segment image by iteratively performing normalized cuts.
+
+    Parameters
+    ----------
+    affinity_method : AffinityMatrixMethod
+        The method used to calculate the affinity matrix.
+    max_pen : float
+        Iterative cutting will continue as long as the cut cost is less than
+        max_pen.
+    cut_min_size, cut_max_size : int
+        Regardless of the cut cost, iterative cutting will not be performed on
+        regions with fewer pixels than min_size and will always be performed
+        on regions larger than max_size.
+
+    Notes
+    -----
+    The normalized cut procedure [3]_ is iteratively applied, first to the
+    entire image, and then to each cut made from the previous application of
+    the procedure.
 
     References
     ----------
@@ -498,24 +469,52 @@ def normcut(
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
 
     """
-    cuts = _normcut(
-        dataset, channel, num_pcs, None, max_dist, spatial_decay,
-        cut_max_pen, cut_min_size, cut_max_size)
-    return _rois_from_cuts(cuts, 'full')
+    def __init__(self, affinty_method=None, cut_max_pen=0.01,
+                 cut_min_size=40, cut_max_size=200):
+        super(PlaneNormalizedCuts, self).__init__()
+        if affinty_method is None:
+            affinty_method = BasicAffinityMatrix(channel=0, num_pcs=75)
+        d = locals()
+        d.pop('self')
+        self._params = Struct(**d)
+
+    @classmethod
+    def _rois_from_cuts(cls, cuts):
+        """Return ROI structures each containing the full extent of a cut.
+
+        Parameters
+        ----------
+        cuts : list of sima.normcut.CutRegion
+            The segmented regions identified by normalized cuts.
+
+        Returns
+        -------
+        sima.ROI.ROIList
+            ROI structures corresponding to each cut.
+        """
+        ROIs = ROIList([])
+        for cut in cuts:
+            if len(cut.indices):
+                mask = np.zeros(cut.shape)
+                for x in cut.indices:
+                    mask[np.unravel_index(x, cut.shape)] = 1
+                ROIs.append(ROI(mask=mask))
+        return ROIs
+
+    def _segment(self, dataset):
+        params = self._params
+        affinity = params.affinty_method.calculate(dataset)
+        shape = dataset.frame_shape[1:3]
+        cuts = itercut(affinity, shape, params.cut_max_pen,
+                       params.cut_min_size, params.cut_max_size)
+        return self._rois_from_cuts(cuts)
 
 
-def ca1pc(
-        dataset, channel=0, num_pcs=75, max_dist=None,
-        spatial_decay=None, cut_max_pen=0.01, cut_min_size=40,
-        cut_max_size=200, x_diameter=10, y_diameter=10,
-        circularity_threhold=.5, min_roi_size=20, min_cut_size=30,
-        verbose=False):
+class PlaneCA1PC(PlaneSegmentationStrategy):
     """Segmentation method designed for finding CA1 pyramidal cell somata.
 
     Parameters
     ----------
-    dataset : ImagingDataset
-        The dataset whose affinity matrix is being calculated.
     channel : int, optional
         The channel whose signals will be used in the calculations.
     max_dist : tuple of int, optional
@@ -541,11 +540,6 @@ def ca1pc(
     y_diameter : int, optional
         The estimated x-diameter of the nuclei in pixels. Default: 8
 
-    Returns
-    -------
-    list of sima.ROI.ROI
-        Segmented ROI structures.
-
     Notes
     -----
     This method begins with the normalized cuts procedure. The affinities
@@ -566,15 +560,25 @@ def ca1pc(
     sima.segment.normcut
 
     """
-    processed_image = _processed_image_ca1pc(dataset, channel, x_diameter,
-                                             y_diameter)
-    cuts = _normcut(
-        dataset, channel, num_pcs, None, max_dist, spatial_decay,
-        cut_max_pen, cut_min_size, cut_max_size, 'ca1pc',
-        processed_image=processed_image, verbose=verbose)
-    return _rois_from_cuts(cuts, 'ca1pc', dataset, circularity_threhold,
-                           min_roi_size, min_cut_size, channel, x_diameter,
-                           y_diameter)
+    def __init__(
+            self, channel=0, num_pcs=75, max_dist=None, spatial_decay=None,
+            cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, x_diameter=10,
+            y_diameter=10, circularity_threhold=.5, min_roi_size=20,
+            min_cut_size=30, verbose=False):
+        super(PlaneCA1PC, self).__init__()
+        affinity_method = AffinityMatrixCA1PC(
+            channel, max_dist, spatial_decay, num_pcs, x_diameter, y_diameter,
+            verbose)
+        self._normcut_method = PlaneNormalizedCuts(
+            affinity_method, cut_max_pen, cut_min_size, cut_max_size)
+        self._normcut_method.append(ROISizeFilter(min_cut_size))
+        self._normcut_method.append(
+            CA1PCNucleus(channel, x_diameter, y_diameter))
+        self._normcut_method.append(ROISizeFilter(min_roi_size))
+        self._normcut_method.append(CircularityFilter(circularity_threhold))
+
+    def _segment(self, dataset):
+        return self._normcut_method.segment(dataset)
 
 
 def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
@@ -815,6 +819,176 @@ def _remove_overlapping(rois, percent_overlap=0.9):
     return [roi for roi in rois if roi is not None]
 
 
+class PostProcessingStep(object):
+    """Post processing step applied to segmented ROIs."""
+    __metaclass__ = abc.ABCMeta
+    # TODO: method for clearing memory after the step is applied
+
+    @abc.abstractmethod
+    def apply(rois, dataset=None):
+        """Apply the post-processing step to rois from a dataset.
+
+        Parameters
+        ----------
+        rois : sima.ROI.ROIList
+            The ROIs to be post-processed.
+        dataset : sima.ImagingDataset
+            The dataset from which the ROIs were segmented.
+
+        Returns
+        -------
+        sima.ROI.ROIList
+            The post-processed ROIs.
+        """
+        return
+
+
+class ROIFilter(PostProcessingStep):
+    """Filter a set of ROIs.
+
+    Parameters
+    ----------
+    func : function
+        A boolean-valued function taking arguments (rois, dataset)
+        that is used to filter the ROIs.
+    setup_func : function, optional
+        A function with parameters rois, dataset that is called
+        to set parameters depending on the dataset.
+    """
+
+    def __init__(self, func, setup_func=None):
+        self._valid = func
+        self._setup = setup_func
+
+    def apply(self, rois, dataset=None):
+        if self._setup is not None:
+            self._setup(rois, dataset)
+        return ROIList([r for r in rois if self._valid(r)])
+
+
+class ROISizeFilter(ROIFilter):
+    """Filter that accepts ROIs based on size.
+
+    Parameters
+    ----------
+    min_size : int
+        The minimum ROI size in pixels.
+    max_size : int, optional
+        The maximum ROI size in pixels.
+    """
+
+    def __init__(self, min_size, max_size=None):
+        if min_size is None:
+            min_size = 0
+        if max_size is None:
+            max_size = np.Inf
+
+        def f(roi, dataset=None):
+            size = sum(np.count_nonzero(plane.todense()) for plane in roi.mask)
+            return not (size > max_size or size < min_size)
+
+        super(ROISizeFilter, self).__init__(f)
+
+
+class CircularityFilter(ROIFilter):
+    """Filter based on circularity of the ROIs.
+
+    Parameters
+    ----------
+    circularity_threhold : float, optional
+        ROIs with circularity below threshold are discarded. Default: 0.5.
+        Range: 0 to 1.
+    """
+    def __init__(self, circularity_threhold=0.5):
+        def f(roi, dataset=None):
+            mask = roi.mask[0].todense()
+            poly_pts = np.array(mask2poly(mask)[0].exterior.coords)
+            p = 0
+            for x in range(len(poly_pts) - 1):
+                p += np.linalg.norm(poly_pts[x] - poly_pts[x + 1])
+            shape_area = np.count_nonzero(mask)
+            circle_area = np.square(p) / (4 * np.pi)
+            return shape_area / circle_area > circularity_threhold
+        super(CircularityFilter, self).__init__(f)
+
+
+class CA1PCNucleus(PostProcessingStep):
+    """Return ROI structures containing CA1 pyramidal cell somata.
+
+    Parameters
+    ----------
+    cuts : list of sima.normcut.CutRegion
+        The segmented regions identified by normalized cuts.
+    circularity_threhold : float
+        ROIs with circularity below threshold are discarded. Default: 0.5.
+    min_roi_size : int, optional
+        ROIs with fewer than min_roi_size pixels are discarded. Default: 20.
+    min_cut_size : int, optional
+        No ROIs are made from cuts with fewer than min_cut_size pixels.
+        Default: 30.
+    channel : int, optional
+        The index of the channel to be used.
+    x_diameter : int, optional
+        The estimated x-diameter of the nuclei in pixels
+    y_diameter : int, optional
+        The estimated y_diameter of the nuclei in pixels
+
+    Returns
+    -------
+    sima.ROI.ROIList
+        ROI structures each corresponding to a CA1 pyramidal cell soma.
+    """
+
+    def __init__(self, channel=0, x_diameter=8, y_diameter=None):
+        if y_diameter is None:
+            y_diameter = x_diameter
+        self._channel = channel
+        self._x_diameter = x_diameter
+        self._y_diameter = y_diameter
+
+    def apply(self, rois, dataset):
+        processed_im = _processed_image_ca1pc(
+            dataset, self._channel, self._x_diameter, self._y_diameter)
+        shape = processed_im.shape[:2]
+        ROIs = ROIList([])
+        for roi in rois:
+            roi_indices = np.nonzero(roi.mask[0])[0]
+            # pixel values in the cut
+            vals = processed_im.flat[roi_indices]
+
+            # indices of those values below the otsu threshold
+            # if all values are identical, continue without adding an ROI
+            try:
+                roi_indices = roi_indices[vals < threshold_otsu(vals)]
+            except ValueError:
+                continue
+
+            # apply binary opening and closing to the surviving pixels
+            # expand the shape by 1 in all directions to correct for edge
+            # effects of binary opening/closing
+            twoD_indices = [np.unravel_index(x, shape) for x in roi_indices]
+            mask = np.zeros([x + 2 for x in shape])
+            for indices in twoD_indices:
+                mask[indices[0] + 1, indices[1] + 1] = 1
+            mask = ndimage.binary_closing(ndimage.binary_opening(mask))
+            mask = mask[1:-1, 1:-1]
+            roi_indices = np.where(mask.flat)[0]
+
+            # label blobs in each cut
+            labeled_array, num_features = label(mask)
+            for feat in range(num_features):
+                blob_inds = np.where(labeled_array.flat == feat + 1)[0]
+
+                twoD_indices = [np.unravel_index(x, shape) for x in blob_inds]
+                mask = np.zeros(shape)
+                for x in twoD_indices:
+                    mask[x] = 1
+
+                ROIs.append(ROI(mask=mask))
+
+        return ROIs
+
+
 def _smooth_roi(roi, radius=3):
     """ Smooth out the ROI boundaries and reduce the number of points in the
     ROI polygons.
@@ -834,7 +1008,7 @@ def _smooth_roi(roi, radius=3):
         True if the smoothing has been successful, False otherwise
     """
 
-    frame = roi.mask.todense().copy()
+    frame = roi.mask[0].todense().copy()
 
     frame[frame > 0] = 1
     check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2] + \
@@ -892,7 +1066,7 @@ def _smooth_roi(roi, radius=3):
         if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
                 len(b) > 3:
             new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
-            if new_roi.mask.size != 0:
+            if new_roi.mask[0].size != 0:
                 # "well formed ROI"
                 return new_roi, True
 
@@ -926,16 +1100,17 @@ def _smooth_roi(roi, radius=3):
     return roi, False
 
 
-def stica(dataset, channel=0, mu=0.01, components=75,
-          static_threshold=0.5, min_area=50, x_smoothing=4, overlap_per=0,
-          smooth_rois=True, spatial_sep=True):
+class Struct:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
+
+class PlaneSTICA(PlaneSegmentationStrategy):
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
     Parameters
     ----------
-    dataset : sima.ImagingDataset
-        dataset to be segmented
     channel : int, optional
         The index of the channel to be used. Default: 0
     mu : float, optional
@@ -967,11 +1142,8 @@ def stica(dataset, channel=0, mu=0.01, components=75,
         If True, the stICA components will be segmented spatially and
         non-contiguous points will be made into sparate ROIs. Requires
         x_smoothing to be > 0. Default: True
-
-    Returns
-    -------
-    rois : list
-        A list of sima.ROI ROI objects
+    verbose : bool, optional
+        Whether to print progress updates.
 
     Notes
     -----
@@ -1012,52 +1184,75 @@ def stica(dataset, channel=0, mu=0.01, components=75,
        cellular signals from large-scale calcium imaging data.  Neuron. 2009
        Sep 24;63(6):747-60.
     """
-    if not SKLEARN_AVAILABLE:
-        raise ImportError('scikit-learn >= 0.11 required')
 
-    if dataset.savedir is not None:
-        pca_path = os.path.join(
-            dataset.savedir, 'opca_' + str(channel) + '.npz')
-    else:
-        pca_path = None
+    def __init__(self, channel=0, mu=0.01, components=75, static_threshold=0.5,
+                 min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
+                 spatial_sep=True, verbose=False):
+        super(PlaneSTICA, self).__init__()
+        d = locals()
+        d.pop('self')
+        self._params = Struct(**d)
 
-    if dataset.savedir is not None:
-        ica_path = os.path.join(
-            dataset.savedir, 'ica_' + str(channel) + '.npz')
-    else:
-        ica_path = None
+    def _segment(self, dataset):
 
-    print 'performing PCA...'
-    if isinstance(components, int):
-        components = range(components)
-    _, space_pcs, time_pcs = _OPCA(dataset, channel, components[-1]+1,
-                                   path=pca_path)
-    space_pcs = np.real(space_pcs.reshape(dataset.num_rows,
-                        dataset.num_columns, space_pcs.shape[2]))
-    space_pcs = np.array([space_pcs[:, :, i]
-                          for i in components]).transpose((1, 2, 0))
-    time_pcs = np.array([time_pcs[:, i] for i in components]).transpose((1, 0))
+        if not SKLEARN_AVAILABLE:
+            raise ImportError('scikit-learn >= 0.11 required')
 
-    print 'performing ICA...'
-    st_components = _stica(space_pcs, time_pcs, mu=mu, path=ica_path,
-                           n_components=space_pcs.shape[2])
+        if dataset.savedir is not None:
+            pca_path = os.path.join(
+                dataset.savedir, 'opca_' + str(self._params.channel) + '.npz')
+        else:
+            pca_path = None
 
-    if x_smoothing > 0 or static_threshold > 0:
-        accepted, _, _ = _find_useful_components(
-            st_components, static_threshold, x_smoothing=x_smoothing)
+        if dataset.savedir is not None:
+            ica_path = os.path.join(
+                dataset.savedir, 'ica_' + str(self._params.channel) + '.npz')
+        else:
+            ica_path = None
 
-        if min_area > 0 or spatial_sep:
-            rois = _extract_st_rois(accepted, min_area=min_area,
-                                    spatial_sep=spatial_sep)
+        if self._params.verbose:
+            print 'performing PCA...'
+        if isinstance(self._params.components, int):
+            self._params.components = range(self._params.components)
+        _, space_pcs, time_pcs = _OPCA(
+            dataset, self._params.channel, self._params.components[-1]+1,
+            path=pca_path)
+        space_pcs = np.real(space_pcs.reshape(
+            dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
+        space_pcs = np.array(
+            [space_pcs[:, :, i] for i in self._params.components]
+        ).transpose((1, 2, 0))
+        time_pcs = np.array(
+            [time_pcs[:, i] for i in self._params.components]
+        ).transpose((1, 0))
 
-        if smooth_rois:
-            print 'smoothing ROIs...'
-            rois = [_smooth_roi(roi)[0] for roi in rois]
+        if self._params.verbose:
+            print 'performing ICA...'
+        st_components = _stica(
+            space_pcs, time_pcs, mu=self._params.mu, path=ica_path,
+            n_components=space_pcs.shape[2])
 
-        print 'removing overlapping ROIs...'
-        rois = _remove_overlapping(rois, percent_overlap=overlap_per)
-    else:
-        rois = [ROI(st_components[:, :, i]) for i in
-                xrange(st_components.shape[2])]
+        if self._params.x_smoothing > 0 or self._params.static_threshold > 0:
+            accepted, _, _ = _find_useful_components(
+                st_components, self._params.static_threshold,
+                x_smoothing=self._params.x_smoothing)
 
-    return rois
+            if self._params.min_area > 0 or self._params.spatial_sep:
+                rois = _extract_st_rois(
+                    accepted, min_area=self._params.min_area,
+                    spatial_sep=self._params.spatial_sep)
+
+            if self._params.smooth_rois:
+                if self._params.verbose:
+                    print 'smoothing ROIs...'
+                rois = [_smooth_roi(roi)[0] for roi in rois]
+
+            if self._params.verbose:
+                print 'removing overlapping ROIs...'
+            rois = _remove_overlapping(
+                rois, percent_overlap=self._params.overlap_per)
+        else:
+            rois = [ROI(st_components[:, :, i]) for i in
+                    xrange(st_components.shape[2])]
+
+        return ROIList(rois)

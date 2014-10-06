@@ -43,7 +43,7 @@ Operating System :: MacOS
 setup(
     name="sima",
     version="1.0.0-dev",
-    packages=['sima', 'sima.misc', 'sima.motion'],
+    packages=['sima', 'sima.misc', 'sima.motion', 'sima.motion.tests'],
     #   scripts = [''],
     #
     # Project uses reStructuredText, so ensure that the docutils get

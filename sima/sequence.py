@@ -72,8 +72,8 @@ class Sequence(object):
     >>> path = example_hdf5()
     >>> seq = Sequence.create('HDF5', path, 'yxt')
 
-    Sequences are array like, and can be converted to numpy arrays or
-    passed as arguments into numpy functions that take arrays.
+    For numpy 0.9 or higher, Sequences are array like, and can be converted to
+    numpy arrays or passed as arguments into numpy functions that take arrays.
 
     >>> import numpy as np
     >>> arr = np.array(seq)
@@ -384,9 +384,10 @@ class _Sequence_TIFF_Interleaved(Sequence):
         while True:
             yield np.concatenate(
                 [np.expand_dims(
-                    np.concatenate([np.expand_dims(next(base_iter), 2)
-                                    for _ in range(self._num_channels)],
-                                   axis=2), 0)
+                    np.concatenate(
+                        [np.expand_dims(next(base_iter), 2).astype(float)
+                         for _ in range(self._num_channels)],
+                        axis=2), 0)
                  for _ in range(self._num_planes)], 0)
 
     def _iter_pages(self):
@@ -436,7 +437,7 @@ class _Sequence_ndarray(_IndexableSequence):
         return len(self._array)
 
     def _get_frame(self, t):
-        return self._array[t]
+        return self._array[t].astype(float)
 
     def _todict(self):
         return {'__class__': self.__class__, 'array': self._array}

@@ -7,8 +7,8 @@ Functionality not described in this documentation may not
 remain stable across versions and should therefore not be used.
 
 .. toctree::
-   :maxdepth: 1
 
+   sequence
    datasets
    motion
    segment
