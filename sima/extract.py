@@ -8,7 +8,7 @@ from multiprocessing import Pool, cpu_count
 
 import pandas as pd
 import numpy as np
-from scipy.sparse import vstack, diags, csc_matrix
+from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
 
 
@@ -84,6 +84,7 @@ def _roi_extract(inputs):
         image.
 
     """
+    frame, constants = inputs
 
     def put_back_nans(values, imaged_rois, n_rois):
         """Puts NaNs back in output arrays for ROIs that were not imaged this
@@ -101,7 +102,6 @@ def _roi_extract(inputs):
             roi_idx += 1
         return final_values
 
-    (frame, constants) = inputs
     n_rois = constants['A'].shape[1]
     masked_pixels = constants['masked_pixels']
 
@@ -286,24 +286,20 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     """
 
     # Determine pool parameters
-    chunkfactor = 10
     if n_processes is None:
         n_pools = cpu_count() / 2
     else:
         n_pools = n_processes
-    if n_pools == 0:
-        n_pools = 1
-    if n_pools > cpu_count() - 1:
-        n_pools = cpu_count() - 1
 
     pool = Pool(processes=n_pools)
 
-    n_cycles = dataset.num_cycles
-    n_rows, n_cols = dataset.num_rows, dataset.num_columns
+    num_sequences = dataset.num_sequences
+    num_planes, num_rows, num_columns, num_channels = dataset.frame_shape
 
     for roi in rois:
-        roi.im_shape = (n_rows, n_cols)
-    masks = [roi.mask.reshape((1, n_rows * n_cols)) for roi in rois]
+        roi.im_shape = (num_rows, num_columns)
+    masks = [hstack([mask.reshape((1, num_rows * num_columns))
+             for mask in roi.mask]) for roi in rois]
 
     # If mask is boolean convert to float and normalize values such that
     # the sum of the weights in each ROI is 1
@@ -344,29 +340,28 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     demixer = None
     if demix_channel is not None:
-        demixed_signal = [None] * n_cycles
+        demixed_signal = [None] * num_sequences
         demix_matrix = _demixing_matrix(dataset)
         demixer = demix_matrix[signal_channel, demix_channel] * \
             dataset.time_averages[demix_channel]
         demixer = demixer.flatten().astype('float32')[masked_pixels]
 
-    raw_signal = [None] * n_cycles
+    raw_signal = [None] * num_sequences
 
     def _data_chunker(cycle, time_averages, channel=0):
         """Takes an aligned_data generator for a single cycle
         and returns df/f of each pixel formatted correctly for extraction"""
         while True:
-            df_frame = (next(cycle)[channel] - time_averages[channel]) \
-                / time_averages[channel]
+            df_frame = (
+                next(cycle)[..., channel] - time_averages[..., channel]) \
+                / time_averages[..., channel]
             yield df_frame.flatten()
 
-    for cycle_idx, cycle in it.izip(it.count(), dataset):
+    for cycle_idx, sequence in it.izip(it.count(), dataset):
 
-        chunksize = int(float(cycle.num_frames) / n_pools / chunkfactor) + 1
-
-        signal = np.empty((n_rois, cycle.num_frames), dtype='float32')
+        signal = np.empty((n_rois, len(sequence)), dtype='float32')
         if demixer is not None:
-            demix = np.empty((n_rois, cycle.num_frames), dtype='float32')
+            demix = np.empty((n_rois, len(sequence)), dtype='float32')
 
         constants = {}
         constants['demixer'] = demixer
@@ -380,21 +375,14 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         # top-level function due to Pool constraints.
         # The default chunksize/chunkfactor should be OK, it doesn't
         # have a huge effect on run time.
-
-        for frame_idx, (raw_result, demix_result) in enumerate(
-                pool.map(_roi_extract, it.izip(
-                    _data_chunker(iter(cycle), dataset.time_averages,
-                                  signal_channel),
-                    it.repeat(constants)), chunksize=chunksize)):
-            # Store signals
-            if frame_idx in dataset.invalid_frames[cycle_idx]:
-                signal[:, frame_idx] = np.NaN
-                if demixer is not None:
-                    demix[:, frame_idx] = np.NaN
-            else:
-                signal[:, frame_idx] = np.array(raw_result).flatten()
-                if demixer is not None:
-                    demix[:, frame_idx] = np.array(demix_result).flatten()
+        for frame_idx, (raw_result, demix_result) in it.izip(
+                it.count(), pool.imap(_roi_extract, it.izip(_data_chunker(
+                    iter(sequence), dataset.time_averages, signal_channel),
+                it.repeat(constants)),
+                chunksize=1 + len(sequence) / n_pools)):
+            signal[:, frame_idx] = np.array(raw_result).flatten()
+            if demixer is not None:
+                demix[:, frame_idx] = np.array(demix_result).flatten()
 
         raw_signal[cycle_idx] = signal
         if demixer is not None:
@@ -451,7 +439,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
 def save_extracted_signals(dataset, rois, save_path=None, label=None,
                            metadata=None, signal_channel=0,
-                           save_extract_summary=True, **kwargs):
+                           save_summary=True, **kwargs):
     """Save extracted signals
 
     Parameters
@@ -472,8 +460,8 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
         should not match any generated during extraction, i.e. 'raw', 'rois'
     signal_channel : int, optional
         Index of channel to extract, defaults to the first channel.
-    save_extract_summary : boolean
-        If True, additionally save a summary of the extracted ROIs
+    save_summary : boolean
+        If True, additionally save a summary of the extracted ROIs.
     kwargs : dict, optional
         Additional keyword arguments will be pass directly to extract_rois.
 
@@ -486,7 +474,7 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
     signals = extract_rois(dataset=dataset, rois=rois,
                            signal_channel=signal_channel, **kwargs)
 
-    if save_extract_summary:
+    if save_summary:
         _save_extract_summary(signals, save_path, rois)
 
     signals.pop('_masks')

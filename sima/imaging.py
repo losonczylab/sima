@@ -466,7 +466,8 @@ class ImagingDataset(object):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
 
     def extract(self, rois=None, signal_channel=0, label=None,
-                remove_overlap=True, n_processes=None, demix_channel=None):
+                remove_overlap=True, n_processes=None, demix_channel=None,
+                save_summary=True):
         """Extracts imaging data from the current dataset using the
         supplied ROIs file.
 
@@ -489,6 +490,8 @@ class ImagingDataset(object):
         demix_channel : string or int, optional
             Channel to demix from the signal channel, either an integer index
             or a name in self.channel_names If None, do not demix signals.
+        save_summary : bool, optional
+            If True, additionally save a summary of the extracted ROIs.
 
         Return
         ------
@@ -513,7 +516,7 @@ class ImagingDataset(object):
             return save_extracted_signals(
                 self, rois, self.savedir, label, signal_channel=signal_channel,
                 remove_overlap=remove_overlap, n_processes=n_processes,
-                demix_channel=demix_channel
+                demix_channel=demix_channel, save_summary=save_summary
             )
         else:
             return extract_rois(self, rois, signal_channel, remove_overlap,
