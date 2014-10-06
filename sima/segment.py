@@ -1041,10 +1041,11 @@ def _smooth_roi(roi, radius=3):
                              [p[0]+radius]*(2*radius+1) +
                              list(p[0]+range(-radius, radius)[::-1]) +
                              [p[0]-(radius+1)]*(2*radius+1)), -2)
-        y = np.roll(np.array([p[1]-radius]*(2*radius)+list(p[1] +
-                             range(-radius, radius)) + [p[1] + radius] *
-                             (2*radius+1)+list(p[1] +
-                             range(-radius, (radius + 1))[::-1])), -radius)
+        y = np.roll(np.array([p[1]-radius]*(2*radius) +
+                             list(p[1] + range(-radius, radius)) +
+                             [p[1] + radius] * (2*radius+1) +
+                             list(p[1] + range(-radius, (radius + 1))[::-1])),
+                    -radius)
 
         # insure that the x and y points are within the image
         x[x < 0] = 0

@@ -610,7 +610,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         if frame_shape is None:
             max_disp = np.max(
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-            frame_shape = np.array(sequences[0].shape)[1:]
+            frame_shape = np.array(base.sequences[0].shape)[1:]
             frame_shape[1:3] += max_disp
         self._frame_shape = frame_shape  # (planes, rows, columns)
 
