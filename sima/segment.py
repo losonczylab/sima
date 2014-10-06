@@ -107,9 +107,12 @@ class PlaneWiseSegmentationStrategy(SegmentationStrategy):
 
     def _segment(self, dataset):
         def set_z(roi, z):
-            raise NotImplementedError  # TODO
+            old_mask = roi.mask
+            return ROI(
+                mask=[sparse.lil_matrix(old_mask[0].shape, old_mask[0].dtype)
+                      for _ in range(z-1)] + [old_mask[0]])
 
-        rois = []
+        rois = ROIList([])
         for plane in range(dataset.frame_shape[0]):
             plane_rois = self.strategy.segment(dataset[:, :, plane])
             for roi in plane_rois:
