@@ -170,11 +170,7 @@ class ImagingDataset(object):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        sliced_set = ImagingDataset(sequences, None, info=self.info)
-        if sliced_set.frame_shape[:-1] == self.frame_shape[:-1]:
-            for label, roi_list in self.ROIs.iteritems():
-                sliced_set.add_ROIs(roi_list, label)
-        return sliced_set
+        return ImagingDataset(sequences, None, info=self.info)
 
     @property
     def channel_names(self):
