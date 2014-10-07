@@ -1,12 +1,3 @@
-# Written by Patrick Kaifosh, pwk2108@columbia.edu
-#
-# If you use this software, please cite the following paper:
-# Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
-#
-# The HMM approach to motion correction of laser scanning microscopy
-# data was first used in the following paper:
-# Dombeck et al. 2007. Neuron. 56(1): 43-57.
-
 STUFF = 'HI' # Fixes cython issue. See link below:
 # http://stackoverflow.com/questions/8024805/cython-compiled-c-extension-importerror-dynamic-module-does-not-define-init-fu
 
@@ -14,6 +5,7 @@ import warnings
 import itertools as it
 
 import cython
+import cython.parallel
 import numpy as np
 cimport numpy as np
 
@@ -38,7 +30,7 @@ def transitions(
     cdef FLOAT_TYPE_t lp
     count = 0
     for old_index in xrange(len(previousStateIDs)):
-        for k in xrange(9):  # TODO: Parallelize
+        for k in xrange(9):  # TODO: parallelize
             tmpIndex = transitionLookup[k, previousStateIDs[old_index]]
             if tmpIndex != -1:
                 #identify temporary location of tmpIndex
@@ -123,6 +115,7 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
 
 
 @cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.wraparound(False)
 def log_observation_probabilities(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
         np.ndarray[Py_ssize_t, ndim=1] tmpStateIds,
@@ -137,15 +130,16 @@ def log_observation_probabilities(
         np.ndarray[Py_ssize_t] offset,
         int num_reference_rows):
 
-    cdef Py_ssize_t reference_row, minFrame, maxFrame, i, j, jj, k, index
-    cdef double logp
+    cdef Py_ssize_t reference_row, minFrame, maxFrame, i, j, jj, k, index, chan
+    cdef double logp, ninf
+    ninf = -float('inf')
 
-    for i in range(tmpLogP.shape[0]):  # TODO: parallelize
+    for i in cython.parallel.prange(tmpLogP.shape[0], nogil=True):
         index = tmpStateIds[i]
         reference_row = frame_row + positionLookup[index, 0] + offset[0]
         if reference_row < 0 or reference_row >= num_reference_rows:
             # return -inf if row is outside the bounds of the reference image
-            tmpLogP[i] = -float('inf')
+            tmpLogP[i] = ninf
         else:
             minFrame = sliceLookup[reference_row, index, 2]
             maxFrame = sliceLookup[reference_row, index, 3]
