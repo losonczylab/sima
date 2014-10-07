@@ -124,6 +124,7 @@ def _load_version0(path):
                          for s in sequences]
     ds = ImagingDataset(sequences, None)
     ds.savedir = path
+    ds.channel_names = dataset_dict.pop('channel_names')
 
     # Add ROIs if they exist
     try:
