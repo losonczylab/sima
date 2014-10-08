@@ -33,7 +33,7 @@ class Unpickler(_Unpickler):
             return klass
 
 
-def _load_version0(path):
+def _load_version0(path, target):
     """Load a SIMA 0.x dataset
 
     Parameters
@@ -46,7 +46,7 @@ def _load_version0(path):
 
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _load_version0
-    >>> ds = _load_version0(example_data())
+    >>> ds = _load_version0(example_data(), 'example_v1.sima')
 
     """
 
@@ -122,8 +122,7 @@ def _load_version0(path):
             sequences = [s[:, :, trim_coords[0][0]:trim_coords[1][0],
                            trim_coords[0][1]:trim_coords[1][1]]
                          for s in sequences]
-    ds = ImagingDataset(sequences, None)
-    ds.savedir = path
+    ds = ImagingDataset(sequences, target, read_only=(target == path))
     ds.channel_names = dataset_dict.pop('channel_names')
 
     # Add ROIs if they exist
@@ -157,7 +156,7 @@ def _load_version0(path):
     return ds
 
 
-def _0_to_1(source, target):
+def _0_to_1(source, target=None):
     """Convert a version 0.x dataset to a version 1.x dataset.
 
     Parameters
@@ -177,5 +176,10 @@ def _0_to_1(source, target):
     >>> ds = ImagingDataset.load('0_to_1.sima')
 
     """
-    ds0 = _load_version0(source)
-    ds0.save(target)
+    if target is None:
+        #PROMPT DO YOU WANT TO OVERWRITE THE V0 Dataset?
+    ds0 = _load_version0(source, target)
+    ds0.save()
+
+    #If we're adding ROIs to the v1 dataset, we need to know its savedir to
+    #write the rois.pkl file.  What if I want to overwrite a .sima directory?
