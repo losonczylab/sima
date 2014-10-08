@@ -180,7 +180,8 @@ def _frame_alignment_base(
 def frame_alignment(
         sequences, savedir, channel_names=None, info=None,
         method='correlation', max_displacement=None,
-        correction_channels=None, trim_criterion=None, verbose=True):
+        correction_channels=None, trim_criterion=None,
+        n_processes=None, verbose=True):
     """Align whole frames.
 
     Parameters
@@ -227,7 +228,8 @@ def frame_alignment(
     else:
         mc_sequences = sequences
     if method == 'correlation':
-        displacements, correlations = estimate(mc_sequences, max_displacement)
+        displacements, correlations = estimate(mc_sequences, max_displacement,
+                                               n_processes=n_processes)
     elif method == 'ECC':
         # http://docs.opencv.org/trunk/modules/video/doc
         # /motion_analysis_and_object_tracking.html#findtransformecc
@@ -362,13 +364,17 @@ def _align_frame(inputs):
                                        axis=0)
                     max_shift = np.max(list(it.chain(*it.chain(*shifts))),
                                        axis=0)
-                    displacement_bounds = np.array(
+                    displacement_bounds = p_offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
                          np.maximum(min_shift + max_displacement, max_shift)])
                 else:
                     displacement_bounds = None
                 shift, p_corr = align_cross_correlation(
                     reference, plane, displacement_bounds)
+                if displacement_bounds is not None:
+                    assert np.all(shift >= displacement_bounds[0])
+                    assert np.all(shift <= displacement_bounds[1])
+                    assert np.all(abs(shift - p_offset) <= max_displacement)
             elif method == 'ECC':
                 raise NotImplementedError
                 # cv2.findTransformECC(reference, plane)
