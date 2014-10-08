@@ -7,6 +7,7 @@ try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
     pass
+from warnings import warn
 
 import numpy as np
 
@@ -33,7 +34,7 @@ class Unpickler(_Unpickler):
             return klass
 
 
-def _load_version0(path, target):
+def _load_version0(path, target=None):
     """Convert a version 0.x dataset to a version 1.x dataset.
 
     Parameters
@@ -41,7 +42,8 @@ def _load_version0(path, target):
     path : str
         The path (ending in .sima) of the version 0.x dataset.
     target : str
-        The path (ending in .sima) for saving the version 1.x dataset.
+        The path (ending in .sima) for saving the version 1.x dataset. Defaults
+        to None, resulting in creation of a read-only dataset
 
     Examples
     --------
@@ -87,6 +89,11 @@ def _load_version0(path, target):
     def parse_sequence(sequence):
         channels = [parse_channel(c) for c in sequence]
         return Sequence.join(channels)
+
+    if target is None:
+        target = path
+    if target == path:
+        warn('Source dataset path = target path.  Opening read-only dataset.')
 
     with open(os.path.join(path, 'dataset.pkl'), 'rb') as f:
         unpickler = Unpickler(f)

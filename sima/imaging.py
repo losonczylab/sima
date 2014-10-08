@@ -227,7 +227,7 @@ class ImagingDataset(object):
         except ImportError:
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
-            return _load_version0(path, path)
+            return _load_version0(path)
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
