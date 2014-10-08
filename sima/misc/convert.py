@@ -34,20 +34,23 @@ class Unpickler(_Unpickler):
 
 
 def _load_version0(path, target):
-    """Load a SIMA 0.x dataset
+    """Convert a version 0.x dataset to a version 1.x dataset.
 
     Parameters
     ----------
     path : str
-        The path to the original saved dataset, ending in .sima
+        The path (ending in .sima) of the version 0.x dataset.
+    target : str
+        The path (ending in .sima) for saving the version 1.x dataset.
 
     Examples
     --------
 
+    >>> from sima import ImagingDataset
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _load_version0
-    >>> ds = _load_version0(example_data(), 'example_v1.sima')
-
+    >>> _load_version0(example_data(), '0_to_1.sima')
+    >>> ds = ImagingDataset.load('0_to_1.sima')
     """
 
     def parse_channel(channel):
@@ -153,28 +156,29 @@ def _load_version0(path, target):
 
         for label, roi_list in roi_lists.iteritems():
             ds.add_ROIs(roi_list, label=label)
-    return ds
+    ds.save()
+    # return ds
 
 
-def _0_to_1(source, target=None):
-    """Convert a version 0.x dataset to a version 1.x dataset.
+# def _0_to_1(source, target=None):
+#     """Convert a version 0.x dataset to a version 1.x dataset.
 
-    Parameters
-    ----------
-    source : str
-        The path (ending in .sima) of the version 0.x dataset.
-    target : str
-        The path (ending in .sima) for saving the version 1.x dataset.
+#     Parameters
+#     ----------
+#     source : str
+#         The path (ending in .sima) of the version 0.x dataset.
+#     target : str
+#         The path (ending in .sima) for saving the version 1.x dataset.
 
-    Examples
-    --------
+#     Examples
+#     --------
 
-    >>> from sima import ImagingDataset
-    >>> from sima.misc import example_data
-    >>> from sima.misc.convert import _0_to_1
-    >>> _0_to_1(example_data(), '0_to_1.sima')
-    >>> ds = ImagingDataset.load('0_to_1.sima')
+#     >>> from sima import ImagingDataset
+#     >>> from sima.misc import example_data
+#     >>> from sima.misc.convert import _0_to_1
+#     >>> _0_to_1(example_data(), '0_to_1.sima')
+#     >>> ds = ImagingDataset.load('0_to_1.sima')
 
-    """
-    ds0 = _load_version0(source, target)
-    ds0.save()
+#     """
+#     ds0 = _load_version0(source, target)
+#     ds0.save()

@@ -220,15 +220,14 @@ class ImagingDataset(object):
             return {}
 
     @classmethod
-    def load(cls, path, target=None):
+    def load(cls, path):
         """Load a saved ImagingDataset object."""
         try:
             return cls(None, path)
         except ImportError:
             from sima.misc.convert import _load_version0
-            if target is None:
-                target = path
-            return _load_version0(path, target)
+            # Load a read-only copy of the converted dataset
+            return _load_version0(path, path)
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
