@@ -7,6 +7,7 @@ import csv
 from os.path import dirname, join, relpath, abspath
 import cPickle as pickle
 from distutils.version import StrictVersion
+from distutils.util import strtobool
 
 import numpy as np
 try:
@@ -100,7 +101,8 @@ class ImagingDataset(object):
 
     """
 
-    def __init__(self, sequences, savedir, channel_names=None, info=None):
+    def __init__(self, sequences, savedir, channel_names=None, info=None,
+                 read_only=False):
 
         # Convert savedir into an absolute path ending with .sima
         if savedir is None:
@@ -110,6 +112,7 @@ class ImagingDataset(object):
             if not self.savedir.endswith('.sima'):
                 self.savedir += '.sima'
         self.info = {} if info is None else info
+        self.read_only = read_only
 
         if sequences is None:
             # Special case used to load an existing ImagingDataset
@@ -133,15 +136,19 @@ class ImagingDataset(object):
             save = False
         else:
             save = True
-            if self.savedir is not None:
+            if self.savedir is not None and not read_only:
                 try:
                     os.makedirs(self.savedir)
                 except OSError as exc:
                     if exc.errno == errno.EEXIST and \
                             os.path.isdir(self.savedir):
-                        raise Exception(
-                            'Cannot overwrite existing ImagingDataset.'
-                        )
+                        overwrite = strtobool(
+                            raw_input("Overwrite existing directory? "))
+                        # Note: This will overwrite dataset.pkl but will leave
+                        #       all other files in the directory intact
+                        if not overwrite:
+                            self.savedir = str(
+                                raw_input('Enter path to new .sima directory'))
             self.sequences = sequences
             self._channel_names = channel_names
 
@@ -219,6 +226,7 @@ class ImagingDataset(object):
             return cls(None, path)
         except ImportError:
             from sima.misc.convert import _load_version0
+            # Load a read-only copy of the converted dataset
             return _load_version0(path)
 
     def _todict(self, savedir):
@@ -533,9 +541,14 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and \
                         os.path.isdir(savedir):
-                    raise ValueError(
-                        'Cannot overwrite existing ImagingDataset.'
-                    )
+                    overwrite = strtobool(
+                        raw_input("Overwrite existing directory? "))
+                    if not overwrite:
+                        return
+        if self.read_only and savedir == self.savedir:
+            return
+        if self.read_only and not savedir == self.savedir:
+            self.read_only = False
         self.savedir = savedir
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)

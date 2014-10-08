@@ -7,6 +7,7 @@ try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
     pass
+from warnings import warn
 
 import numpy as np
 
@@ -33,21 +34,23 @@ class Unpickler(_Unpickler):
             return klass
 
 
-def _load_version0(path):
-    """Load a SIMA 0.x dataset
+def _load_version0(path, target=None):
+    """Convert a version 0.x dataset to a version 1.x dataset.
 
     Parameters
     ----------
     path : str
-        The path to the original saved dataset, ending in .sima
+        The path (ending in .sima) of the version 0.x dataset.
+    target : str
+        The path (ending in .sima) for saving the version 1.x dataset. Defaults
+        to None, resulting in creation of a read-only dataset
 
     Examples
     --------
 
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _load_version0
-    >>> ds = _load_version0(example_data())
-
+    >>> ds = _load_version0(example_data(), '0_to_1.sima')
     """
 
     def parse_channel(channel):
@@ -87,6 +90,11 @@ def _load_version0(path):
         channels = [parse_channel(c) for c in sequence]
         return Sequence.join(channels)
 
+    if target is None:
+        target = path
+    if target == path:
+        warn('Source dataset path = target path.  Opening read-only dataset.')
+
     with open(os.path.join(path, 'dataset.pkl'), 'rb') as f:
         unpickler = Unpickler(f)
         dataset_dict = unpickler.load()
@@ -122,8 +130,8 @@ def _load_version0(path):
             sequences = [s[:, :, trim_coords[0][0]:trim_coords[1][0],
                            trim_coords[0][1]:trim_coords[1][1]]
                          for s in sequences]
-    ds = ImagingDataset(sequences, None)
-    ds.savedir = path
+    ds = ImagingDataset(sequences, target, read_only=(target == path))
+    ds.channel_names = dataset_dict.pop('channel_names')
 
     # Add ROIs if they exist
     try:
@@ -153,28 +161,5 @@ def _load_version0(path):
 
         for label, roi_list in roi_lists.iteritems():
             ds.add_ROIs(roi_list, label=label)
+    ds.save()
     return ds
-
-
-def _0_to_1(source, target):
-    """Convert a version 0.x dataset to a version 1.x dataset.
-
-    Parameters
-    ----------
-    source : str
-        The path (ending in .sima) of the version 0.x dataset.
-    target : str
-        The path (ending in .sima) for saving the version 1.x dataset.
-
-    Examples
-    --------
-
-    >>> from sima import ImagingDataset
-    >>> from sima.misc import example_data
-    >>> from sima.misc.convert import _0_to_1
-    >>> _0_to_1(example_data(), '0_to_1.sima')
-    >>> ds = ImagingDataset.load('0_to_1.sima')
-
-    """
-    ds0 = _load_version0(source)
-    ds0.save(target)
