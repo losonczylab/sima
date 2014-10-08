@@ -176,8 +176,6 @@ def _0_to_1(source, target=None):
     >>> ds = ImagingDataset.load('0_to_1.sima')
 
     """
-    if target is None:
-        #PROMPT DO YOU WANT TO OVERWRITE THE V0 Dataset?
     ds0 = _load_version0(source, target)
     ds0.save()
 

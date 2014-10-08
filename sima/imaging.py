@@ -136,15 +136,19 @@ class ImagingDataset(object):
             save = False
         else:
             save = True
+            #Do we even really need this block?  It could be addressed in save
             if self.savedir is not None and not read_only:
                 try:
                     os.makedirs(self.savedir)
                 except OSError as exc:
                     if exc.errno == errno.EEXIST and \
                             os.path.isdir(self.savedir):
-                        raise Exception(
-                            'Cannot overwrite existing ImagingDataset.'
-                        )
+                        overwrite = strtobool(
+                            raw_input("Overwrite existing directory? "))
+                        # Note: This will overwrite dataset.pkl but will leave
+                        #       all other .pkl's in the directory intact
+                        if not overwrite:
+                            return None
             self.sequences = sequences
             self._channel_names = channel_names
 
@@ -538,7 +542,8 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and \
                         os.path.isdir(savedir):
-                    overwrite = bool(raw_input("Overwrite existing dataset? "))
+                    overwrite = strtobool(
+                        raw_input("Overwrite existing directory? "))
                     if not overwrite:
                         return
         if self.read_only and savedir == self.savedir:
