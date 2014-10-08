@@ -178,6 +178,3 @@ def _0_to_1(source, target=None):
     """
     ds0 = _load_version0(source, target)
     ds0.save()
-
-    #If we're adding ROIs to the v1 dataset, we need to know its savedir to
-    #write the rois.pkl file.  What if I want to overwrite a .sima directory?
