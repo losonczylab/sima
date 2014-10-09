@@ -68,19 +68,33 @@ def _load_version0(path):
             try:
                 clip = channel['clip']
             except KeyError:
-                pass
-            else:
-                if clip is not None:
-                    s = (slice(None), slice(None)) + tuple(
-                        slice(*[None if x is 0 else x for x in dim])
-                        for dim in clip)
-                    result = result[s]
-            return result
-
+                clip = None
+            if clip is not None:
+                s = (slice(None), slice(None)) + tuple(
+                    slice(*[None if x is 0 else x for x in dim])
+                    for dim in clip)
+                result = result[s]
         elif klass == 'sima.iterables.HDF5':
-            raise Exception('TODO')
+            result = Sequence.create(
+                'HDF5', channel['path'], channel['dim_order'],
+                channel['group'], channel['key'])
+            c = channel['dim_order'].index('c')
+            chan = channel['channel']
+            s = tuple([slice(None) if x != c else slice(chan, chan + 1)
+                       for x in range(len(channel['dim_order']))])
+            result = result[s]
+            try:
+                clip = channel['clip']
+            except KeyError:
+                clip = None
+            if clip is not None:
+                s = (slice(None), slice(None)) + tuple(
+                    slice(*[None if x is 0 else x for x in dim])
+                    for dim in clip) + (slice(None),)
+                result = result[s]
         else:
             raise Exception('Format not recognized.')
+        return result
 
     def parse_sequence(sequence):
         channels = [parse_channel(c) for c in sequence]

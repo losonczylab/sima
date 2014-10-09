@@ -539,16 +539,16 @@ class ImagingDataset(object):
 
         if savedir is None:
             savedir = self.savedir
-        if not force_overwrite:
-            if savedir == self.savedir:
-                if self._read_only:
-                    raise('Cannot save read-only dataset')
-            else:
-                try:
-                    os.makedirs(savedir)
-                except OSError as exc:
-                    if exc.errno == errno.EEXIST and \
-                            os.path.isdir(savedir):
+        if savedir == self.savedir:
+            if self._read_only:
+                raise('Cannot save read-only dataset')
+        else:
+            try:
+                os.makedirs(savedir)
+            except OSError as exc:
+                if exc.errno == errno.EEXIST and \
+                        os.path.isdir(savedir):
+                    if not force_overwrite:
                         overwrite = strtobool(
                             raw_input("Overwrite existing directory? "))
                         if not overwrite:
