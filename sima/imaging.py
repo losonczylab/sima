@@ -112,7 +112,7 @@ class ImagingDataset(object):
             if not self.savedir.endswith('.sima'):
                 self.savedir += '.sima'
         self.info = {} if info is None else info
-        self.read_only = read_only
+        self._read_only = read_only
 
         if sequences is None:
             # Special case used to load an existing ImagingDataset
@@ -164,7 +164,7 @@ class ImagingDataset(object):
             self.num_frames = sum(len(c) for c in self)
         if self.channel_names is None:
             self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
-        if save and self.savedir is not None:
+        if save and self.savedir is not None and not self._read_only:
             self.save()
 
     def __getitem__(self, indices):
@@ -186,7 +186,7 @@ class ImagingDataset(object):
     @channel_names.setter
     def channel_names(self, names):
         self._channel_names = [str(n) for n in names]
-        if self.savedir is not None:
+        if self.savedir is not None and not self._read_only:
             self.save()
 
     @property
@@ -227,7 +227,10 @@ class ImagingDataset(object):
         except ImportError:
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
-            return _load_version0(path)
+            ds = _load_version0(path)
+            ds.savedir = path  # necessary for loading rois, etc.
+            ds._read_only = True
+            return ds
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
@@ -531,27 +534,29 @@ class ImagingDataset(object):
             return extract_rois(self, rois, signal_channel, remove_overlap,
                                 n_processes, demix_channel)
 
-    def save(self, savedir=None):
+    def save(self, savedir=None, force_overwrite=False):
         """Save the ImagingDataset to a file."""
+
         if savedir is None:
             savedir = self.savedir
-        else:
-            try:
-                os.makedirs(savedir)
-            except OSError as exc:
-                if exc.errno == errno.EEXIST and \
-                        os.path.isdir(savedir):
-                    overwrite = strtobool(
-                        raw_input("Overwrite existing directory? "))
-                    if not overwrite:
-                        return
-        if self.read_only and savedir == self.savedir:
-            return
-        if self.read_only and not savedir == self.savedir:
-            self.read_only = False
+        if not force_overwrite:
+            if savedir == self.savedir:
+                if self._read_only:
+                    raise('Cannot save read-only dataset')
+            else:
+                try:
+                    os.makedirs(savedir)
+                except OSError as exc:
+                    if exc.errno == errno.EEXIST and \
+                            os.path.isdir(savedir):
+                        overwrite = strtobool(
+                            raw_input("Overwrite existing directory? "))
+                        if not overwrite:
+                            return
         self.savedir = savedir
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
+        self._read_only = False
 
     def segment(self, method, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.

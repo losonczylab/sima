@@ -7,13 +7,12 @@ try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
     pass
-from warnings import warn
+from distutils.util import strtobool
 
 import numpy as np
 
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
-from sima.ROI import ROI, ROIList
 
 
 class Unpickler(_Unpickler):
@@ -34,23 +33,20 @@ class Unpickler(_Unpickler):
             return klass
 
 
-def _load_version0(path, target=None):
-    """Convert a version 0.x dataset to a version 1.x dataset.
+def _load_version0(path):
+    """Returns a v1 dataset converted from a v0 dataset
 
     Parameters
     ----------
     path : str
         The path (ending in .sima) of the version 0.x dataset.
-    target : str
-        The path (ending in .sima) for saving the version 1.x dataset. Defaults
-        to None, resulting in creation of a read-only dataset
 
     Examples
     --------
 
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _load_version0
-    >>> ds = _load_version0(example_data(), '0_to_1.sima')
+    >>> ds = _load_version0(example_data())
     """
 
     def parse_channel(channel):
@@ -90,11 +86,6 @@ def _load_version0(path, target=None):
         channels = [parse_channel(c) for c in sequence]
         return Sequence.join(channels)
 
-    if target is None:
-        target = path
-    if target == path:
-        warn('Source dataset path = target path.  Opening read-only dataset.')
-
     with open(os.path.join(path, 'dataset.pkl'), 'rb') as f:
         unpickler = Unpickler(f)
         dataset_dict = unpickler.load()
@@ -130,36 +121,43 @@ def _load_version0(path, target=None):
             sequences = [s[:, :, trim_coords[0][0]:trim_coords[1][0],
                            trim_coords[0][1]:trim_coords[1][1]]
                          for s in sequences]
-    ds = ImagingDataset(sequences, target, read_only=(target == path))
-    ds.channel_names = dataset_dict.pop('channel_names')
-
-    # Add ROIs if they exist
-    try:
-        with open(os.path.join(path, 'rois.pkl'), 'rb') as f:
-            rois = pkl.load(f)
-    except IOError:
-        pass
-    else:
-        roi_lists = {}
-        for label, roi_list_dict in rois.iteritems():
-            roi_list = []
-            for roi in roi_list_dict['rois']:
-                mask = roi['mask']
-                polygons = roi['polygons']
-                if mask is not None:
-                    new_roi = ROI(mask=mask)
-                else:
-                    new_roi = ROI(polygons=polygons)
-                new_roi.id = roi['id']
-                new_roi.label = roi['label']
-                new_roi.tags = roi['tags']
-                new_roi.im_shape = roi['im_shape']
-
-                roi_list.append(new_roi)
-            roi_lists[label] = ROIList(roi_list)
-            roi_lists[label].timestamp = roi_list_dict['timestamp']
-
-        for label, roi_list in roi_lists.iteritems():
-            ds.add_ROIs(roi_list, label=label)
-    ds.save()
+    ds = ImagingDataset(sequences, None)
+    # Not making it read-only. If you set a savedir, you'll be asked about
+    # overwriting it then
+    ds._channel_names = [str(n) for n in dataset_dict.pop('channel_names')]
     return ds
+
+
+def _0_to_1(source, target=None):
+    """Convert a version 0.x dataset to a version 1.x dataset.
+
+    Parameters
+    ----------
+    path : str
+        The path (ending in .sima) of the version 0.x dataset.
+    target : str, optional
+        The path (ending in .sima) for saving the version 1.x dataset. Defaults
+        to None, resulting in overwrite of the existing dataset.pkl file
+
+    Examples
+    --------
+
+    >>> from sima import ImagingDataset
+    >>> from sima.misc import example_data
+    >>> from sima.misc.convert import _0_to_1
+    >>> _0_to_1(example_data(), 'v1_dataset.sima')
+    >>> ds = ImagingDataset.load('v1_dataset.sima')
+    """
+    if target is None:
+        overwrite = strtobool(raw_input("Source dataset path = target path. " +
+                                        "Overwrite existing?"))
+        if not overwrite:
+            return
+        target = source
+
+    ds = _load_version0(source)
+    ds.savedir = target
+    ds.save(force_overwrite=True)
+    if source != target:
+        from shutil import copy2
+        copy2(os.path.join(source, 'rois.pkl'), target)
