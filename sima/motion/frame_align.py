@@ -164,12 +164,13 @@ def _frame_alignment_base(
     pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
 
     for cycle_idx, cycle in zip(it.count(), sequences):
+        chunksize = min(1 + len(cycle) / n_pools, 200)
         if n_processes > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
                     it.repeat(method), it.repeat(max_displacement)),
-                chunksize=1 + len(cycle) / n_pools)
+                chunksize=chunksize)
         else:
             map_generator = it.imap(
                 _align_frame,

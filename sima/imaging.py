@@ -246,7 +246,7 @@ class ImagingDataset(object):
         """Load a saved ImagingDataset object."""
         try:
             return cls(None, path)
-        except ImportError:
+        except (ImportError, KeyError):
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
             ds = _load_version0(path)
