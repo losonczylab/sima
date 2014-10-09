@@ -104,53 +104,31 @@ class ImagingDataset(object):
     def __init__(self, sequences, savedir, channel_names=None, info=None,
                  read_only=False):
 
-        # Convert savedir into an absolute path ending with .sima
-        if savedir is None:
-            self.savedir = None
-        else:
-            self.savedir = abspath(savedir)
-            if not self.savedir.endswith('.sima'):
-                self.savedir += '.sima'
-        self.info = {} if info is None else info
         self._read_only = read_only
-
+        self.info = {} if info is None else info
         if sequences is None:
             # Special case used to load an existing ImagingDataset
-            if not self.savedir:
+            if not savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
             def unpack(sequence):
                 """Parse a saved Sequence dictionary."""
                 return sequence.pop('__class__')._from_dict(
-                    sequence, self.savedir)
+                    sequence, savedir)
 
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
+            self._savedir = savedir
             try:
                 self.num_frames = data.pop('num_frames')
             except KeyError:
                 pass
-            save = False
         else:
-            save = True
-            if self.savedir is not None and not read_only:
-                try:
-                    os.makedirs(self.savedir)
-                except OSError as exc:
-                    if exc.errno == errno.EEXIST and \
-                            os.path.isdir(self.savedir):
-                        overwrite = strtobool(
-                            raw_input("Overwrite existing directory? "))
-                        # Note: This will overwrite dataset.pkl but will leave
-                        #       all other files in the directory intact
-                        if not overwrite:
-                            self.savedir = str(
-                                raw_input('Enter path to new .sima directory'))
+            self.savedir = savedir
             self.sequences = sequences
-            self._channel_names = channel_names
 
         # initialize sequences
         self.num_sequences = len(self.sequences)
@@ -162,10 +140,12 @@ class ImagingDataset(object):
         self.frame_shape = self.sequences[0].shape[1:]
         if not hasattr(self, 'num_frames'):
             self.num_frames = sum(len(c) for c in self)
-        if self.channel_names is None:
-            self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
-        if save and self.savedir is not None and not self._read_only:
-            self.save()
+        if sequences is not None:
+            if channel_names is None:
+                self.channel_names = [
+                    str(x) for x in range(self.frame_shape[-1])]
+            else:
+                self.channel_names = channel_names
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -188,6 +168,36 @@ class ImagingDataset(object):
         self._channel_names = [str(n) for n in names]
         if self.savedir is not None and not self._read_only:
             self.save()
+
+    @property
+    def savedir(self):
+        return self._savedir
+
+    @savedir.setter
+    def savedir(self, savedir, force_overwrite=False):
+        if savedir is None:
+            self._savedir = None
+        else:
+            # Convert savedir into an absolute path ending with .sima
+            savedir = abspath(savedir)
+            if not savedir.endswith('.sima'):
+                savedir += '.sima'
+            try:
+                os.makedirs(savedir)
+            except OSError as exc:
+                if exc.errno == errno.EEXIST and os.path.isdir(savedir) and \
+                        savedir != self.savedir:
+                    overwrite = strtobool(
+                        raw_input("Overwrite existing directory? "))
+                    # Note: This will overwrite dataset.pkl but will leave
+                    #       all other files in the directory intact
+                    if overwrite:
+                        self._savedir = savedir
+                    else:
+                        self.savedir = str(
+                            raw_input('Enter path to new .sima directory'))
+            else:
+                self._savedir = savedir
 
     @property
     def time_averages(self):
@@ -228,7 +238,7 @@ class ImagingDataset(object):
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
             ds = _load_version0(path)
-            ds.savedir = path  # necessary for loading rois, etc.
+            ds._savedir = path  # necessary for loading rois, etc.
             ds._read_only = True
             return ds
 
@@ -534,25 +544,14 @@ class ImagingDataset(object):
             return extract_rois(self, rois, signal_channel, remove_overlap,
                                 n_processes, demix_channel)
 
-    def save(self, savedir=None, force_overwrite=False):
+    def save(self, savedir=None):
         """Save the ImagingDataset to a file."""
 
         if savedir is None:
             savedir = self.savedir
-        if savedir == self.savedir:
-            if self._read_only:
-                raise('Cannot save read-only dataset')
-        else:
-            try:
-                os.makedirs(savedir)
-            except OSError as exc:
-                if exc.errno == errno.EEXIST and \
-                        os.path.isdir(savedir):
-                    if not force_overwrite:
-                        overwrite = strtobool(
-                            raw_input("Overwrite existing directory? "))
-                        if not overwrite:
-                            return
+        if savedir == self.savedir and self._read_only:
+            raise('Cannot save read-only dataset')
+
         self.savedir = savedir
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)

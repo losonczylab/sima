@@ -544,7 +544,7 @@ class _Joined_Sequence(Sequence):
 
     def _get_frame(self, t):
         return np.concatenate([seq._get_frame(t) for seq in self._sequences],
-                              axis=4)
+                              axis=3)
 
     def _todict(self):
         return {
@@ -625,7 +625,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape[1:]
             for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
-                out[p, disp[0]:(disp[0]+s[0]), disp[1]:(disp[1]+s[1])] = plane
+                out[p, disp[0]:(disp[0] + s[0]), disp[1]:(disp[1] + s[1])
+                    ] = plane
             return out
 
     @property
@@ -758,7 +759,7 @@ class _IndexedSequence(_WrapperSequence):
             indices if isinstance(indices, tuple) else (indices,)
         # Reformat integer slices to avoid dimension collapse
         self._indices = tuple(
-            slice(i, i+1) if isinstance(i, int) else i
+            slice(i, i + 1) if isinstance(i, int) else i
             for i in self._indices)
         self._times = range(self._base_len)[self._indices[0]]
         # TODO: switch to generator/iterator if possible?

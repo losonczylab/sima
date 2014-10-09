@@ -171,7 +171,7 @@ def _0_to_1(source, target=None):
 
     ds = _load_version0(source)
     ds.savedir = target
-    ds.save(force_overwrite=True)
+    ds.save()
     if source != target:
         from shutil import copy2
         copy2(os.path.join(source, 'rois.pkl'), target)
