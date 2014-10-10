@@ -104,54 +104,40 @@ class ImagingDataset(object):
     def __init__(self, sequences, savedir, channel_names=None, info=None,
                  read_only=False):
 
-        # Convert savedir into an absolute path ending with .sima
-        if savedir is None:
-            self.savedir = None
-        else:
-            self.savedir = abspath(savedir)
-            if not self.savedir.endswith('.sima'):
-                self.savedir += '.sima'
+        self._read_only = read_only
         self.info = {} if info is None else info
-        self.read_only = read_only
-
         if sequences is None:
             # Special case used to load an existing ImagingDataset
-            if not self.savedir:
+            if not savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
             def unpack(sequence):
                 """Parse a saved Sequence dictionary."""
                 return sequence.pop('__class__')._from_dict(
-                    sequence, self.savedir)
+                    sequence, savedir)
 
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
+            self._savedir = savedir
+            self.frame_shape = self.sequences[0].shape[1:]
             try:
                 self.num_frames = data.pop('num_frames')
             except KeyError:
-                pass
-            save = False
+                self.num_frames = sum(len(c) for c in self)
         else:
-            save = True
-            if self.savedir is not None and not read_only:
-                try:
-                    os.makedirs(self.savedir)
-                except OSError as exc:
-                    if exc.errno == errno.EEXIST and \
-                            os.path.isdir(self.savedir):
-                        overwrite = strtobool(
-                            raw_input("Overwrite existing directory? "))
-                        # Note: This will overwrite dataset.pkl but will leave
-                        #       all other files in the directory intact
-                        if not overwrite:
-                            self.savedir = str(
-                                raw_input('Enter path to new .sima directory'))
+            self.savedir = savedir
             self.sequences = sequences
-            self._channel_names = channel_names
-
+            self.frame_shape = self.sequences[0].shape[1:]
+            if not hasattr(self, 'num_frames'):
+                self.num_frames = sum(len(c) for c in self)
+            if channel_names is None:
+                self.channel_names = [
+                    str(x) for x in range(self.frame_shape[-1])]
+            else:
+                self.channel_names = channel_names
         # initialize sequences
         self.num_sequences = len(self.sequences)
         if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
@@ -159,13 +145,6 @@ class ImagingDataset(object):
             raise ValueError(
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
-        self.frame_shape = self.sequences[0].shape[1:]
-        if not hasattr(self, 'num_frames'):
-            self.num_frames = sum(len(c) for c in self)
-        if self.channel_names is None:
-            self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
-        if save and self.savedir is not None:
-            self.save()
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -186,8 +165,52 @@ class ImagingDataset(object):
     @channel_names.setter
     def channel_names(self, names):
         self._channel_names = [str(n) for n in names]
-        if self.savedir is not None:
+        if self.savedir is not None and not self._read_only:
             self.save()
+
+    @property
+    def savedir(self):
+        return self._savedir
+
+    @savedir.setter
+    def savedir(self, savedir):
+        if savedir is None:
+            self._savedir = None
+            migrate_pkls = False
+        elif hasattr(self, '_savedir') and savedir == self.savedir:
+            return
+        else:
+            migrate_pkls = False
+            if hasattr(self, '_savedir'):
+                orig_dir = self.savedir
+            else:
+                orig_dir = False
+            savedir = abspath(savedir)
+            if not savedir.endswith('.sima'):
+                savedir += '.sima'
+            try:
+                os.makedirs(savedir)
+            except OSError as exc:
+                if exc.errno == errno.EEXIST and os.path.isdir(savedir):
+                    overwrite = strtobool(
+                        raw_input("Overwrite existing directory? "))
+                    # Note: This will overwrite dataset.pkl but will leave
+                    #       all other files in the directory intact
+                    if overwrite:
+                        self._savedir = savedir
+                        migrate_pkls = True
+                    else:
+                        self.savedir = str(
+                            raw_input('Enter path to new .sima directory'))
+            else:
+                self._savedir = savedir
+                migrate_pkls = True
+            if orig_dir and migrate_pkls:
+                from shutil import copy2
+                try:
+                    copy2(os.path.join(orig_dir, 'rois.pkl'), self.savedir)
+                except IOError:
+                    pass
 
     @property
     def time_averages(self):
@@ -227,7 +250,9 @@ class ImagingDataset(object):
         except ImportError:
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
-            return _load_version0(path)
+            ds = _load_version0(path)
+            ds._read_only = True
+            return ds
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
@@ -533,25 +558,16 @@ class ImagingDataset(object):
 
     def save(self, savedir=None):
         """Save the ImagingDataset to a file."""
+
         if savedir is None:
             savedir = self.savedir
-        else:
-            try:
-                os.makedirs(savedir)
-            except OSError as exc:
-                if exc.errno == errno.EEXIST and \
-                        os.path.isdir(savedir):
-                    overwrite = strtobool(
-                        raw_input("Overwrite existing directory? "))
-                    if not overwrite:
-                        return
-        if self.read_only and savedir == self.savedir:
-            return
-        if self.read_only and not savedir == self.savedir:
-            self.read_only = False
+        if savedir == self.savedir and self._read_only:
+            raise('Cannot save read-only dataset')
+
         self.savedir = savedir
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
+        self._read_only = False
 
     def segment(self, method, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
