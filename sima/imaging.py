@@ -176,7 +176,6 @@ class ImagingDataset(object):
     def savedir(self, savedir):
         if savedir is None:
             self._savedir = None
-            migrate_pkls = False
         elif hasattr(self, '_savedir') and savedir == self.savedir:
             return
         else:
@@ -207,10 +206,12 @@ class ImagingDataset(object):
                 migrate_pkls = True
             if orig_dir and migrate_pkls:
                 from shutil import copy2
-                try:
-                    copy2(os.path.join(orig_dir, 'rois.pkl'), self.savedir)
-                except IOError:
-                    pass
+                for f in os.listdir(orig_dir):
+                    if f.endswith('.pkl'):
+                        try:
+                            copy2(os.path.join(orig_dir, f), self.savedir)
+                        except IOError:
+                            pass
 
     @property
     def time_averages(self):
