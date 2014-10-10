@@ -628,6 +628,13 @@ class _MotionCorrectedSequence(_WrapperSequence):
                 out[p, disp[0]:(disp[0] + s[0]), disp[1]:(disp[1] + s[1])
                     ] = plane
             return out
+        elif displacement.ndim == 1:
+            out = np.nan * np.ones(self._frame_shape)
+            s = frame.shape
+            out[displacement[0]:(displacement[0]+s[0]),
+                displacement[1]:(displacement[1]+s[1]),
+                displacement[2]:(displacement[2]+s[2])] = frame
+            return out
 
     @property
     def shape(self):
