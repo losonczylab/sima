@@ -122,14 +122,22 @@ class ImagingDataset(object):
             self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
+            self.frame_shape = self.sequences[0].shape[1:]
             try:
                 self.num_frames = data.pop('num_frames')
             except KeyError:
-                pass
+                self.num_frames = sum(len(c) for c in self)
         else:
             self.savedir = savedir
             self.sequences = sequences
-
+            self.frame_shape = self.sequences[0].shape[1:]
+            if not hasattr(self, 'num_frames'):
+                self.num_frames = sum(len(c) for c in self)
+            if channel_names is None:
+                self.channel_names = [
+                    str(x) for x in range(self.frame_shape[-1])]
+            else:
+                self.channel_names = channel_names
         # initialize sequences
         self.num_sequences = len(self.sequences)
         if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
@@ -137,15 +145,6 @@ class ImagingDataset(object):
             raise ValueError(
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
-        self.frame_shape = self.sequences[0].shape[1:]
-        if not hasattr(self, 'num_frames'):
-            self.num_frames = sum(len(c) for c in self)
-        if sequences is not None:
-            if channel_names is None:
-                self.channel_names = [
-                    str(x) for x in range(self.frame_shape[-1])]
-            else:
-                self.channel_names = channel_names
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -174,30 +173,44 @@ class ImagingDataset(object):
         return self._savedir
 
     @savedir.setter
-    def savedir(self, savedir, force_overwrite=False):
+    def savedir(self, savedir):
         if savedir is None:
             self._savedir = None
+            migrate_pkls = False
+        elif hasattr(self, '_savedir') and savedir == self.savedir:
+            return
         else:
-            # Convert savedir into an absolute path ending with .sima
+            migrate_pkls = False
+            if hasattr(self, '_savedir'):
+                orig_dir = self.savedir
+            else:
+                orig_dir = False
             savedir = abspath(savedir)
             if not savedir.endswith('.sima'):
                 savedir += '.sima'
             try:
                 os.makedirs(savedir)
             except OSError as exc:
-                if exc.errno == errno.EEXIST and os.path.isdir(savedir) and \
-                        savedir != self.savedir:
+                if exc.errno == errno.EEXIST and os.path.isdir(savedir):
                     overwrite = strtobool(
                         raw_input("Overwrite existing directory? "))
                     # Note: This will overwrite dataset.pkl but will leave
                     #       all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
+                        migrate_pkls = True
                     else:
                         self.savedir = str(
                             raw_input('Enter path to new .sima directory'))
             else:
                 self._savedir = savedir
+                migrate_pkls = True
+            if orig_dir and migrate_pkls:
+                from shutil import copy2
+                try:
+                    copy2(os.path.join(orig_dir, 'rois.pkl'), self.savedir)
+                except IOError:
+                    pass
 
     @property
     def time_averages(self):
@@ -238,7 +251,6 @@ class ImagingDataset(object):
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
             ds = _load_version0(path)
-            ds._savedir = path  # necessary for loading rois, etc.
             ds._read_only = True
             return ds
 

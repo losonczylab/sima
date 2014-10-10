@@ -139,6 +139,7 @@ def _load_version0(path):
     # Not making it read-only. If you set a savedir, you'll be asked about
     # overwriting it then
     ds._channel_names = [str(n) for n in dataset_dict.pop('channel_names')]
+    ds._savedir = path
     return ds
 
 
@@ -151,7 +152,8 @@ def _0_to_1(source, target=None):
         The path (ending in .sima) of the version 0.x dataset.
     target : str, optional
         The path (ending in .sima) for saving the version 1.x dataset. Defaults
-        to None, resulting in overwrite of the existing dataset.pkl file
+        to None, resulting in overwrite of the existing dataset.pkl file.  to
+        avoid the overwrite permission prompt, explicitly set this argument
 
     Examples
     --------
@@ -170,8 +172,4 @@ def _0_to_1(source, target=None):
         target = source
 
     ds = _load_version0(source)
-    ds.savedir = target
-    ds.save()
-    if source != target:
-        from shutil import copy2
-        copy2(os.path.join(source, 'rois.pkl'), target)
+    ds.save(target)
