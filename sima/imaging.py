@@ -179,7 +179,6 @@ class ImagingDataset(object):
         elif hasattr(self, '_savedir') and savedir == self.savedir:
             return
         else:
-            migrate_pkls = False
             if hasattr(self, '_savedir'):
                 orig_dir = self.savedir
             else:
@@ -197,14 +196,11 @@ class ImagingDataset(object):
                     #       all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
-                        migrate_pkls = True
                     else:
-                        self.savedir = str(
-                            raw_input('Enter path to new .sima directory'))
+                        return
             else:
                 self._savedir = savedir
-                migrate_pkls = True
-            if orig_dir and migrate_pkls:
+            if orig_dir:
                 from shutil import copy2
                 for f in os.listdir(orig_dir):
                     if f.endswith('.pkl'):
@@ -212,6 +208,8 @@ class ImagingDataset(object):
                             copy2(os.path.join(orig_dir, f), self.savedir)
                         except IOError:
                             pass
+            if self._read_only:
+                self._read_only = False
 
     @property
     def time_averages(self):
@@ -562,13 +560,13 @@ class ImagingDataset(object):
 
         if savedir is None:
             savedir = self.savedir
-        if savedir == self.savedir and self._read_only:
-            raise('Cannot save read-only dataset')
-
         self.savedir = savedir
+
+        if self._read_only:
+            raise Exception('Cannot save read-only dataset.  Change savedir ' +
+                            'to a new directory')
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
-        self._read_only = False
 
     def segment(self, method, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
