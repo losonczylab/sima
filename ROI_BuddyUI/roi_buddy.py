@@ -1,6 +1,8 @@
 #! python
-import sys
 import os
+import sys
+from sys import path
+path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from os.path import join, dirname, isdir
 
 import numpy as np
@@ -149,6 +151,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #deactivate buttons until a t-series is added
         self.toggle_button_state(False)
+
+        from sima.misc import example_data_3D
+        UI_tSeries(example_data_3D(), self)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -1396,6 +1401,8 @@ class UI_tSeries(QListWidgetItem):
 
         self.dataset = ImagingDataset.load(sima_path)
         self.parent = parent
+
+        set_trace()
 
         self.num_planes = self.dataset.frame_shape[0]
         self.shape = self.dataset.frame_shape[1:3]
