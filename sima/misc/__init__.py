@@ -143,6 +143,11 @@ def example_data():
         os.path.dirname(__file__), "../tests/data/example.sima")
 
 
+def example_data_3D():
+    return os.path.join(
+        os.path.dirname(__file__), "../tests/data/3D_test_data.sima")
+
+
 def example_imagej_rois():
     return os.path.join(
         os.path.dirname(__file__), "../tests/data/imageJ_ROIs.zip")
