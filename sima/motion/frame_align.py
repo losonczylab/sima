@@ -8,88 +8,117 @@ try:
 except ImportError:
     from scipy import nanmean
 
-import sima.misc
 from sima.misc.align import align_cross_correlation
-from misc import trim_coords as _trim_coords
+import motion
+
 
 # Setup global variables used during parallelized whole frame shifting
 lock = 0
 namespace = 0
 
 
-def estimate(
-        sequences, max_displacement=None, method='correlation',
-        n_processes=None, partitions=None):
-    """Estimate whole-frame displacements based on pixel correlations.
+class Struct:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
 
-    Parameters
-    ----------
-    max_displacement : array
-        see estimate_displacements
 
-    Returns
-    -------
-    shifts : array
-        (2, num_frames*num_cycles)-array of integers giving the
-        estimated displacement of each frame
-    correlations : array
-        (num_frames*num_cycles)-array giving the correlation of
-        each shifted frame with the reference
-    n_processes : (None, int)
-        Number of pool processes to spawn to parallelize frame alignment
-    partitions : tuple of int, optional
-        The number of partitions in y and x respectively. The alignement
-        will be calculated separately on each partition and then the
-        results compared. Default: calculates an appropriate value based
-        on max_displacement and the frame shape.
-    """
-    shape = sequences[0].shape
-    DIST_CRITERION = 2.
-    if partitions is None:
-        if max_displacement is None:
-            partitions = (2, 2)
-        else:
-            partitions = np.maximum(
-                np.array(shape[2:4]) / (3 * np.array(max_displacement)),
-                [1, 1])
-    dy = shape[2] / partitions[0]
-    dx = shape[3] / partitions[1]
+class PlaneTranslation2D(motion.MotionEstimationStrategy):
 
-    shifts_record = []
-    corr_record = []
-    for ny, nx in it.product(range(partitions[0]), range(partitions[1])):
-        partioned_sequences = [s[:, :, ny*dy:(ny+1)*dy, nx*dx:(nx+1)*dx]
-                               for s in sequences]
-        shifts, correlations = _frame_alignment_base(
-            partioned_sequences, max_displacement, method, n_processes)
-        shifts_record.append(shifts)
-        corr_record.append(correlations)
-        if len(shifts_record) > 1:
-            first_shifts = []  # shifts to be return
-            second_shifts = []
-            out_corrs = []  # correlations to be returned
-            for corrs, shifts in zip(zip(*corr_record), zip(*shifts_record)):
-                corr_array = np.array(corrs)  # (partions, frames, planes)
-                shift_array = np.array(shifts)
-                assert corr_array.ndim is 3 and shift_array.ndim is 4
-                second, first = np.argpartition(corr_array, -2, axis=0)[-2:]
-                first_shifts.append(np.concatenate(
-                    [np.expand_dims(first.choose(s), -1)
-                     for s in np.rollaxis(shift_array, -1)],
-                    axis=-1))
-                second_shifts.append(np.concatenate(
-                    [np.expand_dims(second.choose(s), -1)
-                     for s in np.rollaxis(shift_array, -1)],
-                    axis=-1))
-                out_corrs.append(first.choose(corr_array))
-            if np.mean([np.sum((f - s)**2, axis=-1)
-                        for f, s in zip(first_shifts, second_shifts)]
-                       ) < (DIST_CRITERION ** 2):
-                break
-    try:
-        return first_shifts, out_corrs
-    except NameError:  # single parition case
-        return shifts, correlations
+    def __init__(self, max_displacement=None, method='correlation',
+                 n_processes=None, partitions=None):
+        """
+        max_displacement : array of int, optional
+            The maximum allowed displacement magnitudes in [y,x]. By
+            default, arbitrarily large displacements are allowed.
+        method : {'correlation', 'ECC'}
+            Alignment method to be used.
+        n_processes : (None, int)
+            Number of pool processes to spawn to parallelize frame alignment
+        partitions : tuple of int, optional
+            The number of partitions in y and x respectively. The alignement
+            will be calculated separately on each partition and then the
+            results compared. Default: calculates an appropriate value based
+            on max_displacement and the frame shape.
+        """
+        d = locals()
+        del d['self']
+        self._params = Struct(**d)
+
+    def estimate(self, dataset):
+        """Estimate whole-frame displacements based on pixel correlations.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        shifts : array
+            (2, num_frames*num_cycles)-array of integers giving the
+            estimated displacement of each frame
+        correlations : array
+            (num_frames*num_cycles)-array giving the correlation of
+            each shifted frame with the reference
+
+        """
+        # if method == 'correlation':
+        #     displacements, correlations = estimate(
+        #         mc_sequences, max_displacement, n_processes=n_processes)
+        # elif method == 'ECC':
+        #     # http://docs.opencv.org/trunk/modules/video/doc
+        #     # /motion_analysis_and_object_tracking.html#findtransformecc
+        #     #
+        #     # http://xanthippi.ceid.upatras.gr/people/evangelidis/ecc/
+        #     raise NotImplementedError
+        # else:
+        #     raise ValueError("Unrecognized option for 'method'")
+
+        params = self._params
+        frame_shape = dataset.frame_shape
+        DIST_CRITERION = 2.
+        if params.partitions is None:
+            params.partitions = (1, 1)
+        dy = frame_shape[1] / params.partitions[0]
+        dx = frame_shape[2] / params.partitions[1]
+
+        shifts_record = []
+        corr_record = []
+        for ny, nx in it.product(
+                range(params.partitions[0]), range(params.partitions[1])):
+            partioned_sequences = [s[:, :, ny*dy:(ny+1)*dy, nx*dx:(nx+1)*dx]
+                                   for s in dataset]
+            shifts, correlations = _frame_alignment_base(
+                partioned_sequences, params.max_displacement, params.method,
+                params.n_processes)
+            shifts_record.append(shifts)
+            corr_record.append(correlations)
+            if len(shifts_record) > 1:
+                first_shifts = []  # shifts to be return
+                second_shifts = []
+                out_corrs = []  # correlations to be returned
+                for corrs, shifts in zip(
+                        zip(*corr_record), zip(*shifts_record)):
+                    corr_array = np.array(corrs)  # (partions, frames, planes)
+                    shift_array = np.array(shifts)
+                    assert corr_array.ndim is 3 and shift_array.ndim is 4
+                    second, first = np.argpartition(
+                        corr_array, -2, axis=0)[-2:]
+                    first_shifts.append(np.concatenate(
+                        [np.expand_dims(first.choose(s), -1)
+                         for s in np.rollaxis(shift_array, -1)],
+                        axis=-1))
+                    second_shifts.append(np.concatenate(
+                        [np.expand_dims(second.choose(s), -1)
+                         for s in np.rollaxis(shift_array, -1)],
+                        axis=-1))
+                    out_corrs.append(first.choose(corr_array))
+                if np.mean([np.sum((f - s)**2, axis=-1)
+                            for f, s in zip(first_shifts, second_shifts)]
+                           ) < (DIST_CRITERION ** 2):
+                    break
+        try:
+            return first_shifts
+        except NameError:  # single parition case
+            return shifts
 
 
 def _frame_alignment_base(
@@ -175,82 +204,6 @@ def _frame_alignment_base(
     shifts = [s - min_shift for s in shifts]
 
     return shifts, namespace.correlations
-
-
-def frame_alignment(
-        sequences, savedir, channel_names=None, info=None,
-        method='correlation', max_displacement=None,
-        correction_channels=None, trim_criterion=None,
-        n_processes=None, verbose=True):
-    """Align whole frames.
-
-    Parameters
-    ----------
-    sequences : list of list of iterable
-        Iterables yielding frames from imaging cycles and channels.
-    savedir : str
-        The directory used to store the dataset. If the directory
-        name does not end with .sima, then this extension will
-        be appended.
-    channel_names : list of str, optional
-        Names for the channels. Defaults to ['0', '1', '2', ...].
-    info : dict
-        Data for the order and timing of the data acquisition.
-        See sima.ImagingDataset for details.
-    method : {'correlation', 'ECC'}
-        Alignment method to be used.
-    max_displacement : array of int, optional
-        The maximum allowed displacement magnitudes in [y,x]. By
-        default, arbitrarily large displacements are allowed.
-    correction_channels : list of int, optional
-        Information from the channels corresponding to these indices
-        will be used for motion correction. By default, all channels
-        will be used.
-    trim_criterion : float, optional
-        The required fraction of frames during which a location must
-        be within the field of view for it to be included in the
-        motion-corrected imaging frames. By default, only locations
-        that are always within the field of view are retained.
-    verbose : boolean, optional
-        Whether to print the progress status. Defaults to True.
-
-    Returns
-    -------
-    dataset : sima.ImagingDataset
-        The motion-corrected dataset.
-
-    """
-    if correction_channels:
-        correction_channels = [
-            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
-            for c in correction_channels]
-        mc_sequences = [s[:, :, :, :, correction_channels] for s in sequences]
-    else:
-        mc_sequences = sequences
-    if method == 'correlation':
-        displacements, correlations = estimate(mc_sequences, max_displacement,
-                                               n_processes=n_processes)
-    elif method == 'ECC':
-        # http://docs.opencv.org/trunk/modules/video/doc
-        # /motion_analysis_and_object_tracking.html#findtransformecc
-        #
-        # http://xanthippi.ceid.upatras.gr/people/evangelidis/ecc/
-        raise NotImplementedError
-    else:
-        raise ValueError("Unrecognized option for 'method'")
-    max_disp = np.max(list(it.chain(*it.chain(*displacements))), axis=0)
-    frame_shape = np.array(sequences[0].shape)[1:]
-    frame_shape[1:3] += max_disp
-    corrected_sequences = [
-        s.apply_displacements(d, frame_shape)
-        for s, d in zip(sequences, displacements)]
-    rows, columns = _trim_coords(
-        trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
-    )
-    corrected_sequences = [
-        s[:, :, rows, columns] for s in corrected_sequences]
-    return sima.ImagingDataset(
-        corrected_sequences, savedir, channel_names=channel_names)
 
 
 def _align_frame(inputs):

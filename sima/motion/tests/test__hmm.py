@@ -16,7 +16,8 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
-from sima import motion
+import sima
+import sima.motion._hmm as hmm
 from sima import misc
 from sima import Sequence
 from sima.misc import example_hdf5, example_tiff
@@ -73,10 +74,10 @@ def test_descrete_transition_prob():
         2 * np.pi * det(cov_matrix)) * np.exp(
         -np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)) / 2.)
 
-    assert_almost_equal(motion._hmm._discrete_transition_prob(
+    assert_almost_equal(hmm._discrete_transition_prob(
         np.array([1., 1.]), np.array([0., 0.]), transition_probs, 8), 0)
     assert_almost_equal(
-        motion._hmm._discrete_transition_prob(
+        hmm._discrete_transition_prob(
             np.array([0., 0.]), np.array([0., 0.]), transition_probs, 8),
         3.09625122)
 
@@ -96,7 +97,7 @@ def test_estimate_movement_model():
                 np.array([-0.66666667,  4.83333333]))
 
     for x, y in zip(
-            motion._hmm._estimate_movement_model(shifts, 10), expected):
+            hmm._estimate_movement_model(shifts, 10), expected):
         assert_array_almost_equal(x, y)
 
     expected = (np.diag([0.01, 0.01]),
@@ -105,7 +106,7 @@ def test_estimate_movement_model():
                           [-4.20179324, -9.39166108]]),
                 np.array([0., 0.]))
     for x, y in zip(
-            motion._hmm._estimate_movement_model([np.zeros((10, 1, 2))], 10),
+            hmm._estimate_movement_model([np.zeros((10, 1, 2))], 10),
             expected):
         assert_array_almost_equal(x, y)
 
@@ -114,11 +115,11 @@ def test_threshold_gradient():
     test = [np.arange(4) + 4 * i for i in range(4)]
     res = np.zeros((4, 4), dtype=bool)
     res[3, 3] = True
-    assert_equal(motion._hmm._threshold_gradient(np.array([test]))[0], res)
+    assert_equal(hmm._threshold_gradient(np.array([test]))[0], res)
 
 
 def test_initial_distribution():
-    initial_dist = motion._hmm._initial_distribution(
+    initial_dist = hmm._initial_distribution(
         np.diag([0.9, 0.9]),
         10 * np.ones((2, 2)), np.array([-1, 1]))
     assert_almost_equal(initial_dist(0), 0.00754154839)
@@ -138,7 +139,7 @@ def test_lookup_tables():
     offset = np.array([0, 0])
 
     position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbl = \
-        motion._hmm._lookup_tables(
+        hmm._lookup_tables(
             min_displacements, max_displacements,
             log_markov_matrix, num_columns, references, offset)
 
@@ -153,78 +154,11 @@ def test_backtrace():
     position_tbl = np.array([[i % 5 - 2, int(i / 5) - 2] for i in range(25)])
     backpointer = [np.arange(5) for i in range(2)]
 
-    traj = motion._hmm._backtrace(2, backpointer, states, position_tbl)
+    traj = hmm._backtrace(2, backpointer, states, position_tbl)
     assert_array_equal(traj, [[0, -2], [0, 0], [0, 2]])
 
 
-@dec.knownfailureif(True)  # TODO: fix displacements.pkl so this passes
-def test_hmm():
-    global tmp_dir
-
-    frames = Sequence.create('TIFF', example_tiff())
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion._hmm.hmm(
-            [frames], os.path.join(tmp_dir, 'test_hmm.sima'), verbose=False,
-            n_processes=1)
-
-    with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
-        displacements = [d.reshape((20, 1, 128, 2))
-                         for d in pickle.load(fh)]
-
-    displacements_ = [seq.displacements for seq in corrected]
-    assert_almost_equal(displacements_, displacements)
-
-
-def test_hmm_tmp():  # TODO: remove when displacements.pkl is updated
-    global tmp_dir
-    frames = Sequence.create('TIFF', example_tiff())
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        corrected = motion._hmm.hmm(
-            [frames], os.path.join(tmp_dir, 'test_hmm_2.sima'), verbose=False)
-    with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
-        displacements = [d.reshape((20, 1, 128, 2))
-                         for d in pickle.load(fh)]
-    displacements_ = [seq.displacements for seq in corrected]
-    assert_(abs(displacements_[0] - displacements[0]).max() <= 1)
-
-
-@dec.knownfailureif(True)
-def test_hmm_missing_frame():
-    global tmp_dir
-    frames = Sequence.create('TIFF', example_tiff())
-    masked_seq = frames.mask([(5, None, None)])
-    corrected = motion._hmm.hmm(
-        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
-    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
-
-
-@dec.knownfailureif(True)
-def test_hmm_missing_row():
-    global tmp_dir
-    frames = Sequence.create('TIFF', example_tiff())
-    mask = np.zeros(frames.shape[1:-1], dtype=bool)
-    mask[:, 20, :] = True
-    masked_seq = frames.mask([(None, mask, None)])
-    corrected = motion._hmm.hmm(
-        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
-    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
-
-
-@dec.knownfailureif(True)
-def test_hmm_missing_column():
-    global tmp_dir
-    frames = Sequence.create('TIFF', example_tiff())
-    mask = np.zeros(frames.shape[1:-1], dtype=bool)
-    mask[:, :, 30] = True
-    masked_seq = frames.mask([(None, mask, None)])
-    corrected = motion._hmm.hmm(
-        [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'), verbose=False)
-    assert_(all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
-
-
-class Test_MCImagingDataset(object):
+class Test_HiddenMarkov2D(object):
     # Tests related to the MCImagingDataset class are grouped together in a
     # class. Test classes can have their own setup/teardown methods
 
@@ -240,33 +174,95 @@ class Test_MCImagingDataset(object):
         shifted = np.roll(shifted, -frame_shifts[0][1, 0, 0], axis=1)
         frames = np.array([frame, shifted])
 
-        self.mc_ds = motion._hmm._MCImagingDataset(
-            [Sequence.create('ndarray', frames)])
+        self.hm2d = hmm.HiddenMarkov2D(n_processes=1, verbose=False)
+        self.dataset = sima.ImagingDataset(
+            [Sequence.create('ndarray', frames)], None)
 
     def test_pixel_distribution(self):
         assert_almost_equal(
-            self.mc_ds._pixel_distribution(),
-            ([1110.20196533],
-             [946000.05906352]))
+            self.hm2d._pixel_distribution(self.dataset),
+            ([1110.20196533], [946000.05906352]))
 
     def test_correlation_based_correction(self):
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=DeprecationWarning)
-            shifts, corrections = \
-                self.mc_ds._correlation_based_correction()
+            shifts = self.hm2d._correlation_based_correction(self.dataset)
 
         for shift, shift_ in zip(shifts, self.frame_shifts):
             assert_array_equal(shift, shift_)
 
     def test_whole_frame_shifting(self):
-        reference, variances, offset = \
-            self.mc_ds._whole_frame_shifting(self.frame_shifts,
-                                             self.correlations)
-        ref_shape = np.array(self.mc_ds.dataset.frame_shape)
+        reference, variances, offset = self.hm2d._whole_frame_shifting(
+            self.dataset, self.frame_shifts)
+        ref_shape = np.array(self.dataset.frame_shape)
         ref_shape[1:3] += self.frame_shifts[0][0, 0]
         assert_array_equal(reference.shape, ref_shape)
         assert_equal(len(np.where(variances > 0)[0]), 0)
         assert_array_equal(offset, [0, 0])
+
+    @dec.knownfailureif(True)  # TODO: fix displacements.pkl so this passes
+    def test_hmm(self):
+        global tmp_dir
+
+        frames = Sequence.create('TIFF', example_tiff())
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            corrected = self.hm2d.correct(
+                [frames], os.path.join(tmp_dir, 'test_hmm.sima'))
+
+        with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
+            displacements = [d.reshape((20, 1, 128, 2))
+                             for d in pickle.load(fh)]
+
+        displacements_ = [seq.displacements for seq in corrected]
+        assert_almost_equal(displacements_, displacements)
+
+    def test_hmm_tmp(self):  # TODO: remove when displacements.pkl is updated
+        global tmp_dir
+        frames = Sequence.create('TIFF', example_tiff())
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            corrected = self.hm2d.correct(
+                [frames], os.path.join(tmp_dir, 'test_hmm_2.sima'))
+        with open(misc.example_data() + '/displacements.pkl', 'rb') as fh:
+            displacements = [d.reshape((20, 1, 128, 2))
+                             for d in pickle.load(fh)]
+        displacements_ = [seq.displacements for seq in corrected]
+        assert_(abs(displacements_[0] - displacements[0]).max() <= 1)
+
+    @dec.knownfailureif(True)
+    def test_hmm_missing_frame(self):
+        global tmp_dir
+        frames = Sequence.create('TIFF', example_tiff())
+        masked_seq = frames.mask([(5, None, None)])
+        corrected = self.hm2d.correct(
+            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+        assert_(all(np.all(np.isfinite(seq.displacements))
+                    for seq in corrected))
+
+    @dec.knownfailureif(True)
+    def test_hmm_missing_row(self):
+        global tmp_dir
+        frames = Sequence.create('TIFF', example_tiff())
+        mask = np.zeros(frames.shape[1:-1], dtype=bool)
+        mask[:, 20, :] = True
+        masked_seq = frames.mask([(None, mask, None)])
+        corrected = self.hm2d.correct(
+            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+        assert_(
+            all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
+
+    @dec.knownfailureif(True)
+    def test_hmm_missing_column(self):
+        global tmp_dir
+        frames = Sequence.create('TIFF', example_tiff())
+        mask = np.zeros(frames.shape[1:-1], dtype=bool)
+        mask[:, :, 30] = True
+        masked_seq = frames.mask([(None, mask, None)])
+        corrected = self.hm2d.correct(
+            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+        assert_(all(np.all(np.isfinite(seq.displacements))
+                    for seq in corrected))
 
 
 if __name__ == "__main__":

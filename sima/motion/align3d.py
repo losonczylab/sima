@@ -11,17 +11,15 @@ try:
 except ImportError:
     from scipy.stats import nanmean
 
-
+import motion
 from sima.misc.align import align_cross_correlation
 
-# for frame in seq:
-#     pyramid_align(reference, frame)
 
-
-class WholeVolumeShifting(object):
+class VolumeTranslation(motion.MotionEstimationStrategy):
+    """Translate 3D volumes to maximize the correlation."""
 
     def estimate(self, dataset):
-        reference = next(next(iter(dataset)))
+        reference = next(iter(next(iter(dataset))))
         displacements = []
         for sequence in dataset:
             seq_displacements = []

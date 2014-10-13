@@ -4,6 +4,9 @@ Motion correction
 The SIMA package can be used to motion correct sequentially
 acquired images.
 
-.. autofunction:: sima.motion.hmm
+.. autoclass:: sima.motion.MotionEstimationStrategy
+    :members:
 
-.. autofunction:: sima.motion.frame_alignment
+.. autoclass:: sima.motion.PlaneTranslation2D
+.. autoclass:: sima.motion.HiddenMarkov2D
+.. autoclass:: sima.motion.VolumeTranslation
