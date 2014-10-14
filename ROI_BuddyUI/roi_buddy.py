@@ -172,14 +172,12 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
                 return
             active_tSeries.active_plane += 1
-            active_tSeries.active_plane = active_tSeries.active_plane % \
-                active_tSeries.num_planes
+            active_tSeries.active_plane = active_tSeries.active_plane
         else:
             if active_tSeries.active_plane - 1 < 0:
                 return
             active_tSeries.active_plane -= 1
-            active_tSeries.active_plane = active_tSeries.active_plane % \
-                active_tSeries.num_planes
+            active_tSeries.active_plane = active_tSeries.active_plane
         self.plane_index_box.setValue(active_tSeries.active_plane)
 
     def create_menu(self):
