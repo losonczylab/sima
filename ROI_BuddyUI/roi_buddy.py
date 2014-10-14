@@ -152,11 +152,10 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #deactivate buttons until a t-series is added
         self.toggle_button_state(False)
-        #initialize z-scroll box
-        self.plane_index_box.setWrapping(True)
 
         from sima.misc import example_data_3D
-        UI_tSeries(example_data_3D(), self)
+        ts = UI_tSeries(example_data_3D(), self)
+        self.tSeries_list.setCurrentItem(ts)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -170,14 +169,18 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
         delta = event.delta()
         if delta > 0:
+            if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
+                return
             active_tSeries.active_plane += 1
             active_tSeries.active_plane = active_tSeries.active_plane % \
                 active_tSeries.num_planes
         else:
+            if active_tSeries.active_plane - 1 < 0:
+                return
             active_tSeries.active_plane -= 1
             active_tSeries.active_plane = active_tSeries.active_plane % \
                 active_tSeries.num_planes
-        active_tSeries.show()
+        self.plane_index_box.setValue(active_tSeries.active_plane)
 
     def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
@@ -654,9 +657,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.baseImage_list.setCurrentIndex(current_idx)
 
     def initialize_z_planes_box(self, tSeries):
-
-        self.plane_index_box.setMaximum(tSeries.num_planes)
-        self.plane_index_box.setRange(0, tSeries.active_plane - 1)
+        self.plane_index_box.setRange(0, tSeries.num_planes - 1)
+        self.plane_index_box.setValue(tSeries.active_plane)
+        self.plane_index_box.setWrapping(True)
 
     def new_roi_set(self):
         """Add a new ROI Set to the imaging dataset"""
@@ -749,6 +752,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.initialize_base_image_list(current)
         self.initialize_roi_set_list(current)
         self.initialize_z_planes_box(current)
+
+        current.show()
 
         self.show_rois(current, show_in_list=self.mode == 'edit')
         self.toggle_show_rois()
