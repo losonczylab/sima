@@ -171,13 +171,13 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if delta > 0:
             if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
                 return
+            active_tSeries.update_rois()
             active_tSeries.active_plane += 1
-            active_tSeries.active_plane = active_tSeries.active_plane
         else:
             if active_tSeries.active_plane - 1 < 0:
                 return
+            active_tSeries.update_rois()
             active_tSeries.active_plane -= 1
-            active_tSeries.active_plane = active_tSeries.active_plane
         self.plane_index_box.setValue(active_tSeries.active_plane)
 
     def create_menu(self):
@@ -472,7 +472,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def show_rois(self, tSeries, show_in_list=None):
         for roi in tSeries.roi_list:
-            roi.show(show_in_list)
+            if roi.coords[0][0, 2] == tSeries.active_plane:
+                roi.show(show_in_list)
 
     def hide_rois(self, show_in_list=None):
         for item in self.plot.items:
@@ -791,6 +792,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         active_tSeries = self.tSeries_list.currentItem()
         active_tSeries.active_plane = self.plane_index_box.value()
         active_tSeries.show()
+        self.hide_rois()
+        self.show_rois(active_tSeries)
 
     def edit_label(self):
         """Edit the labels of the selected ROIs"""
@@ -1539,11 +1542,11 @@ class UI_tSeries(QListWidgetItem):
         if len(self.roi_list):
             if target_tSeries is None:
                 for polygon in self.roi_list:
-                    polygon.set_points(polygon.coords[0])
+                    polygon.set_points(polygon.coords[0][:, :2])
             else:
                 transform = self.transform(target_tSeries)
                 for polygon in self.roi_list:
-                    orig_verts = polygon.coords[0]
+                    orig_verts = polygon.coords[0][:, :2]
                     new_verts = [np.dot(transform, np.hstack([vert, 1]))
                                  for vert in orig_verts]
                     polygon.set_points(new_verts)
@@ -1608,7 +1611,7 @@ class UI_tSeries(QListWidgetItem):
                 new_rois = []
                 for poly in roi.coords:
                     new_rois.append(UI_ROI(parent=self,
-                                           points=poly.tolist(),
+                                           points=poly[:, :2].tolist(),
                                            id=roi.id,
                                            tags=roi.tags,
                                            label=roi.label))
@@ -1659,11 +1662,15 @@ class UI_tSeries(QListWidgetItem):
         # This line is necessary if the user failed to finalize the polygon
         self.parent.freeform_tool.shape = None
 
-        self.roi_list = []
+        #TODO: ONLY REPLACE THE ITEMS IN ROI_LIST THAT ARE IN THIS Z_PLANE!  DON'T DROP ALL THE ROIS FROM OTHER PLANES!
+        self.roi_list = [r for r in self.roi_list if r.coords[0][0, 2]
+                         != self.active_plane]
         # Note need to iterate backwards because convert_polygon modifies
         # plot items list
         for item in reversed(self.parent.plot.get_items()):
             if isinstance(item, UI_ROI):
+                if item.coords[0][0, 2] != self.active_plane:
+                    continue
                 if item.parent == self:
                     item.update_points()
                     self.roi_list.append(item)
@@ -1672,6 +1679,10 @@ class UI_tSeries(QListWidgetItem):
             elif isinstance(item, PolygonShape):
                 new_roi = UI_ROI.convert_polygon(
                     parent=self, polygon=item)
+                coords = np.array(new_roi.polygons[0].exterior.coords)
+                coords[:, 2] = self.active_plane
+                new_roi.polygons = [coords]
+
                 if new_roi is not None:
                     self.roi_list.append(new_roi)
                     if item in keep_list:
@@ -1786,7 +1797,10 @@ class UI_ROI(PolygonShape, ROI):
         self.setTitle(name)
 
     def update_points(self):
-        self.polygons = self.get_points().tolist()
+        points = self.get_points()
+        z = np.empty((len(points), 1))
+        z.fill(self.parent.active_plane)
+        self.polygons = np.hstack((points, z))
 
     def toggle_editing(self, value):
         """Lock or unlock the ROIs for editing
