@@ -24,10 +24,9 @@ except ImportError as error:
     pyximport.install(setup_args={"include_dirs": np.get_include()},
                       reload_support=True)
     import _motion as mc
-from sima.imaging import ImagingDataset
 import sima.motion.frame_align
 import sima.misc
-from misc import trim_coords as _trim_coords
+from sima.motion import MotionEstimationStrategy
 
 np.seterr(invalid='ignore', divide='ignore')
 
@@ -259,23 +258,48 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
     return trajectory
 
 
-class _MCImagingDataset(object):
+class Struct:
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
 
-    """ImagingDataset sub-classed with motion correction functionality"""
 
-    def __init__(self, sequences):
-        self.dataset = ImagingDataset(sequences, None)
+class HiddenMarkov2D(MotionEstimationStrategy):
+    """
+    Row-wise hidden Markov model (HMM).
+
+    Parameters
+    ----------
+    num_states_retained : int, optional
+        Number of states to retain at each time step of the HMM.
+        Defaults to 50.
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [y,x]. By
+        default, arbitrarily large displacements are allowed.
+
+    References
+    ----------
+    * Dombeck et al. 2007. Neuron. 56(1): 43-57.
+    * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
+
+    """
+
+    def __init__(self, num_states_retained=50, max_displacement=None,
+                 n_processes=None, verbose=True):
+
+        d = locals()
+        del d['self']
+        self._params = Struct(**d)
 
     def _neighbor_viterbi(
-            self, log_transition_matrix, references, gains, decay_matrix,
-            cov_matrix_est, mean_shift, offset, min_displacements,
-            max_displacements, pixel_means, pixel_variances,
+            self, dataset, log_transition_matrix, references, gains,
+            decay_matrix, cov_matrix_est, mean_shift, offset,
+            min_displacements, max_displacements, pixel_means, pixel_variances,
             num_states_retained, verbose=True):
         """Estimate the MAP trajectory with the Viterbi Algorithm.
 
         See _MCCycle.neighbor_viterbi for details."""
         displacements = []
-        for i, cycle in enumerate(self.dataset):
+        for i, cycle in enumerate(dataset):
             if verbose:
                 print 'Estimating displacements for cycle ', i
             displacements.append(
@@ -288,9 +312,7 @@ class _MCImagingDataset(object):
             )
         return displacements
 
-    def estimate_displacements(
-            self, num_states_retained=50, max_displacement=None,
-            verbose=True, path=None, n_processes=None):
+    def _estimate(self, dataset):
         """Estimate and save the displacements for the time series.
 
         Parameters
@@ -299,10 +321,6 @@ class _MCImagingDataset(object):
             Number of states to retain at each time step of the HMM.
         max_displacement : array of int
             The maximum allowed displacement magnitudes in [y,x].
-        path : str, optional
-            Path for saving a record of the displacement estimation.
-            If there is already a .pkl file, the data will be added
-            to this file.
 
         Returns
         -------
@@ -310,71 +328,44 @@ class _MCImagingDataset(object):
             The estimated displacements and partial results of motion
             correction.
         """
-        if verbose:
+        params = self._params
+        if params.verbose:
             print 'Estimating model parameters.'
-        if max_displacement is not None:
-            max_displacement = np.array(max_displacement)
+        if params.max_displacement is not None:
+            params.max_displacement = np.array(params.max_displacement)
         else:
-            max_displacement = np.array([-1, -1])
+            params.max_displacement = np.array([-1, -1])  # TODO
 
-        shifts, correlations = self._correlation_based_correction(
-            max_displacement=max_displacement, n_processes=n_processes)
+        shifts = self._correlation_based_correction(
+            dataset, max_displacement=params.max_displacement,
+            n_processes=params.n_processes)
         references, variances, offset = self._whole_frame_shifting(
-            shifts, correlations)
+            dataset, shifts)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         # gains = self._estimate_gains(references, offset,
         #                              shifts.astype(int), correlations)
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
-        pixel_means, pixel_variances = self._pixel_distribution()
+        pixel_means, pixel_variances = self._pixel_distribution(dataset)
         cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
-            _estimate_movement_model(shifts, self.dataset.frame_shape[1])
+            _estimate_movement_model(shifts, dataset.frame_shape[1])
 
         # add a bit of extra room to move around
         min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
         max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
-        extra_buffer = (
-            (max_displacement - max_shifts + min_shifts) / 2).astype(int)
-        extra_buffer[max_displacement < 0] = 5
+        extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
+                        ).astype(int)
+        extra_buffer[params.max_displacement < 0] = 5
         min_displacements = (min_shifts - extra_buffer)
         max_displacements = (max_shifts + extra_buffer)
 
-        displacements = self._neighbor_viterbi(
-            log_transition_matrix, references, gains, decay_matrix,
+        return self._neighbor_viterbi(
+            dataset, log_transition_matrix, references, gains, decay_matrix,
             cov_matrix_est, mean_shift, offset, min_displacements,
             max_displacements, pixel_means, pixel_variances,
-            num_states_retained, verbose)
-        """
-        if path is not None:
-            d = np.zeros(len(displacements), dtype=np.object)
-            for i, disp in enumerate(displacements):
-                d[i] = np.array(disp)
-            r = np.zeros(len(references), dtype=np.object)
-            for i, ref in enumerate(references):
-                r[i] = np.array(ref)
-            record = {'displacements': d,
-                      'shifts': shifts,
-                      'references': r,
-                      'gains': gains,
-                      'cov_matrix_est': cov_matrix_est,
-                      'max_displacements': max_displacements}
-            try:
-                with open(path, 'wb'):
-                    data = pickle.load(path)
-            except IOError:
-                data = {}
-            data['motion_correction'] = record
-            mkdir_p(os.path.dirname(path))
-            with open(path, 'wb') as f:
-                pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
-        """
+            params.num_states_retained, params.verbose)
 
-        # make all the displacements non-negative
-        min_disp = np.min(
-            list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-        return [disp - min_disp for disp in displacements]
-
-    def _pixel_distribution(self, tolerance=0.001, min_frames=1000):
+    def _pixel_distribution(self, dataset, tolerance=0.001, min_frames=1000):
         """Estimate the distribution of pixel intensities for each channel.
 
         Parameters
@@ -394,11 +385,11 @@ class _MCImagingDataset(object):
             Variances of the intensity of each channel.
         """
         # TODO: separate distributions for each plane
-        sums = np.zeros(self.dataset.frame_shape[-1]).astype(float)
+        sums = np.zeros(dataset.frame_shape[-1]).astype(float)
         sum_squares = np.zeros_like(sums)
         counts = np.zeros_like(sums)
         t = 0
-        for plane in it.chain(*it.chain(*self.dataset)):
+        for plane in it.chain(*it.chain(*dataset)):
             if t > 0:
                 mean_est = sums / counts
                 var_est = (sum_squares / counts) - (mean_est ** 2)
@@ -420,11 +411,11 @@ class _MCImagingDataset(object):
         return mean_est, var_est
 
     def _correlation_based_correction(
-            self, max_displacement=None, n_processes=None):
-        return sima.motion.frame_align.estimate(
-            self.dataset.sequences, max_displacement, n_processes=n_processes)
+            self, dataset, max_displacement=None, n_processes=None):
+        return sima.motion.frame_align.PlaneTranslation2D(
+            max_displacement, n_processes=n_processes).estimate(dataset)
 
-    def _whole_frame_shifting(self, shifts, correlations):
+    def _whole_frame_shifting(self, dataset, shifts):
         """Line up the data by the frame-shift estimates
 
         Parameters
@@ -446,34 +437,27 @@ class _MCImagingDataset(object):
             The displacement to add to each shift to align the minimal shift
             with the edge of the corrected image.
         """
-        # Calculate a correlation threshold for each plane of the frame
-        thresh = \
-            np.nanmean(list(it.chain(*correlations)), axis=0) - \
-            2 * np.nanstd(list(it.chain(*correlations)), axis=0)
-        # only include image frames with sufficiently high correlation
-        min_shifts = np.min(np.concatenate(
-            [s[c > thresh] for s, c in zip(shifts, correlations)]
-        ), axis=0)
-        max_shifts = np.max(np.concatenate(
-            [s[c > thresh] for s, c in zip(shifts, correlations)]
-        ), axis=0)
-        out_shape = list(self.dataset.frame_shape)
+        # # Calculate a correlation threshold for each plane of the frame
+        # thresh = \
+        #     np.nanmean(list(it.chain(*correlations)), axis=0) - \
+        #     2 * np.nanstd(list(it.chain(*correlations)), axis=0)
+        # # only include image frames with sufficiently high correlation
+        min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
+        max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
+        out_shape = list(dataset.frame_shape)
         out_shape[1] += max_shifts[0] - min_shifts[0]
         out_shape[2] += max_shifts[1] - min_shifts[1]
         reference = np.zeros(out_shape)
         sum_squares = np.zeros_like(reference)
         count = np.zeros_like(reference)
-        for frame, shift, corr in it.izip(
-                it.chain(*self.dataset), it.chain(*shifts),
-                it.chain(*correlations)):
-            for plane, p_shifts, p_corr, th, ref, ssq, cnt in it.izip(
-                    frame, shift, corr, thresh, reference, sum_squares, count):
-                if p_corr > th:
-                    low = (p_shifts - min_shifts)  # TOOD: NaN considerations
-                    high = low + plane.shape[:-1]
-                    ref[low[0]:high[0], low[1]:high[1]] += plane
-                    ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
-                    cnt[low[0]:high[0], low[1]:high[1]] += np.isfinite(plane)
+        for frame, shift in it.izip(it.chain(*dataset), it.chain(*shifts)):
+            for plane, p_shifts, ref, ssq, cnt in it.izip(
+                    frame, shift, reference, sum_squares, count):
+                low = (p_shifts - min_shifts)  # TOOD: NaN considerations
+                high = low + plane.shape[:-1]
+                ref[low[0]:high[0], low[1]:high[1]] += plane
+                ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
+                cnt[low[0]:high[0], low[1]:high[1]] += np.isfinite(plane)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             reference /= count
@@ -658,82 +642,3 @@ class SolverHMM(object):
                                    position_tbl)
         assert displacements.dtype == int
         return displacements.reshape(self.sequence.shape[:3] + (2,))
-
-
-def hmm(sequences, savedir, channel_names=None, info=None,
-        num_states_retained=50, max_displacement=None,
-        correction_channels=None, trim_criterion=None, verbose=True,
-        n_processes=None):
-    """
-    Create a motion-corrected ImagingDataset using a row-wise hidden
-    Markov model (HMM).
-
-    Parameters
-    ----------
-    sequences : list of list of iterable
-        Iterables yielding frames from imaging cycles and channels.
-    savedir : str
-        The directory used to store the dataset. If the directory
-        name does not end with .sima, then this extension will
-        be appended.
-    channel_names : list of str, optional
-        Names for the channels. Defaults to ['0', '1', '2', ...].
-    metadata : dict
-        Data for the order and timing of the data acquisition.
-        See sima.ImagingDataset for details.
-    num_states_retained : int, optional
-        Number of states to retain at each time step of the HMM.
-        Defaults to 50.
-    max_displacement : array of int, optional
-        The maximum allowed displacement magnitudes in [y,x]. By
-        default, arbitrarily large displacements are allowed.
-
-    Returns
-    -------
-    dataset : sima.ImagingDataset
-        The motion-corrected dataset.
-
-    Keyword Arguments
-    -----------------
-    correction_channels : list of int, optional
-        Information from the channels corresponding to these indices
-        will be used for motion correction. By default, all channels
-        will be used.
-    trim_criterion : float, optional
-        The required fraction of frames during which a location must
-        be within the field of view for it to be included in the
-        motion-corrected imaging frames. By default, only locations
-        that are always within the field of view are retained.
-    verbose : boolean, optional
-        Whether to print the progress status. Defaults to True.
-
-    References
-    ----------
-    * Dombeck et al. 2007. Neuron. 56(1): 43-57.
-    * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
-
-    """
-    if correction_channels:
-        correction_channels = [
-            sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
-            for c in correction_channels]
-        mc_sequences = [s[:, :, :, :, correction_channels] for s in sequences]
-    else:
-        mc_sequences = sequences
-    displacements = _MCImagingDataset(mc_sequences).estimate_displacements(
-        num_states_retained, max_displacement, verbose,
-        n_processes=n_processes)
-    max_disp = np.max(
-        list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-    frame_shape = np.array(sequences[0].shape)[1:]
-    frame_shape[1:3] += max_disp
-    corrected_sequences = [
-        s.apply_displacements(d, frame_shape)
-        for s, d in zip(sequences, displacements)]
-    rows, columns = _trim_coords(
-        trim_criterion, displacements, sequences[0].shape[1:4], frame_shape[:3]
-    )
-    corrected_sequences = [
-        s[:, :, rows, columns] for s in corrected_sequences]
-    return ImagingDataset(
-        corrected_sequences, savedir, channel_names=channel_names)
