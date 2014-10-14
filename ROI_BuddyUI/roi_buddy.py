@@ -133,6 +133,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #filter for Esc button behavior
         self.viewer.keyPressEvent = self.viewer_keyPressEvent
+        self.viewer.wheelEvent = self.viewer_wheelEvent
         self.viewer.add_tool(PanTool)
 
         self.initialize_roi_manager()
@@ -161,6 +162,20 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             event.ignore()
         else:
             ImageDialog.keyPressEvent(self.viewer, event)
+
+    def viewer_wheelEvent(self, event):
+        """Capture scroll events to toggle the base image z-plane"""
+        active_tSeries = self.tSeries_list.currentItem()
+        delta = event.delta()
+        if delta > 0:
+            active_tSeries.active_plane += 1
+            active_tSeries.active_plane = active_tSeries.active_plane % \
+                active_tSeries.num_planes
+        else:
+            active_tSeries.active_plane -= 1
+            active_tSeries.active_plane = active_tSeries.active_plane % \
+                active_tSeries.num_planes
+        active_tSeries.show()
 
     def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
@@ -1402,8 +1417,6 @@ class UI_tSeries(QListWidgetItem):
         self.dataset = ImagingDataset.load(sima_path)
         self.parent = parent
 
-        set_trace()
-
         self.num_planes = self.dataset.frame_shape[0]
         self.shape = self.dataset.frame_shape[1:3]
         self.transform_shape = tuple(3 * np.array(self.shape))
@@ -1433,9 +1446,8 @@ class UI_tSeries(QListWidgetItem):
         for channel_name in self.dataset.channel_names:
             self.base_images[channel_name] = []
         for plane in self.dataset.time_averages:
-            for ch_idx in np.arange(plane.shape[2]):
-                self.base_images[self.dataset.channel_names[ch_idx]].append(
-                    plane[:, :, ch_idx])
+            for ch_idx, ch_name in enumerate(self.dataset.channel_names):
+                self.base_images[ch_name].append(plane[:, :, ch_idx])
 
     def show(self):
         try:
