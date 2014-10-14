@@ -312,7 +312,7 @@ class HiddenMarkov2D(MotionEstimationStrategy):
             )
         return displacements
 
-    def estimate(self, dataset):
+    def _estimate(self, dataset):
         """Estimate and save the displacements for the time series.
 
         Parameters
@@ -359,16 +359,11 @@ class HiddenMarkov2D(MotionEstimationStrategy):
         min_displacements = (min_shifts - extra_buffer)
         max_displacements = (max_shifts + extra_buffer)
 
-        displacements = self._neighbor_viterbi(
+        return self._neighbor_viterbi(
             dataset, log_transition_matrix, references, gains, decay_matrix,
             cov_matrix_est, mean_shift, offset, min_displacements,
             max_displacements, pixel_means, pixel_variances,
             params.num_states_retained, params.verbose)
-
-        # make all the displacements non-negative
-        min_disp = np.min(
-            list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-        return [disp - min_disp for disp in displacements]
 
     def _pixel_distribution(self, dataset, tolerance=0.001, min_frames=1000):
         """Estimate the distribution of pixel intensities for each channel.

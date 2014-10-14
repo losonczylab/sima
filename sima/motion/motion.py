@@ -10,11 +10,30 @@ import _motion as mc
 class MotionEstimationStrategy(object):
     __metaclass__ = abc.ABCMeta
 
+    @classmethod
+    def _make_nonnegative(cls, displacements):
+        min_displacement = np.min(
+            list(it.chain(*[d.reshape(-1, d.shape[-1])
+                            for d in displacements])),
+            axis=0)
+        return [d - min_displacement for d in displacements]
+
     @abc.abstractmethod
-    def estimate(self, dataset):
-        """
-        """
+    def _estimate(self, dataset):
         return
+
+    def estimate(self, dataset):
+        """Estimate the displacements for a dataset.
+
+        Parameters
+        ----------
+        dataset : sima.ImagingDataset
+
+        Returns
+        -------
+        displacements : list of ndarray of int
+        """
+        return self._make_nonnegative(self._estimate(dataset))
 
     def correct(self, sequences, savedir, channel_names=None, info=None,
                 correction_channels=None, trim_criterion=None):

@@ -23,28 +23,31 @@ class Struct:
 
 
 class PlaneTranslation2D(motion.MotionEstimationStrategy):
+    """Estimate 2D translations for each plane.
+
+    Parameters
+    ----------
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [y,x]. By
+        default, arbitrarily large displacements are allowed.
+    method : {'correlation', 'ECC'}
+        Alignment method to be used.
+    n_processes : (None, int)
+        Number of pool processes to spawn to parallelize frame alignment
+    partitions : tuple of int, optional
+        The number of partitions in y and x respectively. The alignement
+        will be calculated separately on each partition and then the
+        results compared. Default: calculates an appropriate value based
+        on max_displacement and the frame shape.
+    """
 
     def __init__(self, max_displacement=None, method='correlation',
                  n_processes=None, partitions=None):
-        """
-        max_displacement : array of int, optional
-            The maximum allowed displacement magnitudes in [y,x]. By
-            default, arbitrarily large displacements are allowed.
-        method : {'correlation', 'ECC'}
-            Alignment method to be used.
-        n_processes : (None, int)
-            Number of pool processes to spawn to parallelize frame alignment
-        partitions : tuple of int, optional
-            The number of partitions in y and x respectively. The alignement
-            will be calculated separately on each partition and then the
-            results compared. Default: calculates an appropriate value based
-            on max_displacement and the frame shape.
-        """
         d = locals()
         del d['self']
         self._params = Struct(**d)
 
-    def estimate(self, dataset):
+    def _estimate(self, dataset):
         """Estimate whole-frame displacements based on pixel correlations.
 
         Parameters
@@ -55,10 +58,6 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         shifts : array
             (2, num_frames*num_cycles)-array of integers giving the
             estimated displacement of each frame
-        correlations : array
-            (num_frames*num_cycles)-array giving the correlation of
-            each shifted frame with the reference
-
         """
         # if method == 'correlation':
         #     displacements, correlations = estimate(
@@ -198,11 +197,6 @@ def _frame_alignment_base(
 
     shifts = namespace.shifts
     _align_planes(shifts)
-
-    # make all the shifts non-negative
-    min_shift = np.min(list(it.chain(*it.chain(*shifts))), axis=0)
-    shifts = [s - min_shift for s in shifts]
-
     return shifts, namespace.correlations
 
 

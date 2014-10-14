@@ -18,7 +18,7 @@ from sima.misc.align import align_cross_correlation
 class VolumeTranslation(motion.MotionEstimationStrategy):
     """Translate 3D volumes to maximize the correlation."""
 
-    def estimate(self, dataset):
+    def _estimate(self, dataset):
         reference = next(iter(next(iter(dataset))))
         displacements = []
         for sequence in dataset:
