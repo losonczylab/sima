@@ -152,6 +152,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #deactivate buttons until a t-series is added
         self.toggle_button_state(False)
+        #initialize z-scroll box
+        self.plane_index_box.setWrapping(True)
 
         from sima.misc import example_data_3D
         UI_tSeries(example_data_3D(), self)
@@ -310,6 +312,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #add/delete roi sets
         self.new_set_button.clicked.connect(self.new_roi_set)
         self.delete_set_button.clicked.connect(self.delete_roi_set)
+
+        #z-plane selection
+        self.plane_index_box.valueChanged.connect(self.toggle_plane)
 
         #Channel selection
         self.baseImage_list.activated.connect(self.toggle_base_image)
@@ -648,6 +653,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             tSeries.active_channel)
         self.baseImage_list.setCurrentIndex(current_idx)
 
+    def initialize_z_planes_box(self, tSeries):
+
+        self.plane_index_box.setMaximum(tSeries.num_planes)
+        self.plane_index_box.setRange(0, tSeries.active_plane - 1)
+
     def new_roi_set(self):
         """Add a new ROI Set to the imaging dataset"""
 
@@ -738,8 +748,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.hide_rois(show_in_list=False)
         self.initialize_base_image_list(current)
         self.initialize_roi_set_list(current)
+        self.initialize_z_planes_box(current)
 
-        current.show()
         self.show_rois(current, show_in_list=self.mode == 'edit')
         self.toggle_show_rois()
 
@@ -773,6 +783,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             active_tSeries.initialize_rois()
             self.show_rois(active_tSeries, show_in_list=self.mode == 'edit')
             self.plot.replot()
+
+    def toggle_plane(self):
+        active_tSeries = self.tSeries_list.currentItem()
+        active_tSeries.active_plane = self.plane_index_box.value()
+        active_tSeries.show()
 
     def edit_label(self):
         """Edit the labels of the selected ROIs"""
