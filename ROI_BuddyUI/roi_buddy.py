@@ -28,9 +28,10 @@ from PyQt4.QtGui import *
 
 from guidata import qthelpers
 from guiqwt.plot import ImageDialog
-from guiqwt.tools import FreeFormTool, InteractiveTool
+from guiqwt.tools import FreeFormTool, InteractiveTool, \
+    RectangleTool, RectangularShapeTool
 from guiqwt.builder import make
-from guiqwt.shapes import PolygonShape
+from guiqwt.shapes import PolygonShape, EllipseShape
 from guiqwt.events import setup_standard_tool_filter, PanHandler
 
 from pudb import set_trace
@@ -111,6 +112,22 @@ class PanTool(InteractiveTool):
         return setup_standard_tool_filter(filter, start_state)
 
 
+class EllipseTool(RectangularShapeTool):
+    #TODO: Modify this such that it draws like an ImageJ ellipse?
+
+    TITLE = "Ellipse"
+    ICON = "ellipse_shape.png"
+
+    def create_shape(self):
+        shape = EllipseShape(0, 0, 1, 1)
+        self.set_shape_style(shape)
+        return shape, 0, 1
+
+    def handle_final_shape(self, shape):
+        shape.switch_to_ellipse()
+        super(EllipseTool, self).handle_final_shape(shape)
+
+
 class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
     """Instance of the ROI Buddy Qt interface."""
     def __init__(self):
@@ -156,6 +173,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         from sima.misc import example_data_3D
         ts = UI_tSeries(example_data_3D(), self)
         self.tSeries_list.setCurrentItem(ts)
+        self.toggle_button_state(True)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -171,14 +189,16 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if delta > 0:
             if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
                 return
-            active_tSeries.update_rois()
-            active_tSeries.active_plane += 1
+            # active_tSeries.update_rois()
+            # active_tSeries.active_plane += 1
+            self.plane_index_box.setValue(active_tSeries.active_plane + 1)
         else:
             if active_tSeries.active_plane - 1 < 0:
                 return
-            active_tSeries.update_rois()
-            active_tSeries.active_plane -= 1
-        self.plane_index_box.setValue(active_tSeries.active_plane)
+            # active_tSeries.update_rois()
+            # active_tSeries.active_plane -= 1
+            self.plane_index_box.setValue(active_tSeries.active_plane - 1)
+        # self.plane_index_box.setValue(active_tSeries.active_plane)
 
     def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
@@ -315,6 +335,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.delete_set_button.clicked.connect(self.delete_roi_set)
 
         #z-plane selection
+        self.plane_index_box
         self.plane_index_box.valueChanged.connect(self.toggle_plane)
 
         #Channel selection
@@ -364,6 +385,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                              wintitle='Experiment Image Display')
         #Add the freeform tool
         viewer.add_tool(FreeFormTool)
+        #viewer.add_tool(EllipseTool)
+        viewer.add_tool(RectangleTool)
         #Remove the grid from the item list manager
         viewer.get_plot().get_items()[0].set_private(True)
         #add viewer to the display frame layout
@@ -375,7 +398,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         self.plot = viewer.get_plot()
         self.selection_tool = viewer.tools[2]
-        self.freeform_tool = viewer.tools[-1]
+        self.freeform_tool = viewer.tools[-2]
 
         return viewer
 
@@ -453,7 +476,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         [button.setEnabled(enabled) for button in
          self.channelSelectionFrame.children() if
          isinstance(button, QComboBox) or
-         isinstance(button, QCheckBox)]
+         isinstance(button, QCheckBox) or
+         isinstance(button, QSpinBox)]
 
         [action.setEnabled(enabled) for action in
          self.viewer.get_itemlist_panel().findChild(QToolBar).actions()]
@@ -789,7 +813,10 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.plot.replot()
 
     def toggle_plane(self):
+
+        self.freeform_tool.shape = None
         active_tSeries = self.tSeries_list.currentItem()
+        active_tSeries.update_rois()
         active_tSeries.active_plane = self.plane_index_box.value()
         active_tSeries.show()
         self.hide_rois()
@@ -1662,7 +1689,6 @@ class UI_tSeries(QListWidgetItem):
         # This line is necessary if the user failed to finalize the polygon
         self.parent.freeform_tool.shape = None
 
-        #TODO: ONLY REPLACE THE ITEMS IN ROI_LIST THAT ARE IN THIS Z_PLANE!  DON'T DROP ALL THE ROIS FROM OTHER PLANES!
         self.roi_list = [r for r in self.roi_list if r.coords[0][0, 2]
                          != self.active_plane]
         # Note need to iterate backwards because convert_polygon modifies
@@ -1754,6 +1780,10 @@ class UI_ROI(PolygonShape, ROI):
 
         new_roi = UI_ROI(parent=parent, points=points.tolist(), id=None,
                          label=parent.next_label(), tags=None)
+
+        z = np.empty((len(points), 1))
+        z.fill(parent.active_plane)
+        new_roi.polygons = np.hstack((points, z))
 
         parent.parent.plot.del_item(polygon)
         parent.parent.plot.add_item(new_roi)
