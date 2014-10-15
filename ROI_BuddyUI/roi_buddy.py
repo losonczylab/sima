@@ -170,10 +170,10 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #deactivate buttons until a t-series is added
         self.toggle_button_state(False)
 
+        self.toggle_button_state(True)
         from sima.misc import example_data_3D
         ts = UI_tSeries(example_data_3D(), self)
         self.tSeries_list.setCurrentItem(ts)
-        self.toggle_button_state(True)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -186,19 +186,14 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         """Capture scroll events to toggle the base image z-plane"""
         active_tSeries = self.tSeries_list.currentItem()
         delta = event.delta()
-        if delta > 0:
+        if delta < 0:
             if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
                 return
-            # active_tSeries.update_rois()
-            # active_tSeries.active_plane += 1
             self.plane_index_box.setValue(active_tSeries.active_plane + 1)
         else:
             if active_tSeries.active_plane - 1 < 0:
                 return
-            # active_tSeries.update_rois()
-            # active_tSeries.active_plane -= 1
             self.plane_index_box.setValue(active_tSeries.active_plane - 1)
-        # self.plane_index_box.setValue(active_tSeries.active_plane)
 
     def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
@@ -335,7 +330,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.delete_set_button.clicked.connect(self.delete_roi_set)
 
         #z-plane selection
-        self.plane_index_box
         self.plane_index_box.valueChanged.connect(self.toggle_plane)
 
         #Channel selection
@@ -680,9 +674,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.baseImage_list.setCurrentIndex(current_idx)
 
     def initialize_z_planes_box(self, tSeries):
+        self.plane_index_box.setWrapping(True)
         self.plane_index_box.setRange(0, tSeries.num_planes - 1)
         self.plane_index_box.setValue(tSeries.active_plane)
-        self.plane_index_box.setWrapping(True)
 
     def new_roi_set(self):
         """Add a new ROI Set to the imaging dataset"""
@@ -1637,11 +1631,13 @@ class UI_tSeries(QListWidgetItem):
             for roi in rois:
                 new_rois = []
                 for poly in roi.coords:
-                    new_rois.append(UI_ROI(parent=self,
-                                           points=poly[:, :2].tolist(),
-                                           id=roi.id,
-                                           tags=roi.tags,
-                                           label=roi.label))
+                    new_roi = UI_ROI(parent=self,
+                                     points=poly[:, :2].tolist(),
+                                     id=roi.id,
+                                     tags=roi.tags,
+                                     label=roi.label)
+                    new_roi.polygons = poly
+                    new_rois.append(new_roi)
 
                 self.roi_list.extend(new_rois)
                 # Keep track of ROIs that are MulitPolygons so we make sure
@@ -1705,9 +1701,9 @@ class UI_tSeries(QListWidgetItem):
             elif isinstance(item, PolygonShape):
                 new_roi = UI_ROI.convert_polygon(
                     parent=self, polygon=item)
-                coords = np.array(new_roi.polygons[0].exterior.coords)
+                coords = new_roi.coords[0]
                 coords[:, 2] = self.active_plane
-                new_roi.polygons = [coords]
+                new_roi.polygons = coords
 
                 if new_roi is not None:
                     self.roi_list.append(new_roi)
@@ -1781,9 +1777,9 @@ class UI_ROI(PolygonShape, ROI):
         new_roi = UI_ROI(parent=parent, points=points.tolist(), id=None,
                          label=parent.next_label(), tags=None)
 
-        z = np.empty((len(points), 1))
-        z.fill(parent.active_plane)
-        new_roi.polygons = np.hstack((points, z))
+        coords = new_roi.coords
+        coords[0][:, 2] = parent.active_plane
+        new_roi.polygons = coords
 
         parent.parent.plot.del_item(polygon)
         parent.parent.plot.add_item(new_roi)
