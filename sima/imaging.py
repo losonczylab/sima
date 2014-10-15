@@ -459,8 +459,7 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         for sequence, fns in it.izip(self, filenames):
-            sequence._export_frames(fns, fmt, fill_gaps, scale_values,
-                                    self.channel_names)
+            sequence.export(fns, fmt, fill_gaps, self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extracted signals to a file.
