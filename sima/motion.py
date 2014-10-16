@@ -613,7 +613,7 @@ class _MCImagingDataset(ImagingDataset):
             else:
                 min_i = np.maximum(
                     (np.nanmax(shifts, 1) - max_displacement + offset)
-                    / 2 + np.array(small_im[0].shape) - 1, 0)
+                    / 2 + np.array(small_im[0].shape) - 1, 0).astype(int)
                 max_i = (
                     np.ceil(
                         (np.nanmin(shifts, 1) + max_displacement +
@@ -675,11 +675,12 @@ class _MCImagingDataset(ImagingDataset):
                     ref = reference[valid_channels]
                     shift = course_alignment(ref, im)
                     correlations[i], shifts[:, i] = refine_alignment(
-                        shift, ref, im, offset)
+                        shift.astype(int), ref, im, offset)
                     pixel_sums, pixel_counts, offset = resize_arrays(
                         shifts[:, i], pixel_sums, pixel_counts, offset)
                     update_sums_and_counts(pixel_sums, pixel_counts, offset,
-                                           shifts[:, i], im, valid_channels)
+                                           shifts[:, i].astype(int), im,
+                                           valid_channels)
                 i += 1
         return shifts.astype('float'), correlations.astype('float')
 
@@ -721,7 +722,7 @@ class _MCImagingDataset(ImagingDataset):
                 im = np.concatenate([np.expand_dims(x, 0) for x in frame],
                                     axis=0).astype(float)
                 # indices for shifted image
-                low_idx = shift - min_shifts
+                low_idx = shift.astype(int) - min_shifts
                 high_idx = low_idx + im.shape[1:]
                 reference[:, low_idx[0]:high_idx[0],
                           low_idx[1]:high_idx[1]] += im
