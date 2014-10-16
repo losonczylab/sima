@@ -16,6 +16,7 @@ Testing
 * Ben Shababo
 * Clay Lacefield
 * Matthew Lovett-Barron
+* Matthew J. Davis
 
 
 External code
