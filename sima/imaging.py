@@ -677,8 +677,8 @@ class ImagingDataset(object):
         """
         channel = self._resolve_channel(channel)
         try:
-            with open(join(
-                    self.savedir, 'signals_{}.pkl'.format(channel))) as f:
+            with open(join(self.savedir, 'signals_{}.pkl'.format(channel)),
+                      'rb') as f:
                 return pickle.load(f)
         except (IOError, pickle.UnpicklingError):
             return {}
