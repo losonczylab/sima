@@ -26,11 +26,12 @@ def transitions(
     cdef np.ndarray[INT_TYPE_t] tmpStateIds = np.empty(maxLen, dtype='int')
     cdef np.ndarray[INT_TYPE_t] tmpBackpointer = np.empty(maxLen, dtype='int')
     cdef np.ndarray[FLOAT_TYPE_t] tmpLogP = np.empty(maxLen, dtype='float')
-    cdef Py_ssize_t old_index, mapped_index, tmpIndex, k, count
+    cdef Py_ssize_t old_index, mapped_index, tmpIndex, k, count, num_transitions
     cdef FLOAT_TYPE_t lp
     count = 0
+    num_transitions = len(transitionLookup)
     for old_index in xrange(len(previousStateIDs)):
-        for k in xrange(9):  # TODO: parallelize
+        for k in xrange(num_transitions):  # TODO: parallelize
             tmpIndex = transitionLookup[k, previousStateIDs[old_index]]
             if tmpIndex != -1:
                 #identify temporary location of tmpIndex
@@ -112,6 +113,47 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     assert np.all(sliceLookup[:, :, 2:] <= num_columns)
     assert np.all(sliceLookup[:, :, 2:] >= 0)
     return sliceLookup
+
+
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.wraparound(False)
+def log_observation_probabilities_generalized(
+        np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
+        np.ndarray[INT_TYPE_t, ndim=1] tmpStateIds,
+        np.ndarray[FLOAT_TYPE_t, ndim=2] im,
+        np.ndarray[FLOAT_TYPE_t, ndim=2] logImP,
+        np.ndarray[FLOAT_TYPE_t, ndim=2] logImFac,
+        np.ndarray[FLOAT_TYPE_t, ndim=4] scaled_references,
+        np.ndarray[FLOAT_TYPE_t, ndim=4] logScaledRefs,
+        np.ndarray[INT_TYPE_t, ndim=2] positions,
+        np.ndarray[INT_TYPE_t, ndim=2] positionLookup):
+
+    cdef Py_ssize_t i, j, index, chan, Z, Y, X
+    cdef INT_TYPE_t z, y, x
+    cdef FLOAT_TYPE_t logp, ninf, nan
+    ninf = -float('inf')
+    nan = float(np.nan)
+    Z = scaled_references.shape[0]
+    Y = scaled_references.shape[1]
+    X = scaled_references.shape[2]
+
+    for i in cython.parallel.prange(tmpLogP.shape[0], nogil=True):
+        index = tmpStateIds[i]
+        logp = 0.0
+        for j in range(im.shape[0]):
+            z = positions[j, 0] + positionLookup[index, 0]
+            y = positions[j, 1] + positionLookup[index, 1]
+            x = positions[j, 2] + positionLookup[index, 2]
+            if 0 <= x and 0 <= y and 0 <= z and z < Z and y < Y and x < X:
+                for chan in range(im.shape[1]):
+                    if scaled_references[z, y, x, chan] == nan:
+                        logp += logImP[j, chan]
+                    else:
+                        logp += im[j, chan] * logScaledRefs[z, y, x, chan] - \
+                           scaled_references[z, y, x, chan] - logImFac[j, chan]
+            else:
+                logp += logImP[j, chan]
+        tmpLogP[i] += logp
 
 
 @cython.boundscheck(False)  # turn of bounds-checking for entire function
