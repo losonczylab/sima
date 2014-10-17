@@ -16,15 +16,37 @@ from sima.misc.align import align_cross_correlation
 
 
 class VolumeTranslation(motion.MotionEstimationStrategy):
-    """Translate 3D volumes to maximize the correlation."""
+    """Translate 3D volumes to maximize the correlation.
+
+    Parameters
+    ----------
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [z,y,x]. By
+        default, arbitrarily large displacements are allowed.
+    """
+
+    def __init__(self, max_displacement=None):
+        self._max_displacement = max_displacement
 
     def _estimate(self, dataset):
         reference = next(iter(next(iter(dataset))))
         displacements = []
+        disp_range = np.array([[0, 0, 0], [0, 0, 0]])
         for sequence in dataset:
             seq_displacements = []
             for frame in sequence:
-                seq_displacements.append(pyramid_align(reference, frame))
+                if self._max_displacement is not None:
+                    bounds = np.array([
+                        np.minimum(disp_range[1] - self._max_displacement,
+                                   disp_range[0]),
+                        np.maximum(disp_range[0] + self._max_displacement,
+                                   disp_range[1])])
+                else:
+                    bounds = None
+                seq_displacements.append(
+                    pyramid_align(reference, frame, bounds=bounds))
+                bounds[0] = np.minimum(bounds[0], seq_displacements[-1])
+                bounds[1] = np.maximum(bounds[1], seq_displacements[-1])
             displacements.append(np.array(seq_displacements))
         return displacements
 
@@ -46,12 +68,15 @@ def shifted_corr(reference, image, displacement):
 
 
 def pyr_down_3d(image, axes=None):
-    """
+    """Downsample an image along the specified axes.
+
     Parameters
     ----------
     image : ndarray
+        The image to be downsampled.
     axes : tuple of int
-        The axes along which the downsampling is to occur
+        The axes along which the downsampling is to occur.  Defaults to
+        downsampling on all axes.
     """
     stdevs = [1.05 if i in axes else 0 for i in range(image.ndim)]
     filtered_image = scipy.ndimage.filters.gaussian_filter(image, stdevs)
@@ -60,15 +85,26 @@ def pyr_down_3d(image, axes=None):
     return filtered_image[slices]
 
 
-def base_alignment(reference, target):
-    return align_cross_correlation(reference, target)[0]
+def base_alignment(reference, target, bounds=None):
+    return align_cross_correlation(reference, target, bounds)[0]
 
 
-def pyramid_align(reference, target, min_shape=32, max_levels=None):
+def within_bounds(displacement, bounds):
+    if bounds is None:
+        return True
+    assert len(displacement) == bounds.shape[1]
+    return np.all(bounds[0] <= displacement) and \
+        np.all(bounds[1] >= displacement)
+
+
+def pyramid_align(reference, target, min_shape=32, max_levels=None,
+                  bounds=None):
     """
     Parameters
     ----------
     min_shape : int or tuple of int
+    bounds : ndarray of int
+        Shape: (2, D).
     """
     if max_levels is None:
         max_levels = np.inf
@@ -76,18 +112,19 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None):
     axes_bool = smallest_shape >= 2 * np.array(min_shape)
     if max_levels > 0 and np.any(axes_bool):
         axes = np.nonzero(axes_bool)[0]
+        new_bounds = None if bounds is None else bounds / (1 + axes_bool)
         disp = pyramid_align(pyr_down_3d(reference, axes),
                              pyr_down_3d(target, axes),
-                             min_shape,
-                             max_levels-1)
+                             min_shape, max_levels - 1, new_bounds)
         best_corr = -np.inf
         best_displacement = None
         for adjustment in it.product(range(-1, 2), range(-1, 2), range(-1, 2)):
             displacement = (1 + axes_bool) * disp + np.array(adjustment)
-            corr = shifted_corr(reference, target, displacement)
-            if corr > best_corr:
-                best_corr = corr
-                best_displacement = displacement
+            if within_bounds(displacement, bounds):
+                corr = shifted_corr(reference, target, displacement)
+                if corr > best_corr:
+                    best_corr = corr
+                    best_displacement = displacement
         return best_displacement
     else:
-        return base_alignment(reference, target)
+        return base_alignment(reference, target, bounds)
