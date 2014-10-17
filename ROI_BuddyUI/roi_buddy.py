@@ -379,7 +379,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                              wintitle='Experiment Image Display')
         #Add the freeform tool
         viewer.add_tool(FreeFormTool)
-        #viewer.add_tool(EllipseTool)
+        viewer.add_tool(EllipseTool)
         viewer.add_tool(RectangleTool)
         #Remove the grid from the item list manager
         viewer.get_plot().get_items()[0].set_private(True)
@@ -392,7 +392,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         self.plot = viewer.get_plot()
         self.selection_tool = viewer.tools[2]
-        self.freeform_tool = viewer.tools[-2]
+        self.freeform_tool = viewer.tools[-3]
 
         return viewer
 
