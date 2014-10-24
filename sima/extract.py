@@ -164,40 +164,52 @@ def _save_extract_summary(signals, save_directory, rois):
     from matplotlib.backends.backend_pdf import PdfPages
     from sima.ROI import NonBooleanMask
 
-    fig = plt.figure(figsize=(11, 8))
-    ax = fig.add_subplot(111, rasterized=True)
-
     mean_frame = signals['mean_frame']
-    ax.imshow(mean_frame, cmap='gray', interpolation='none')
 
-    for mask in signals['_masks']:
-        ax.spy(mask.reshape(mean_frame.shape) != 0, marker='.',
-               markersize=2, aspect='auto', color='cyan')
+    figs = []
+    for plane_idx in xrange(mean_frame.shape[2]):
+        fig = plt.figure(figsize=(11, 8))
+        ax = fig.add_subplot(111, rasterized=True)
 
-    for roi in rois:
-        try:
-            for poly in roi.coords:
-                poly -= 0.5  # Shift the polygons to line up with masks
-                ax.plot(poly[:, 0], poly[:, 1], linestyle='-', color='b')
-        except NonBooleanMask:
-            pass
+        ax.imshow(
+            mean_frame[:, :, plane_idx], cmap='gray', interpolation='none')
 
-    if 'overlap' in signals:
-        # 'overlap' was calculated on a flat array, so overlap[0] is all '0's
-        # and overlap[1] is the actual indices
-        overlap_pix = np.unravel_index(signals['overlap'][1], mean_frame.shape)
-        ax.plot(overlap_pix[1], overlap_pix[0], 'r.', markersize=2)
+        for mask in signals['_masks']:
+            m = mask.toarray().reshape((mean_frame.shape))[:, :, plane_idx]
+            if not np.all(m == 0):
+                ax.spy(m, marker='.', markersize=2, aspect='auto',
+                       color='cyan')
 
-    ax.tick_params(bottom=False, top=False, left=False,
-                   right=False, labelbottom=False, labeltop=False,
-                   labelleft=False, labelright=False)
+        for roi in rois:
+            try:
+                for poly in roi.coords:
+                    if poly[0][2] == plane_idx:
+                        poly -= 0.5  # Shift the polygons to line up with masks
+                        ax.plot(
+                            poly[:, 0], poly[:, 1], linestyle='-', color='b')
+            except NonBooleanMask:
+                pass
 
-    ax.set_title('Extraction summary: {}\n{}'.format(signals['timestamp'],
-                                                     save_directory))
+        if 'overlap' in signals:
+            # 'overlap' was calculated on a flat array, so overlap[0] is all
+            # '0's and overlap[1] is the actual indices
+            overlap_pix = np.unravel_index(
+                signals['overlap'][1], mean_frame.shape)
+            if len(overlap_pix[2]) and overlap_pix[2][0] == plane_idx:
+                ax.plot(overlap_pix[1], overlap_pix[0], 'r.', markersize=2)
+
+        ax.tick_params(bottom=False, top=False, left=False,
+                       right=False, labelbottom=False, labeltop=False,
+                       labelleft=False, labelright=False)
+
+        ax.set_title('Extraction summary: {}\n{}\nPlane {}'.format(
+            signals['timestamp'], save_directory, str(plane_idx)))
+        figs.append(fig)
 
     pp = PdfPages(os.path.join(save_directory, 'extractSummary_{}.pdf'.format(
         signals['timestamp'])))
-    pp.savefig(fig)
+    for fig in figs:
+        pp.savefig(fig)
     pp.close()
     plt.close('all')
 
@@ -378,8 +390,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         for frame_idx, (raw_result, demix_result) in it.izip(
                 it.count(), pool.imap(_roi_extract, it.izip(_data_chunker(
                     iter(sequence), dataset.time_averages, signal_channel),
-                it.repeat(constants)),
-                chunksize=1 + len(sequence) / n_pools)):
+                it.repeat(constants)), chunksize=1 + len(sequence) / n_pools)):
             signal[:, frame_idx] = np.array(raw_result).flatten()
             if demixer is not None:
                 demix[:, frame_idx] = np.array(demix_result).flatten()
