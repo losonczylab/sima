@@ -11,6 +11,9 @@ import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
 
+# import multiprocessing.util as util
+# util.log_to_stderr(util.SUBDEBUG)
+
 
 class ExtractedSignals(pd.DataFrame):
     def __init__(self, signals, timestamp=None, mean_frame=None, overlap=True,
@@ -84,7 +87,7 @@ def _roi_extract(inputs):
         image.
 
     """
-    frame, constants = inputs
+    frame, frame_idx, constants = inputs
 
     def put_back_nans(values, imaged_rois, n_rois):
         """Puts NaNs back in output arrays for ROIs that were not imaged this
@@ -144,7 +147,7 @@ def _roi_extract(inputs):
         result = put_back_nans(result, imaged_rois, n_rois)
 
     if constants['demixer'] is None:
-        return (result, None)
+        return (frame_idx, result, None)
 
     # Same as 'values' but with the demixed frame data
     demixed_frame = frame[masked_pixels] + constants['demixer']
@@ -153,7 +156,7 @@ def _roi_extract(inputs):
 
     if len(imaged_rois) < n_rois:
         demixed_result = put_back_nans(demixed_result, imaged_rois, n_rois)
-    return (result, demixed_result)
+    return (frame_idx, result, demixed_result)
 
 
 def _save_extract_summary(signals, save_directory, rois):
@@ -382,15 +385,19 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         constants['masked_pixels'] = masked_pixels
         constants['is_overlap'] = len(overlap[0]) > 0 and not remove_overlap
 
+        # Determine chunksize and limit to prevent pools from hanging
+        chunksize = min(1 + len(sequence) / n_pools, 200)
+
         # This will farm out signal extraction across 'n_pools' CPUs
         # The actual extraction is in _roi_extract, it's a separate
         # top-level function due to Pool constraints.
-        # The default chunksize/chunkfactor should be OK, it doesn't
-        # have a huge effect on run time.
-        for frame_idx, (raw_result, demix_result) in it.izip(
-                it.count(), pool.imap(_roi_extract, it.izip(_data_chunker(
-                    iter(sequence), dataset.time_averages, signal_channel),
-                it.repeat(constants)), chunksize=1 + len(sequence) / n_pools)):
+
+        for frame_idx, raw_result, demix_result in pool.imap_unordered(
+                _roi_extract, it.izip(
+                    _data_chunker(
+                        iter(sequence), dataset.time_averages, signal_channel),
+                    it.count(), it.repeat(constants)), chunksize=chunksize):
+
             signal[:, frame_idx] = np.array(raw_result).flatten()
             if demixer is not None:
                 demix[:, frame_idx] = np.array(demix_result).flatten()
