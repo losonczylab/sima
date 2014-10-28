@@ -8,19 +8,46 @@ def prairie_imaging_parameters(filepath):
             os.path.realpath(filepath)).split('_')[0] + '.xml'
         directory = os.path.dirname(os.path.realpath(filepath))
         filepath = os.path.join(directory, xml_filename)
-
     assert filepath.endswith('.xml')
 
     params = {}
     for _, elem in ElementTree.iterparse(filepath, events=("start",)):
         if elem.tag == 'PVStateShard':
-            for key in elem.findall('Key'):
-                field = key.get('key')
-                value = key.get('value')
-                try:
-                    params[field] = float(value)
-                except ValueError:
-                    params[field] = value
+            for key in elem.findall('PVStateValue'):
+                if len(key.findall('IndexedValue')):
+                    k = key.get('key')
+                    params[k] = {}
+                    for indexedValue in key.findall('IndexedValue'):
+                        field = indexedValue.get('key')
+                        value = indexedValue.get('value')
+                        try:
+                            params[k][field] = float(value)
+                        except ValueError:
+                            params[k][field] = value
+                elif len(key.findall('SubindexedValues')):
+                    k = key.get('key')
+                    params[k] = {}
+                    for subindexedValue in key.findall('SubindexedValues'):
+                        i = subindexedValue.get('index')
+                        params[k][i] = {}
+                        for subval in subindexedValue.findall(
+                                'SubindexedValue'):
+                            if subval.get('description', None):
+                                field = subval.get('description')
+                            else:
+                                field = subval.get('subindex')
+                            value = subval.get('value')
+                            try:
+                                params[k][i][field] = float(value)
+                            except ValueError:
+                                params[k][i][field] = value
+                else:
+                    field = key.get('key')
+                    value = key.get('value')
+                    try:
+                        params[field] = float(value)
+                    except ValueError:
+                        params[field] = value
             break
     return params
 
