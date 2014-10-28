@@ -11,6 +11,11 @@ except ImportError:
 from sima.misc.align import align_cross_correlation
 import motion
 
+try:
+    from future_builtins import zip
+except ImportError:  # Python 3.x
+    pass
+
 
 # Setup global variables used during parallelized whole frame shifting
 lock = 0
@@ -165,7 +170,7 @@ def _frame_alignment_base(
 
     for cycle_idx, cycle in zip(it.count(), sequences):
         chunksize = min(1 + len(cycle) / n_pools, 200)
-        if n_processes > 1:
+        if n_pools > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
@@ -197,8 +202,15 @@ def _frame_alignment_base(
             seq -= alteration
 
     shifts = namespace.shifts
+    correlations = namespace.correlations
+
+    del namespace.pixel_counts
+    del namespace.pixel_sums
+    del namespace.shifts
+    del namespace.correlations
+
     _align_planes(shifts)
-    return shifts, namespace.correlations
+    return shifts, correlations
 
 
 def _align_frame(inputs):
