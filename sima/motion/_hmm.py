@@ -270,7 +270,7 @@ def _initial_distribution(decay, noise_cov, mean_shift):
                 ) / 2.0)
 
 
-def _lookup_tables(position_bounds, step_bounds, log_markov_matrix):
+def _lookup_tables(position_bounds, log_markov_matrix):
     """Generate lookup tables to speed up the algorithm performance.
 
     Parameters
@@ -301,7 +301,8 @@ def _lookup_tables(position_bounds, step_bounds, log_markov_matrix):
     # create transition lookup and create lookup for transition probability
     transition_tbl = []
     log_markov_matrix_tbl = []
-    for step in it.product(*[range(m, M) for m, M in zip(*step_bounds)]):
+    for step in it.product(
+            *[range(-s + 1, s) for s in log_markov_matrix.shape]):
         tmp_tbl = []
         for pos in position_tbl:
             new_position = tuple(pos + np.array(step))
@@ -332,8 +333,9 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
         Shape: (2, len(states))
     """
     T = len(states)
+    dim = len(position_tbl[0])
     i = start_idx
-    trajectory = np.zeros([T, 2], dtype=int)
+    trajectory = np.zeros([T, dim], dtype=int)
     trajectory[-1] = position_tbl[states[-1][i]]
     for t in xrange(T - 2, -1, -1):
         # NOTE: backpointer index 0 corresponds to second timestep
@@ -420,14 +422,15 @@ class HiddenMarkov2D(MotionEstimationStrategy):
         else:
             params.max_displacement = np.array([-1, -1])  # TODO
 
-        shifts = self._correlation_based_correction(
-            dataset, max_displacement=params.max_displacement,
-            n_processes=params.n_processes)
+        shifts = sima.motion.frame_align.PlaneTranslation2D(
+            params.max_displacement, n_processes=params.n_processes
+        ).estimate(dataset)
         references, variances, offset = _whole_frame_shifting(dataset, shifts)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
         pixel_means, pixel_variances = _pixel_distribution(dataset)
+        movement_model = MovementModel.estimate(shifts)
         cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
             _estimate_movement_model(shifts, dataset.frame_shape[1])
 
@@ -446,10 +449,180 @@ class HiddenMarkov2D(MotionEstimationStrategy):
             max_displacements, pixel_means, pixel_variances,
             params.num_states_retained, params.verbose)
 
-    def _correlation_based_correction(
-            self, dataset, max_displacement=None, n_processes=None):
-        return sima.motion.frame_align.PlaneTranslation2D(
-            max_displacement, n_processes=n_processes).estimate(dataset)
+
+class MovementModel(object):
+    """
+
+    Attributes
+    ----------
+    mean_shift : array of int
+        The mean of the whole-frame displacement estimates
+
+    """
+
+    def __init__(self, cov_matrix, U, s, mean_shift):
+        if not np.all(np.isfinite(cov_matrix)):
+            raise ValueError
+        self._cov_matrix = cov_matrix
+        self._U = U
+        self._s = s
+        self.mean_shift = mean_shift
+
+    @classmethod
+    def estimate(cls, shifts, times=None):
+        """Estimate the movement model from displacements.
+
+        Parameters
+        ----------
+        shifts : list of ndarray
+            The shape of the ndarray may vary depending on whether
+            displacements are estimated per volume, per plane, per row, etc.
+
+        """
+        shifts = np.array(list(it.chain(
+            *[s.reshape(-1, s.shape[-1]) for s in shifts])))
+        if not shifts.shape[1] in (2, 3):
+            raise ValueError
+        # var_model = VAR(shifts)
+        # results = var_model.fit(1)  # fit VAR(1) modoel
+        # A = results.coefs[0]
+        # cov_matrix = results.sigma_u
+        # diffs = np.diff(shifts, axis=0)
+        # cov_matrix = np.cov(diffs[np.isfinite(diffs).all(axis=1)].T)
+        # # don't allow singular covariance matrix
+        # for i in range(len(cov_matrix)):
+        #     cov_matrix[i, i] = max(cov_matrix[i, i], 1. / len(shifts))
+        # assert det(cov_matrix) > 0
+
+        mean_shift = np.nanmean(shifts, axis=0)
+        assert len(mean_shift) == shifts.shape[1]
+        centered_shifts = np.nan_to_num(shifts - mean_shift)
+        past = centered_shifts[:-1]
+        future = centered_shifts[1:]
+        past_future = np.dot(past.T, future)
+        past_past = np.dot(past.T, past)
+        idx = 0
+        D = shifts.shape[1]
+        n = D * (D+1) / 2
+        y = np.zeros(n)
+        M = np.zeros((n, n))
+        for i in range(D):
+            for j in range(i + 1):
+                y[idx] = past_future[i, j] + past_future[j, i]
+                idx_2 = 0
+                for k in range(D):
+                    for l in range(k + 1):
+                        if k == i:
+                            M[idx, idx_2] += past_past[j, l]
+                        elif l == i:
+                            M[idx, idx_2] += past_past[j, k]
+                        if k == j:
+                            M[idx, idx_2] += past_past[i, l]
+                        elif l == j:
+                            M[idx, idx_2] += past_past[i, k]
+                        idx_2 += 1
+                idx += 1
+        coefficients = np.linalg.solve(M, y)
+        if D == 2:
+            A = np.array([[coefficients[0], coefficients[1]],
+                          [coefficients[1], coefficients[2]]])
+        if D == 3:
+            A = np.array([[coefficients[0], coefficients[1], coefficients[3]],
+                          [coefficients[1], coefficients[2], coefficients[4]],
+                          [coefficients[3], coefficients[4], coefficients[5]]])
+        cov_matrix = np.cov(future.T - np.dot(A, past.T))
+        U, s, _ = svd(A)  # NOTE: U == V for positive definite A
+        assert np.max(s) < 1
+        return cls(cov_matrix, U, s, mean_shift)
+
+    def decay_matrix(self, dt=1.):
+        """
+
+        Paramters
+        ---------
+        dt : float
+
+        Returns
+        -------
+        mov_decay : array
+            The per-line decay-term in the AR(1) motion model
+        """
+        decay_matrix = np.dot(self._U, np.dot(self._s ** dt, self._U))
+        if not np.all(np.isfinite(decay_matrix)):
+            raise Exception
+        return decay_matrix
+
+    def cov_matrix(self, dt=1.):
+        """
+
+        Paramters
+        ---------
+        dt : float
+
+        Returns
+        -------
+        mov_cov : array
+            The per-line covariance-term in the AR(1) motion model
+        """
+        return self._cov_matrix * dt
+
+    def log_transition_matrix(self, max_distance=1, dt=1.):
+        """
+        Gaussian Transition Probabilities
+
+        Parameters
+        ----------
+        max_distance : int
+        dt : float
+
+        """
+        cov_matrix = self.cov_matrix(dt)
+        log_transition_probs = lambda x, x0: -0.5 * (
+            np.log(2 * np.pi * det(cov_matrix)) +
+            np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)))
+        log_transition_matrix = -np.inf * np.ones([max_distance + 1] * 3)
+        for i, j, k in it.product(*([range(max_distance + 1)]*3)):
+            log_transition_matrix[i, j, k] = log_transition_probs(
+                np.array([i, j, k]), np.array([0., 0., 0.]))
+        assert np.all(np.isfinite(log_transition_matrix))
+        return log_transition_matrix
+
+    def _initial_distribution(self):
+        """Get the initial distribution of the displacements."""
+        decay = self.decay_matrix()
+        noise_cov = self.cov_matrix()
+        initial_cov = np.linalg.solve(np.diag([1, 1, 1]) - decay * decay.T,
+                                      noise_cov.newbyteorder('>').byteswap())
+        for _ in range(1000):
+            initial_cov = decay * initial_cov * decay.T + noise_cov
+        # don't let C be singular
+        initial_cov[0, 0] = max(initial_cov[0, 0], 0.1)
+        initial_cov[1, 1] = max(initial_cov[1, 1], 0.1)
+        initial_cov[2, 2] = max(initial_cov[2, 2], 0.1)
+
+        f = lambda x:  np.exp(
+            - 0.5 * np.dot(x - self.mean_shift,
+                           np.linalg.solve(initial_cov, x - self.mean_shift))
+            ) / np.sqrt(2.0 * np.pi * det(initial_cov))
+        assert np.isfinite(f(self.mean_shift))
+        return f
+
+    def initial_probs(self, displacement_tbl, min_displacements,
+                      max_displacements):
+        """Give the initial probabilites for a displacement table"""
+        initial_dist = self._initial_distribution()
+        states = []
+        log_p = []
+        for index, position in enumerate(displacement_tbl):  # TODO parallelize
+            # check that the displacement is allowable
+            if np.all(min_displacements <= position) and np.all(
+                    position <= max_displacements):
+                states.append(index)
+                # probability of initial displacement
+                log_p.append(np.log(initial_dist(position)))
+        if not np.any(np.isfinite(log_p)):
+            raise Exception
+        return np.array(states, dtype='int'), np.array(log_p)
 
 
 class SolverHMM(object):
@@ -566,8 +739,7 @@ class SolverHMM(object):
         scaled_refs = references / gains
         log_scaled_refs = np.log(scaled_refs)
         position_tbl, transition_tbl, log_markov_matrix_tbl = _lookup_tables(
-            [min_displacements, max_displacements + 1], [[-1, -1], [2, 2]],
-            log_markov_matrix)
+            [min_displacements, max_displacements + 1], log_markov_matrix)
         slice_tbls = [
             mc.slice_lookup(r, position_tbl, self.sequence.shape[3], offset)
             for r in references]

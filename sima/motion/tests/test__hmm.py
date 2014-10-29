@@ -131,8 +131,7 @@ def test_lookup_tables():
     log_markov_matrix = np.ones((2, 2))
 
     position_tbl, transition_tbl, log_markov_tbl = hmm._lookup_tables(
-        [min_displacements, max_displacements + 1], [[-1, -1], [2, 2]],
-        log_markov_matrix)
+        [min_displacements, max_displacements + 1], log_markov_matrix)
 
     pos_tbl = [[int(i / 3) - 1, i % 3 - 1] for i in range(9)]
     assert_array_equal(position_tbl, pos_tbl)
@@ -174,13 +173,13 @@ class Test_HiddenMarkov2D(object):
             hmm._pixel_distribution(self.dataset),
             ([1110.20196533], [946000.05906352]))
 
-    def test_correlation_based_correction(self):
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=DeprecationWarning)
-            shifts = self.hm2d._correlation_based_correction(self.dataset)
+    # def test_correlation_based_correction(self):
+    #     with warnings.catch_warnings():
+    #         warnings.filterwarnings("ignore", category=DeprecationWarning)
+    #         shifts = self.hm2d._correlation_based_correction(self.dataset)
 
-        for shift, shift_ in zip(shifts, self.frame_shifts):
-            assert_array_equal(shift, shift_)
+    #     for shift, shift_ in zip(shifts, self.frame_shifts):
+    #         assert_array_equal(shift, shift_)
 
     def test_whole_frame_shifting(self):
         reference, variances, offset = hmm._whole_frame_shifting(
