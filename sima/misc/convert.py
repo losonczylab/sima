@@ -7,12 +7,12 @@ try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
     pass
+from distutils.util import strtobool
 
 import numpy as np
 
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
-from sima.ROI import ROI, ROIList
 
 
 class Unpickler(_Unpickler):
@@ -34,12 +34,12 @@ class Unpickler(_Unpickler):
 
 
 def _load_version0(path):
-    """Load a SIMA 0.x dataset
+    """Returns a v1 dataset converted from a v0 dataset
 
     Parameters
     ----------
     path : str
-        The path to the original saved dataset, ending in .sima
+        The path (ending in .sima) of the version 0.x dataset.
 
     Examples
     --------
@@ -47,7 +47,6 @@ def _load_version0(path):
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _load_version0
     >>> ds = _load_version0(example_data())
-
     """
 
     def parse_channel(channel):
@@ -69,19 +68,33 @@ def _load_version0(path):
             try:
                 clip = channel['clip']
             except KeyError:
-                pass
-            else:
-                if clip is not None:
-                    s = (slice(None), slice(None)) + tuple(
-                        slice(*[None if x is 0 else x for x in dim])
-                        for dim in clip)
-                    result = result[s]
-            return result
-
+                clip = None
+            if clip is not None:
+                s = (slice(None), slice(None)) + tuple(
+                    slice(*[None if x is 0 else x for x in dim])
+                    for dim in clip)
+                result = result[s]
         elif klass == 'sima.iterables.HDF5':
-            raise Exception('TODO')
+            result = Sequence.create(
+                'HDF5', channel['path'], channel['dim_order'],
+                channel['group'], channel['key'])
+            c = channel['dim_order'].index('c')
+            chan = channel['channel']
+            s = tuple([slice(None) if x != c else slice(chan, chan + 1)
+                       for x in range(len(channel['dim_order']))])
+            result = result[s]
+            try:
+                clip = channel['clip']
+            except KeyError:
+                clip = None
+            if clip is not None:
+                s = (slice(None), slice(None)) + tuple(
+                    slice(*[None if x is 0 else x for x in dim])
+                    for dim in clip) + (slice(None),)
+                result = result[s]
         else:
             raise Exception('Format not recognized.')
+        return result
 
     def parse_sequence(sequence):
         channels = [parse_channel(c) for c in sequence]
@@ -123,48 +136,24 @@ def _load_version0(path):
                            trim_coords[0][1]:trim_coords[1][1]]
                          for s in sequences]
     ds = ImagingDataset(sequences, None)
-    ds.savedir = path
-
-    # Add ROIs if they exist
-    try:
-        with open(os.path.join(path, 'rois.pkl'), 'rb') as f:
-            rois = pkl.load(f)
-    except IOError:
-        pass
-    else:
-        roi_lists = {}
-        for label, roi_list_dict in rois.iteritems():
-            roi_list = []
-            for roi in roi_list_dict['rois']:
-                mask = roi['mask']
-                polygons = roi['polygons']
-                if mask is not None:
-                    new_roi = ROI(mask=mask)
-                else:
-                    new_roi = ROI(polygons=polygons)
-                new_roi.id = roi['id']
-                new_roi.label = roi['label']
-                new_roi.tags = roi['tags']
-                new_roi.im_shape = roi['im_shape']
-
-                roi_list.append(new_roi)
-            roi_lists[label] = ROIList(roi_list)
-            roi_lists[label].timestamp = roi_list_dict['timestamp']
-
-        for label, roi_list in roi_lists.iteritems():
-            ds.add_ROIs(roi_list, label=label)
+    # Not making it read-only. If you set a savedir, you'll be asked about
+    # overwriting it then
+    ds._channel_names = [str(n) for n in dataset_dict.pop('channel_names')]
+    ds._savedir = path
     return ds
 
 
-def _0_to_1(source, target):
+def _0_to_1(source, target=None):
     """Convert a version 0.x dataset to a version 1.x dataset.
 
     Parameters
     ----------
-    source : str
+    path : str
         The path (ending in .sima) of the version 0.x dataset.
-    target : str
-        The path (ending in .sima) for saving the version 1.x dataset.
+    target : str, optional
+        The path (ending in .sima) for saving the version 1.x dataset. Defaults
+        to None, resulting in overwrite of the existing dataset.pkl file.  to
+        avoid the overwrite permission prompt, explicitly set this argument
 
     Examples
     --------
@@ -172,9 +161,15 @@ def _0_to_1(source, target):
     >>> from sima import ImagingDataset
     >>> from sima.misc import example_data
     >>> from sima.misc.convert import _0_to_1
-    >>> _0_to_1(example_data(), '0_to_1.sima')
-    >>> ds = ImagingDataset.load('0_to_1.sima')
-
+    >>> _0_to_1(example_data(), 'v1_dataset.sima')
+    >>> ds = ImagingDataset.load('v1_dataset.sima')
     """
-    ds0 = _load_version0(source)
-    ds0.save(target)
+    if target is None:
+        overwrite = strtobool(raw_input("Source dataset path = target path. " +
+                                        "Overwrite existing?"))
+        if not overwrite:
+            return
+        target = source
+
+    ds = _load_version0(source)
+    ds.save(target)

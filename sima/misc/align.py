@@ -15,10 +15,122 @@ import warnings
 import numpy as np
 try:
     from pyfftw.interfaces.scipy_fftpack import fft2, ifft2
+    from pyfftw.interfaces.numpy_fft import rfftn, irfftn
 except ImportError:
     from scipy.fftpack import fft2, ifft2
+    from numpy.fft import rfftn, irfftn
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy import nanmean
 import scipy.ndimage as scind
 import scipy.sparse
+
+
+def cross_correlation_3d(pixels1, pixels2):
+    '''Align the second image with the first using max cross-correlation
+
+    returns the z,y,x offsets to add to image1's indexes to align it with
+    image2
+
+    Many of the ideas here are based on the paper, "Fast Normalized
+    Cross-Correlation" by J.P. Lewis
+    (http://www.idiom.com/~zilla/Papers/nvisionInterface/nip.html)
+    which is frequently cited when addressing this problem.
+    '''
+
+    s = np.maximum(pixels1.shape, pixels2.shape)
+    fshape = s*2
+    #
+    # Calculate the # of pixels at a particular point
+    #
+    i,j,k = np.mgrid[-s[0]:s[0], -s[1]:s[1], -s[2]:s[2] ]
+    unit = np.abs(i*j*k).astype(float)
+    unit[unit<1]=1 # keeps from dividing by zero in some places
+    #
+    # Normalize the pixel values around zero which does not affect the
+    # correlation, keeps some of the sums of multiplications from
+    # losing precision and precomputes t(x-u,y-v) - t_mean
+    #
+    pixels1 = np.nan_to_num(pixels1-nanmean(pixels1))
+    pixels2 = np.nan_to_num(pixels2-nanmean(pixels2))
+    #
+    # Lewis uses an image, f and a template t. He derives a normalized
+    # cross correlation, ncc(u,v) =
+    # sum((f(x,y)-f_mean(u,v))*(t(x-u,y-v)-t_mean),x,y) /
+    # sqrt(sum((f(x,y)-f_mean(u,v))**2,x,y) * (sum((t(x-u,y-v)-t_mean)**2,x,y)
+    #
+    # From here, he finds that the numerator term, f_mean(u,v)*(t...) is zero
+    # leaving f(x,y)*(t(x-u,y-v)-t_mean) which is a convolution of f
+    # by t-t_mean.
+    #
+    fp1 = rfftn(pixels1.astype('float32'), fshape, axes=(0, 1, 2))
+    fp2 = rfftn(pixels2.astype('float32'), fshape, axes=(0, 1, 2))
+    corr12 = irfftn(fp1 * fp2.conj(), axes=(0, 1, 2)).real
+    #
+    # Use the trick of Lewis here - compute the cumulative sums
+    # in a fashion that accounts for the parts that are off the
+    # edge of the template.
+    #
+    # We do this in quadrants:
+    # q0 q1
+    # q2 q3
+    # For the first,
+    # q0 is the sum over pixels1[i:,j:] - sum i,j backwards
+    # q1 is the sum over pixels1[i:,:j] - sum i backwards, j forwards
+    # q2 is the sum over pixels1[:i,j:] - sum i forwards, j backwards
+    # q3 is the sum over pixels1[:i,:j] - sum i,j forwards
+    #
+    # The second is done as above but reflected lr and ud
+    #
+    def get_cumsums(im, fshape):
+        im_si = im.shape[0]
+        im_sj = im.shape[1]
+        im_sk = im.shape[2]
+        im_sum = np.zeros(fshape)
+        im_sum[:im_si,:im_sj,:im_sk] = cumsum_quadrant(im, False, False, False)
+        im_sum[:im_si,:im_sj,-im_sk:] = cumsum_quadrant(im, False, False, True)
+        im_sum[:im_si,-im_sj:,:im_sk] = cumsum_quadrant(im, False, True, True)
+        im_sum[:im_si,-im_sj:,-im_sk:] = cumsum_quadrant(im, False, True, False)
+        im_sum[-im_si:,:im_sj,:im_sk] = cumsum_quadrant(im, True, False, True)
+        im_sum[-im_si:,:im_sj,-im_sk:] = cumsum_quadrant(im, True, False, False)
+        im_sum[-im_si:,-im_sj:,:im_sk] = cumsum_quadrant(im, True, True, True)
+        im_sum[-im_si:,-im_sj:,-im_sk:] = cumsum_quadrant(im, True, True, False)
+        #
+        # Divide the sum over the # of elements summed-over
+        #
+        return im_sum / unit
+
+    p1_mean = get_cumsums(pixels1, fshape)
+    p2_mean = get_cumsums(pixels2, fshape)
+    #
+    # Once we have the means for u,v, we can caluclate the
+    # variance-like parts of the equation. We have to multiply
+    # the mean^2 by the # of elements being summed-over
+    # to account for the mean being summed that many times.
+    #
+    p1sd = np.sum(pixels1**2) - p1_mean**2 * np.product(s)
+    p2sd = np.sum(pixels2**2) - p2_mean**2 * np.product(s)
+    #
+    # There's always chance of roundoff error for a zero value
+    # resulting in a negative sd, so limit the sds here
+    #
+    sd = np.sqrt(np.maximum(p1sd * p2sd, 0))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        corrnorm = corr12 / sd
+    #
+    # There's not much information for points where the standard
+    # deviation is less than 1/100 of the maximum. We exclude these
+    # from consideration.
+    #
+    corrnorm[(unit < np.product(s) / 2) &
+             (sd < np.mean(sd) / 100)] = 0
+    # Also exclude possibilites with few observed pixels.
+    corrnorm[unit < np.product(s) / 4] = 0
+
+    return corrnorm
+
 
 def cross_correlation_2d(pixels1, pixels2):
     '''Align the second image with the first using max cross-correlation
@@ -55,8 +167,8 @@ def cross_correlation_2d(pixels1, pixels2):
     # correlation, keeps some of the sums of multiplications from
     # losing precision and precomputes t(x-u,y-v) - t_mean
     #
-    pixels1 = np.nan_to_num(pixels1-np.nanmean(pixels1))
-    pixels2 = np.nan_to_num(pixels2-np.nanmean(pixels2))
+    pixels1 = np.nan_to_num(pixels1-nanmean(pixels1))
+    pixels2 = np.nan_to_num(pixels2-nanmean(pixels2))
     #
     # Lewis uses an image, f and a template t. He derives a normalized
     # cross correlation, ncc(u,v) =
@@ -133,8 +245,8 @@ def cross_correlation_2d(pixels1, pixels2):
              (sd < np.mean(sd) / 100)] = 0
     # Also exclude possibilites with few observed pixels.
     corrnorm[unit < np.product(s) / 4] = 0
-
     return corrnorm
+
 
 def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
     '''Align the second image with the first using max cross-correlation
@@ -149,11 +261,18 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
     '''
     s = np.maximum(pixels1.shape[:-1], pixels2.shape[:-1])
     fshape = s*2
-    corrnorm = sum(cross_correlation_2d(pixels1[:, :, c], pixels2[:, :, c])
-                   for c in range(pixels1.shape[2])) / pixels1.shape[2]
-    offset = fshape - np.array(pixels1.shape[:2])
-    corrnorm = np.roll(corrnorm, offset[0], axis=0)
-    corrnorm = np.roll(corrnorm, offset[1], axis=1)
+    if len(s) == 2:
+        corr = cross_correlation_2d
+    elif len(s) == 3:
+        corr = cross_correlation_3d
+    else:
+        raise ValueError
+
+    corrnorm = sum(corr(pixels1[..., c], pixels2[..., c])
+                   for c in range(pixels1.shape[-1])) / pixels1.shape[-1]
+    offset = fshape - np.array(pixels1.shape[:-1])
+    for i in range(corrnorm.ndim):
+        corrnorm = np.roll(corrnorm, offset[i], axis=i)
 
     if displacement_bounds is not None:
         idx_bounds = displacement_bounds + offset
@@ -161,10 +280,13 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
         corrnorm[idx_bounds[1][0]:] = -np.Inf
         corrnorm[:, :idx_bounds[0][1]] = -np.Inf
         corrnorm[:, idx_bounds[1][1]:] = -np.Inf
+        if idx_bounds.shape[1] == 3:
+            corrnorm[:, :, :idx_bounds[0][2]] = -np.Inf
+            corrnorm[:, :, idx_bounds[1][2]:] = -np.Inf
 
-    i, j = np.unravel_index(np.argmax(corrnorm), fshape)
-    max_corr = corrnorm[i, j]
-    return np.array([i, j]) - offset, max_corr
+    idx = np.unravel_index(np.argmax(corrnorm), fshape)
+    return np.array(idx) - offset, corrnorm[idx]
+
 
 def align_mutual_information(pixels1, pixels2, mask1, mask2):
     '''Align the second image with the first using mutual information
@@ -239,7 +361,7 @@ def offset_slice(pixels1, pixels2, i, j):
     p2 = pixels2[p2_imin:p2_imax,p2_jmin:p2_jmax]
     return (p1,p2)
 
-def cumsum_quadrant(x, i_forwards, j_forwards):
+def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     '''Return the cumulative sum going in the i, then j direction
 
     x - the matrix to be summed
@@ -251,9 +373,15 @@ def cumsum_quadrant(x, i_forwards, j_forwards):
     else:
         x=np.flipud(np.flipud(x).cumsum(0))
     if j_forwards:
-        return x.cumsum(1)
+        x = x.cumsum(1)
     else:
-        return np.fliplr(np.fliplr(x).cumsum(1))
+        x =  np.fliplr(np.fliplr(x).cumsum(1))
+    if k_forwards is None:
+        return x
+    if k_forwards:
+        return x.cumsum(2)
+    else:
+        return x[:, :, ::-1].cumsum(2)[:, :, ::-1]
 
 def entropy(x):
     '''The entropy of x as if x is a probability distribution'''

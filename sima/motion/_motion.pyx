@@ -1,12 +1,3 @@
-# Written by Patrick Kaifosh, pwk2108@columbia.edu
-#
-# If you use this software, please cite the following paper:
-# Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
-#
-# The HMM approach to motion correction of laser scanning microscopy
-# data was first used in the following paper:
-# Dombeck et al. 2007. Neuron. 56(1): 43-57.
-
 STUFF = 'HI' # Fixes cython issue. See link below:
 # http://stackoverflow.com/questions/8024805/cython-compiled-c-extension-importerror-dynamic-module-does-not-define-init-fu
 
@@ -14,6 +5,7 @@ import warnings
 import itertools as it
 
 import cython
+import cython.parallel
 import numpy as np
 cimport numpy as np
 
@@ -24,11 +16,11 @@ ctypedef np.float_t FLOAT_TYPE_t
 
 
 def transitions(
-        np.ndarray[Py_ssize_t] previousStateIDs,
+        np.ndarray[INT_TYPE_t] previousStateIDs,
         np.ndarray[FLOAT_TYPE_t] log_markov_matrix_lookup,
         np.ndarray[FLOAT_TYPE_t] logPold,
         positionLookup,
-        np.ndarray[Py_ssize_t, ndim=2] transitionLookup):
+        np.ndarray[INT_TYPE_t, ndim=2] transitionLookup):
     cdef Py_ssize_t maxLen = len(positionLookup)
     cdef np.ndarray[INT_TYPE_t] tmpMap = - np.ones(maxLen, dtype='int')
     cdef np.ndarray[INT_TYPE_t] tmpStateIds = np.empty(maxLen, dtype='int')
@@ -38,7 +30,7 @@ def transitions(
     cdef FLOAT_TYPE_t lp
     count = 0
     for old_index in xrange(len(previousStateIDs)):
-        for k in xrange(9):  # TODO: Parallelize
+        for k in xrange(9):  # TODO: parallelize
             tmpIndex = transitionLookup[k, previousStateIDs[old_index]]
             if tmpIndex != -1:
                 #identify temporary location of tmpIndex
@@ -60,8 +52,8 @@ def transitions(
 
 
 def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
-                 np.ndarray[Py_ssize_t, ndim=2] positionLookup,
-                 Py_ssize_t num_columns, np.ndarray[Py_ssize_t] offset):
+                 np.ndarray[INT_TYPE_t, ndim=2] positionLookup,
+                 Py_ssize_t num_columns, np.ndarray[INT_TYPE_t] offset):
     # create lookup tables for min and max indices
     # 0. start index for reference row
     # 1. stop index for reference row
@@ -70,8 +62,8 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     cdef Py_ssize_t i, rowIdx, posIdx, x_shift
     cdef Py_ssize_t low_ref_idx, high_ref_idx, low_frame_idx, high_frame_idx
     cdef np.ndarray[Py_ssize_t] nonNanIndices
-    cdef np.ndarray[Py_ssize_t] minNonNanIndices, maxNonNanIndices
-    cdef np.ndarray[Py_ssize_t, ndim=3] sliceLookup
+    cdef np.ndarray[INT_TYPE_t] minNonNanIndices, maxNonNanIndices
+    cdef np.ndarray[INT_TYPE_t, ndim=3] sliceLookup
 
     minNonNanIndices = np.empty(references.shape[0], dtype='int')
     maxNonNanIndices = np.empty(references.shape[0], dtype='int')
@@ -123,29 +115,31 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
 
 
 @cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.wraparound(False)
 def log_observation_probabilities(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
-        np.ndarray[Py_ssize_t, ndim=1] tmpStateIds,
+        np.ndarray[INT_TYPE_t, ndim=1] tmpStateIds,
         np.ndarray[FLOAT_TYPE_t, ndim=3] im,
         np.ndarray[FLOAT_TYPE_t, ndim=3] logImP,
         np.ndarray[FLOAT_TYPE_t, ndim=3] logImFac,
         np.ndarray[FLOAT_TYPE_t, ndim=3] scaled_references,
         np.ndarray[FLOAT_TYPE_t, ndim=3] logScaledRefs,
         int frame_row,
-        np.ndarray[Py_ssize_t, ndim=3] sliceLookup,
-        np.ndarray[Py_ssize_t, ndim=2] positionLookup,
-        np.ndarray[Py_ssize_t] offset,
+        np.ndarray[INT_TYPE_t, ndim=3] sliceLookup,
+        np.ndarray[INT_TYPE_t, ndim=2] positionLookup,
+        np.ndarray[INT_TYPE_t] offset,
         int num_reference_rows):
 
-    cdef Py_ssize_t reference_row, minFrame, maxFrame, i, j, jj, k, index
-    cdef double logp
+    cdef Py_ssize_t reference_row, minFrame, maxFrame, i, j, jj, k, index, chan
+    cdef double logp, ninf
+    ninf = -float('inf')
 
-    for i in range(tmpLogP.shape[0]):  # TODO: parallelize
+    for i in cython.parallel.prange(tmpLogP.shape[0], nogil=True):
         index = tmpStateIds[i]
         reference_row = frame_row + positionLookup[index, 0] + offset[0]
         if reference_row < 0 or reference_row >= num_reference_rows:
             # return -inf if row is outside the bounds of the reference image
-            tmpLogP[i] = -float('inf')
+            tmpLogP[i] = ninf
         else:
             minFrame = sliceLookup[reference_row, index, 2]
             maxFrame = sliceLookup[reference_row, index, 3]

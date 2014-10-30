@@ -10,34 +10,103 @@ else:
     from distutils.core import setup as setup
 
 from distutils.extension import Extension
+from distutils.ccompiler import new_compiler
 import numpy
+import shutil
+import tempfile
+
+try:
+    from Cython.Build import cythonize
+    USE_CYTHON = True
+except ImportError:
+    USE_CYTHON = False
+
+
+def hasfunction(cc, funcname, include=None, extra_postargs=None):
+    # From http://stackoverflow.com/questions/
+    #            7018879/disabling-output-when-compiling-with-distutils
+    tmpdir = tempfile.mkdtemp(prefix='hasfunction-')
+    devnull = oldstderr = None
+    try:
+        try:
+            fname = os.path.join(tmpdir, 'funcname.c')
+            f = open(fname, 'w')
+            if include is not None:
+                f.write('#include %s\n' % include)
+            f.write('int main(void) {\n')
+            f.write('    %s;\n' % funcname)
+            f.write('}\n')
+            f.close()
+            # Redirect stderr to /dev/null to hide any error messages
+            # from the compiler.
+            # This will have to be changed if we ever have to check
+            # for a function on Windows.
+            devnull = open('/dev/null', 'w')
+            oldstderr = os.dup(sys.stderr.fileno())
+            os.dup2(devnull.fileno(), sys.stderr.fileno())
+            objects = cc.compile([fname], output_dir=tmpdir,
+                                 extra_postargs=extra_postargs)
+            cc.link_executable(objects, os.path.join(tmpdir, "a.out"))
+        except Exception:
+            return False
+        return True
+    finally:
+        if oldstderr is not None:
+            os.dup2(oldstderr, sys.stderr.fileno())
+        if devnull is not None:
+            devnull.close()
+        shutil.rmtree(tmpdir)
+
+
+def detect_openmp():
+    # From http://mdanalysis.googlecode.com/git/package/setup.py
+    "Does this compiler support OpenMP parallelization?"
+    compiler = new_compiler()
+    print "Attempting to autodetect OpenMP support... ",
+    hasopenmp = hasfunction(compiler, 'omp_get_num_threads()')
+    needs_gomp = hasopenmp
+    if not hasopenmp:
+        compiler.add_library('gomp')
+        hasopenmp = hasfunction(compiler, 'omp_get_num_threads()')
+        needs_gomp = hasopenmp
+    if hasopenmp:
+        print "Compiler supports OpenMP"
+    else:
+        print "Did not detect OpenMP support."
+    return hasopenmp, needs_gomp
+
+has_openmp, needs_gomp = detect_openmp()
+parallel_args = ['-fopenmp'] if has_openmp else []
+parallel_libraries = ['gomp'] if needs_gomp else []
 
 extensions = [
     Extension(
         'sima.motion._motion',
+        sources=['sima/motion/_motion.%s' % ('pyx' if USE_CYTHON else 'c')],
         include_dirs=[numpy.get_include()],
-        sources=['sima/motion/_motion.c']
+        extra_compile_args=parallel_args,
+        extra_link_args=parallel_args,
     ),
     Extension(
         'sima._opca',
+        sources=['sima/_opca.%s' % ('pyx' if USE_CYTHON else 'c')],
         include_dirs=[numpy.get_include()],
-        sources=['sima/_opca.c']
     )
 ]
 
-if not os.path.isfile('sima/_opca.c'):
-    os.system('cython sima/_opca.pyx')
-if not os.path.isfile('sima/motion/_motion.c'):
-    os.system('cython sima/motion/_motion.pyx')
+if USE_CYTHON:
+    extensions = cythonize(extensions)
 
 CLASSIFIERS = """\
 Development Status :: 4 - Beta
 Intended Audience :: Science/Research
-License :: OSI Approved
+License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)
+Operating System :: MacOS
+Operating System :: Microsoft :: Windows
+Operating System :: POSIX
+Operating System :: Unix
 Programming Language :: Python
 Topic :: Scientific/Engineering
-Operating System :: Microsoft :: Windows
-Operating System :: MacOS
 
 """
 setup(
@@ -49,13 +118,11 @@ setup(
     # Project uses reStructuredText, so ensure that the docutils get
     # installed or upgraded on the target machine
     install_requires=[
-        'numpy>=1.6.2',
+        'numpy>=1.8',
         'scipy>=0.13.0',
         'matplotlib>=1.2.1',
         'scikit-image>=0.9.3',
         'shapely>=1.2.14',
-        # 'h5py>=2.3.1',
-        # 'cv2>=2.4.8',
     ],
     package_data={
         'sima': ['tests/*.py',

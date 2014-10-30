@@ -72,7 +72,7 @@ class Sequence(object):
     >>> path = example_hdf5()
     >>> seq = Sequence.create('HDF5', path, 'yxt')
 
-    For numpy 0.9 or higher, Sequences are array like, and can be converted to
+    For numpy 1.9 or higher, Sequences are array like, and can be converted to
     numpy arrays or passed as arguments into numpy functions that take arrays.
 
     >>> import numpy as np
@@ -312,10 +312,10 @@ class Sequence(object):
 
         # Make directories necessary for saving the files.
         try:
-            out_dirs = [dirname(filenames)]
+            out_dirs = [[dirname(filenames)]]
         except AttributeError:
-            out_dirs = [dirname(f) for f in filenames]
-        for f in filter(None, out_dirs):
+            out_dirs = [[dirname(f) for f in plane] for plane in filenames]
+        for f in filter(None, it.chain(*out_dirs)):
             sima.misc.mkdir_p(dirname(f))
 
         if 'TIFF' in fmt:
@@ -335,18 +335,18 @@ class Sequence(object):
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
                 output_array[f_idx] = frame
-            for ch_idx, channel in enumerate(frame):
-                if fmt == 'TIFF16':
-                    f = output_files[ch_idx]
-                    f.write_page(channel.astype('uint16'))
-                elif fmt == 'TIFF8':
-                    f = output_files[ch_idx]
-                    f.write_page(channel.astype('uint8'))
-                else:
-                    raise ValueError('Unrecognized output format.')
+            for plane_idx, plane in enumerate(frame):
+                for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
+                    f = output_files[plane_idx][ch_idx]
+                    if fmt == 'TIFF16':
+                        f.write_page(channel.astype('uint16'))
+                    elif fmt == 'TIFF8':
+                        f.write_page(channel.astype('uint8'))
+                    else:
+                        raise ValueError('Unrecognized output format.')
 
         if 'TIFF' in fmt:
-            for f in output_files:
+            for f in it.chain(*output_files):
                 f.close()
         elif fmt == 'HDF5':
             f.create_dataset(name='imaging', data=output_array)
@@ -544,7 +544,7 @@ class _Joined_Sequence(Sequence):
 
     def _get_frame(self, t):
         return np.concatenate([seq._get_frame(t) for seq in self._sequences],
-                              axis=4)
+                              axis=3)
 
     def _todict(self):
         return {
@@ -610,7 +610,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         if frame_shape is None:
             max_disp = np.max(
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-            frame_shape = np.array(sequences[0].shape)[1:]
+            frame_shape = np.array(base.sequences[0].shape)[1:]
             frame_shape[1:3] += max_disp
         self._frame_shape = frame_shape  # (planes, rows, columns)
 
@@ -625,7 +625,15 @@ class _MotionCorrectedSequence(_WrapperSequence):
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape[1:]
             for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
-                out[p, disp[0]:(disp[0]+s[0]), disp[1]:(disp[1]+s[1])] = plane
+                out[p, disp[0]:(disp[0] + s[0]), disp[1]:(disp[1] + s[1])
+                    ] = plane
+            return out
+        elif displacement.ndim == 1:
+            out = np.nan * np.ones(self._frame_shape)
+            s = frame.shape
+            out[displacement[0]:(displacement[0]+s[0]),
+                displacement[1]:(displacement[1]+s[1]),
+                displacement[2]:(displacement[2]+s[2])] = frame
             return out
 
     @property
@@ -758,7 +766,7 @@ class _IndexedSequence(_WrapperSequence):
             indices if isinstance(indices, tuple) else (indices,)
         # Reformat integer slices to avoid dimension collapse
         self._indices = tuple(
-            slice(i, i+1) if isinstance(i, int) else i
+            slice(i, i + 1) if isinstance(i, int) else i
             for i in self._indices)
         self._times = range(self._base_len)[self._indices[0]]
         # TODO: switch to generator/iterator if possible?

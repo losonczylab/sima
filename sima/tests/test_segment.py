@@ -36,7 +36,8 @@ def test_PlaneSTICA():
 def test_PlaneNormalizedCuts():
     ds = ImagingDataset.load(example_data())
     affinty_method = segment.BasicAffinityMatrix(num_pcs=3)
-    method = segment.PlaneNormalizedCuts(affinty_method)
+    method = segment.PlaneWiseSegmentationStrategy(
+        segment.PlaneNormalizedCuts(affinty_method))
     ds.segment(method)
 
 

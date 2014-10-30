@@ -7,6 +7,7 @@ import csv
 from os.path import dirname, join, relpath, abspath
 import cPickle as pickle
 from distutils.version import StrictVersion
+from distutils.util import strtobool
 
 import numpy as np
 try:
@@ -52,10 +53,12 @@ class ImagingDataset(object):
 
     Datasets can also be indexed and sliced.
 
-    >>> dataset[0].num_sequences  # #doctest: +SKIP
+    >>> dataset[0].num_sequences
     1
-    >>> dataset[:, 0].num_frames  # #doctest: +SKIP
+    >>> dataset[:, 0].num_frames
     1
+    >>> dataset[:, 0].frame_shape == dataset.frame_shape
+    True
 
     The resulting sliced datasets are not saved by default.
 
@@ -98,51 +101,43 @@ class ImagingDataset(object):
 
     """
 
-    def __init__(self, sequences, savedir, channel_names=None, info=None):
+    def __init__(self, sequences, savedir, channel_names=None, info=None,
+                 read_only=False):
 
-        # Convert savedir into an absolute path ending with .sima
-        if savedir is None:
-            self.savedir = None
-        else:
-            self.savedir = abspath(savedir)
-            if not self.savedir.endswith('.sima'):
-                self.savedir += '.sima'
+        self._read_only = read_only
         self.info = {} if info is None else info
-
         if sequences is None:
             # Special case used to load an existing ImagingDataset
-            if not self.savedir:
+            if not savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
             def unpack(sequence):
                 """Parse a saved Sequence dictionary."""
                 return sequence.pop('__class__')._from_dict(
-                    sequence, self.savedir)
+                    sequence, savedir)
 
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
+            self._savedir = savedir
+            self.frame_shape = self.sequences[0].shape[1:]
             try:
                 self.num_frames = data.pop('num_frames')
             except KeyError:
-                pass
-            save = False
+                self.num_frames = sum(len(c) for c in self)
         else:
-            save = True
-            if self.savedir is not None:
-                try:
-                    os.makedirs(self.savedir)
-                except OSError as exc:
-                    if exc.errno == errno.EEXIST and \
-                            os.path.isdir(self.savedir):
-                        raise Exception(
-                            'Cannot overwrite existing ImagingDataset.'
-                        )
+            self.savedir = savedir
             self.sequences = sequences
-            self._channel_names = channel_names
-
+            self.frame_shape = self.sequences[0].shape[1:]
+            if not hasattr(self, 'num_frames'):
+                self.num_frames = sum(len(c) for c in self)
+            if channel_names is None:
+                self.channel_names = [
+                    str(x) for x in range(self.frame_shape[-1])]
+            else:
+                self.channel_names = channel_names
         # initialize sequences
         self.num_sequences = len(self.sequences)
         if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
@@ -150,13 +145,6 @@ class ImagingDataset(object):
             raise ValueError(
                 'All sequences must have images of the same size ' +
                 'and the same number of channels.')
-        self.frame_shape = self.sequences[0].shape[1:]
-        if not hasattr(self, 'num_frames'):
-            self.num_frames = sum(len(c) for c in self)
-        if self.channel_names is None:
-            self.channel_names = [str(x) for x in range(self.frame_shape[-1])]
-        if save and self.savedir is not None:
-            self.save()
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -177,8 +165,51 @@ class ImagingDataset(object):
     @channel_names.setter
     def channel_names(self, names):
         self._channel_names = [str(n) for n in names]
-        if self.savedir is not None:
+        if self.savedir is not None and not self._read_only:
             self.save()
+
+    @property
+    def savedir(self):
+        return self._savedir
+
+    @savedir.setter
+    def savedir(self, savedir):
+        if savedir is None:
+            self._savedir = None
+        elif hasattr(self, '_savedir') and savedir == self.savedir:
+            return
+        else:
+            if hasattr(self, '_savedir'):
+                orig_dir = self.savedir
+            else:
+                orig_dir = False
+            savedir = abspath(savedir)
+            if not savedir.endswith('.sima'):
+                savedir += '.sima'
+            try:
+                os.makedirs(savedir)
+            except OSError as exc:
+                if exc.errno == errno.EEXIST and os.path.isdir(savedir):
+                    overwrite = strtobool(
+                        raw_input("Overwrite existing directory? "))
+                    # Note: This will overwrite dataset.pkl but will leave
+                    #       all other files in the directory intact
+                    if overwrite:
+                        self._savedir = savedir
+                    else:
+                        return
+            else:
+                self._savedir = savedir
+            if orig_dir:
+                from shutil import copy2
+                for f in os.listdir(orig_dir):
+                    if f.endswith('.pkl'):
+                        try:
+                            copy2(os.path.join(orig_dir, f), self.savedir)
+                        except IOError:
+                            pass
+            if self._read_only:
+                self._read_only = False
 
     @property
     def time_averages(self):
@@ -215,9 +246,12 @@ class ImagingDataset(object):
         """Load a saved ImagingDataset object."""
         try:
             return cls(None, path)
-        except ImportError:
+        except (ImportError, KeyError):
             from sima.misc.convert import _load_version0
-            return _load_version0(path)
+            # Load a read-only copy of the converted dataset
+            ds = _load_version0(path)
+            ds._read_only = True
+            return ds
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
@@ -425,8 +459,7 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         for sequence, fns in it.izip(self, filenames):
-            sequence._export_frames(fns, fmt, fill_gaps, scale_values,
-                                    self.channel_names)
+            sequence.export(fns, fmt, fill_gaps, self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extracted signals to a file.
@@ -523,18 +556,14 @@ class ImagingDataset(object):
 
     def save(self, savedir=None):
         """Save the ImagingDataset to a file."""
+
         if savedir is None:
             savedir = self.savedir
-        else:
-            try:
-                os.makedirs(savedir)
-            except OSError as exc:
-                if exc.errno == errno.EEXIST and \
-                        os.path.isdir(savedir):
-                    raise ValueError(
-                        'Cannot overwrite existing ImagingDataset.'
-                    )
         self.savedir = savedir
+
+        if self._read_only:
+            raise Exception('Cannot save read-only dataset.  Change savedir ' +
+                            'to a new directory')
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
 
@@ -572,8 +601,8 @@ class ImagingDataset(object):
         """
         channel = self._resolve_channel(channel)
         try:
-            with open(join(
-                    self.savedir, 'signals_{}.pkl'.format(channel))) as f:
+            with open(join(self.savedir, 'signals_{}.pkl'.format(channel)),
+                      'rb') as f:
                 return pickle.load(f)
         except (IOError, pickle.UnpicklingError):
             return {}

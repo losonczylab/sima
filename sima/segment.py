@@ -14,7 +14,11 @@ except ImportError:
 else:
     cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
-from scipy import nanmean
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy import nanmean
+
 try:
     from sklearn.decomposition import FastICA
 except ImportError:
@@ -103,9 +107,12 @@ class PlaneWiseSegmentationStrategy(SegmentationStrategy):
 
     def _segment(self, dataset):
         def set_z(roi, z):
-            raise NotImplementedError  # TODO
+            old_mask = roi.mask
+            return ROI(
+                mask=[sparse.lil_matrix(old_mask[0].shape, old_mask[0].dtype)
+                      for _ in range(z-1)] + [old_mask[0]])
 
-        rois = []
+        rois = ROIList([])
         for plane in range(dataset.frame_shape[0]):
             plane_rois = self.strategy.segment(dataset[:, :, plane])
             for roi in plane_rois:
@@ -1037,10 +1044,11 @@ def _smooth_roi(roi, radius=3):
                              [p[0]+radius]*(2*radius+1) +
                              list(p[0]+range(-radius, radius)[::-1]) +
                              [p[0]-(radius+1)]*(2*radius+1)), -2)
-        y = np.roll(np.array([p[1]-radius]*(2*radius)+list(p[1] +
-                             range(-radius, radius)) + [p[1] + radius] *
-                             (2*radius+1)+list(p[1] +
-                             range(-radius, (radius + 1))[::-1])), -radius)
+        y = np.roll(np.array([p[1]-radius]*(2*radius) +
+                             list(p[1] + range(-radius, radius)) +
+                             [p[1] + radius] * (2*radius+1) +
+                             list(p[1] + range(-radius, (radius + 1))[::-1])),
+                    -radius)
 
         # insure that the x and y points are within the image
         x[x < 0] = 0
