@@ -42,6 +42,7 @@ try:
 except ImportError:
     # Windows does not have the samefile function
     from os import stat
+
     def samefile(file1, file2):
         return stat(file1) == stat(file2)
 
