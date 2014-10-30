@@ -33,11 +33,18 @@
 import itertools as it
 import warnings
 from distutils.version import StrictVersion
-from os.path import (abspath, dirname, join, normpath, normcase, isfile,
-                     samefile)
+from os.path import (abspath, dirname, join, normpath, normcase, isfile)
 from abc import ABCMeta, abstractmethod
-
 import numpy as np
+
+try:
+    from os.path import samefile
+except ImportError:
+    # Windows does not have the samefile function
+    from os import stat
+
+    def samefile(file1, file2):
+        return stat(file1) == stat(file2)
 
 try:
     from libtiff import TIFF
