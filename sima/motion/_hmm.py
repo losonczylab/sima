@@ -430,7 +430,6 @@ class HiddenMarkov2D(MotionEstimationStrategy):
             (variances / references).reshape(-1, references.shape[-1]))
         assert np.all(np.isfinite(gains)) and np.all(gains > 0)
         pixel_means, pixel_variances = _pixel_distribution(dataset)
-        movement_model = MovementModel.estimate(shifts)
         cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
             _estimate_movement_model(shifts, dataset.frame_shape[1])
 
