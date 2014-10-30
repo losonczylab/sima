@@ -619,7 +619,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
             frame_shape = np.array(base.sequences[0].shape)[1:]
             frame_shape[1:3] += max_disp
-        self._frame_shape = frame_shape  # (planes, rows, columns)
+        self._frame_shape = tuple(frame_shape)  # (planes, rows, columns)
 
     def __len__(self):
         return len(self._base)  # Faster to calculate len without aligning
@@ -630,10 +630,13 @@ class _MotionCorrectedSequence(_WrapperSequence):
                                 self._frame_shape)
         elif displacement.ndim == 2:
             out = np.nan * np.ones(self._frame_shape)
-            s = frame.shape[1:]
+            s = frame.shape
             for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
-                out[p, disp[0]:(disp[0] + s[0]), disp[1]:(disp[1] + s[1])
-                    ] = plane
+                if len(disp) == 2:
+                    disp = [0] + list(disp)
+                out[p + disp[0],
+                    disp[1]:(disp[1] + s[1]),
+                    disp[2]:(disp[2] + s[2])] = plane
             return out
         elif displacement.ndim == 1:
             out = np.nan * np.ones(self._frame_shape)
