@@ -626,7 +626,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
 
     def _align(self, frame, displacement):
         if displacement.ndim == 3:
-            return _align_frame(frame.astype(float), displacement,
+            return _align_frame(frame.astype(float), displacement.astype(int),
                                 self._frame_shape)
         elif displacement.ndim == 2:
             out = np.nan * np.ones(self._frame_shape)
