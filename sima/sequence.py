@@ -631,8 +631,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
         return len(self._base)  # Faster to calculate len without aligning
 
     def _align(self, frame, displacement):
-        if displacement.ndim == 3:  # row-wise displacement
-            return _align_frame(frame.astype(float), displacement,
+        if displacement.ndim == 3:
+            return _align_frame(frame.astype(float), displacement.astype(int),
                                 self._frame_shape)
         elif displacement.ndim == 2:  # plane-wise displacement
             out = np.nan * np.ones(self._frame_shape)
