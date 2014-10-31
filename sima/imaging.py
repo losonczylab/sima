@@ -1,5 +1,6 @@
 """Base classes for multiframe imaging data."""
 import warnings
+import collections
 import itertools as it
 import os
 import errno
@@ -443,12 +444,11 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        filenames : list of list of string or list of string
+        filenames : list of list of list of string or list of string
             Path to the locations where the output files will be saved.
-            If fmt is TIFF, filenames[i][j] is the path to the file
-            for the jth channel of the ith sequence.
-            If fmt is 'HDF5', filenames[i] is the path to the file for the
-            ith sequence
+            If fmt is TIFF, filenames[i][j][k] is the path to the file
+            for sequence i, plane j, chanel k.  If fmt is 'HDF5', filenames[i]
+            is the path to the file for the ith sequence.
         fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         fill_gaps : bool, optional
@@ -458,6 +458,13 @@ class ImagingDataset(object):
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
+        depth = lambda L: \
+            isinstance(L, collections.Sequence) and \
+            (not isinstance(L, str)) and max(map(depth, L)) + 1
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 3:
+            raise ValueError
+        if fmt == 'HDF5' and not depth(filenames) == 1:
+            raise ValueError
         for sequence, fns in it.izip(self, filenames):
             sequence.export(fns, fmt, fill_gaps, self.channel_names)
 

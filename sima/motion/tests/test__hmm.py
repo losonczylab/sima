@@ -126,27 +126,17 @@ def test_initial_distribution():
 
 
 def test_lookup_tables():
-    min_displacements = np.array([-8, -5])
-    max_displacements = np.array([5, 14])
     min_displacements = np.array([-1, -1])
     max_displacements = np.array([1, 1])
-
     log_markov_matrix = np.ones((2, 2))
 
-    num_columns = 2
-    references = np.ones((1, 2, 2, 1))
+    position_tbl, transition_tbl, log_markov_tbl = hmm._lookup_tables(
+        [min_displacements, max_displacements + 1], log_markov_matrix)
 
-    offset = np.array([0, 0])
-
-    position_tbl, transition_tbl, log_markov_matrix_tbl, slice_tbl = \
-        hmm._lookup_tables(
-            min_displacements, max_displacements,
-            log_markov_matrix, num_columns, references, offset)
-
-    pos_tbl = [[i % 3 - 1, int(i / 3) - 1] for i in range(9)]
+    pos_tbl = [[int(i / 3) - 1, i % 3 - 1] for i in range(9)]
     assert_array_equal(position_tbl, pos_tbl)
     assert_(all(transition_tbl[range(9), range(8, -1, -1)] == 4))
-    assert_(all(log_markov_matrix_tbl == 1))
+    assert_(all(log_markov_tbl == 1))
 
 
 def test_backtrace():
@@ -180,19 +170,19 @@ class Test_HiddenMarkov2D(object):
 
     def test_pixel_distribution(self):
         assert_almost_equal(
-            self.hm2d._pixel_distribution(self.dataset),
+            hmm._pixel_distribution(self.dataset),
             ([1110.20196533], [946000.05906352]))
 
-    def test_correlation_based_correction(self):
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=DeprecationWarning)
-            shifts = self.hm2d._correlation_based_correction(self.dataset)
+    # def test_correlation_based_correction(self):
+    #     with warnings.catch_warnings():
+    #         warnings.filterwarnings("ignore", category=DeprecationWarning)
+    #         shifts = self.hm2d._correlation_based_correction(self.dataset)
 
-        for shift, shift_ in zip(shifts, self.frame_shifts):
-            assert_array_equal(shift, shift_)
+    #     for shift, shift_ in zip(shifts, self.frame_shifts):
+    #         assert_array_equal(shift, shift_)
 
     def test_whole_frame_shifting(self):
-        reference, variances, offset = self.hm2d._whole_frame_shifting(
+        reference, variances, offset = hmm._whole_frame_shifting(
             self.dataset, self.frame_shifts)
         ref_shape = np.array(self.dataset.frame_shape)
         ref_shape[1:3] += self.frame_shifts[0][0, 0]
