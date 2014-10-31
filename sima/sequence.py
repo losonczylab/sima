@@ -32,6 +32,7 @@
 
 import itertools as it
 import warnings
+import collections
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile)
 from abc import ABCMeta, abstractmethod
@@ -314,16 +315,21 @@ class Sequence(object):
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
         """
+        depth = lambda L: \
+            isinstance(L, collections.Sequence) and \
+            (not isinstance(L, str)) and max(map(depth, L)) + 1
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 2:
+            raise ValueError
 
         # Make directories necessary for saving the files.
-        try:
+        try:  # HDF5 case
             out_dirs = [[dirname(filenames)]]
-        except AttributeError:
+        except AttributeError:  # TIFF case
             out_dirs = [[dirname(f) for f in plane] for plane in filenames]
-        for f in filter(None, it.chain(*out_dirs)):
-            sima.misc.mkdir_p(dirname(f))
+        for d in filter(None, it.chain(*out_dirs)):
+            sima.misc.mkdir_p(d)
 
         if 'TIFF' in fmt:
             output_files = [[TiffFileWriter(fn) for fn in plane]
@@ -625,10 +631,10 @@ class _MotionCorrectedSequence(_WrapperSequence):
         return len(self._base)  # Faster to calculate len without aligning
 
     def _align(self, frame, displacement):
-        if displacement.ndim == 3:
+        if displacement.ndim == 3:  # row-wise displacement
             return _align_frame(frame.astype(float), displacement,
                                 self._frame_shape)
-        elif displacement.ndim == 2:
+        elif displacement.ndim == 2:  # plane-wise displacement
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape
             for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
@@ -638,7 +644,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
                     disp[1]:(disp[1] + s[1]),
                     disp[2]:(disp[2] + s[2])] = plane
             return out
-        elif displacement.ndim == 1:
+        elif displacement.ndim == 1:  # frame-wise displacement
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape
             out[displacement[0]:(displacement[0]+s[0]),
