@@ -676,12 +676,12 @@ class _MotionCorrectedSequence(_WrapperSequence):
                 self._frame_shape
             )[new_indices]
         if len(indices) == 5:
-            chans = indices[5]
+            chans = indices[4]
             return _MotionCorrectedSequence(
                 self._base[:, :, :, :, chans],
-                self.displacements[:, :, :, chans],
+                self.displacements,
                 self._frame_shape
-            )[indices[:5]]
+            )[indices[:4]]
         # TODO: similar for planes ???
         return _IndexedSequence(self, indices)
 
