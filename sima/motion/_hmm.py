@@ -47,23 +47,24 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
     sum_squares = np.zeros_like(sums)
     counts = np.zeros_like(sums)
     t = 0
-    for plane in it.chain(*it.chain(*dataset)):
-        if t > 0:
-            mean_est = sums / counts
-            var_est = (sum_squares / counts) - (mean_est ** 2)
-        if t > min_frames and np.all(
-                np.sqrt(var_est / counts) / mean_est < tolerance):
-            break
-        # im = np.concatenate(
-        #     [np.expand_dims(x, 0) for x in plane],
-        #     axis=0).astype(float)  # NOTE: integers overflow
-        # sums += im.sum(axis=0).sum(axis=0)
-        # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
-        # cnt += np.prod(im.shape[0] * im.shape[1])
-        sums += nansum(nansum(plane, axis=0), axis=0)
-        sum_squares += nansum(nansum(plane ** 2, axis=0), axis=0)
-        counts += np.isfinite(plane).sum(axis=0).sum(axis=0)
-        t += 1
+    for frame in it.chain(*dataset):
+        for plane in frame:
+            if t > 0:
+                mean_est = sums / counts
+                var_est = (sum_squares / counts) - (mean_est ** 2)
+            if t > min_frames and np.all(
+                    np.sqrt(var_est / counts) / mean_est < tolerance):
+                break
+            # im = np.concatenate(
+            #     [np.expand_dims(x, 0) for x in plane],
+            #     axis=0).astype(float)  # NOTE: integers overflow
+            # sums += im.sum(axis=0).sum(axis=0)
+            # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
+            # cnt += np.prod(im.shape[0] * im.shape[1])
+            sums += nansum(nansum(plane, axis=0), axis=0)
+            sum_squares += nansum(nansum(plane ** 2, axis=0), axis=0)
+            counts += np.isfinite(plane).sum(axis=0).sum(axis=0)
+            t += 1
     assert np.all(mean_est > 0)
     assert np.all(var_est > 0)
     return mean_est, var_est
