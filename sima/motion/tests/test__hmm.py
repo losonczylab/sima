@@ -18,6 +18,7 @@ from numpy.testing import (
 
 import sima
 import sima.motion._hmm as hmm
+import sima.motion.frame_align
 from sima import misc
 from sima import Sequence
 from sima.misc import example_hdf5, example_tiff
@@ -173,13 +174,14 @@ class Test_HiddenMarkov2D(object):
             hmm._pixel_distribution(self.dataset),
             ([1110.20196533], [946000.05906352]))
 
-    # def test_correlation_based_correction(self):
-    #     with warnings.catch_warnings():
-    #         warnings.filterwarnings("ignore", category=DeprecationWarning)
-    #         shifts = self.hm2d._correlation_based_correction(self.dataset)
+    def test_correlation_based_correction(self):
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            shifts = sima.motion.frame_align.PlaneTranslation2D(
+                n_processes=1).estimate(self.dataset)
 
-    #     for shift, shift_ in zip(shifts, self.frame_shifts):
-    #         assert_array_equal(shift, shift_)
+        for shift, shift_ in zip(shifts, self.frame_shifts):
+            assert_array_equal(shift, shift_)
 
     def test_whole_frame_shifting(self):
         reference, variances, offset = hmm._whole_frame_shifting(
@@ -218,7 +220,10 @@ class Test_HiddenMarkov2D(object):
             displacements = [d.reshape((20, 1, 128, 2))
                              for d in pickle.load(fh)]
         displacements_ = [seq.displacements for seq in corrected]
-        assert_(abs(displacements_[0] - displacements[0]).max() <= 1)
+        diffs = displacements_[0] - displacements[0]
+        assert_(
+            ((diffs - diffs.mean(axis=2).mean(axis=1).mean(axis=0)) > 1).mean()
+            <= 0.001)
 
     @dec.knownfailureif(True)
     def test_hmm_missing_frame(self):

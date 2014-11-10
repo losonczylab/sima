@@ -15,7 +15,7 @@ except ImportError:
 
 import _motion as mc
 from sima.motion import MotionEstimationStrategy
-from align3d import VolumeTranslation
+from frame_align import VolumeTranslation
 from _hmm import (
     _backtrace, _lookup_tables, _whole_frame_shifting, _pixel_distribution,
     MovementModel)
