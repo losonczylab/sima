@@ -80,16 +80,16 @@ class MotionEstimationStrategy(object):
         max_disp = np.max(
             list(it.chain(*[d.reshape(-1, disp_dim) for d in displacements])),
             axis=0)
-        frame_shape = np.array(sequences[0].shape)[1:]
-        if len(max_disp) == 2:
+        frame_shape = np.array(sequences[0].shape)[1: -1]  # (z, y, x)
+        if len(max_disp) == 2:  # if 2D displacements
             frame_shape[1:3] += max_disp
-        else:
-            frame_shape[:3] += max_disp
+        else:  # if 3D displacements
+            frame_shape += max_disp
         corrected_sequences = [s.apply_displacements(d, frame_shape)
                                for s, d in zip(sequences, displacements)]
         planes, rows, columns = _trim_coords(
             trim_criterion, displacements, sequences[0].shape[1:4],
-            frame_shape[:3])
+            frame_shape)
         corrected_sequences = [
             s[:, planes, rows, columns] for s in corrected_sequences]
         return sima.ImagingDataset(

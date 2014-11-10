@@ -115,7 +115,7 @@ def _load_version0(path):
     else:
         assert all(np.all(d >= 0) for d in displacements)
         max_disp = np.max(list(chain(*displacements)), axis=0)
-        frame_shape = np.array(sequences[0].shape)[1:]
+        frame_shape = np.array(sequences[0].shape)[1:-1]  # z, y, x
         frame_shape[1:3] += max_disp
         sequences = [
             s.apply_displacements(d.reshape(s.shape[:3] + (2,)), frame_shape)
