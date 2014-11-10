@@ -201,11 +201,10 @@ def _align_frame(inputs):
                 s = namespace.shifts
                 s[cycle_idx][frame_idx][p][:] = 0
                 namespace.shifts = s
-                namespace.pixel_sums, namespace.pixel_counts = \
-                    _update_sums_and_counts(
+                namespace.pixel_sums, namespace.pixel_counts, \
+                    namespace.offset = _update_reference(
                         namespace.pixel_sums, namespace.pixel_counts,
-                        namespace.offset,
-                        namespace.shifts[cycle_idx][frame_idx], plane, p)
+                        namespace.offset, [p, 0, 0], np.expand_dims(plane, 0))
         if any_check:
             # recompute reference using all aligned images
             with lock:
@@ -247,17 +246,22 @@ def _align_frame(inputs):
 
             with lock:
                 shift = namespace.shifts[cycle_idx][frame_idx][p]
-                namespace.pixel_sums = _resize_array(
-                    namespace.pixel_sums, shift + namespace.offset,
-                    frame.shape)
-                namespace.pixel_counts = _resize_array(
-                    namespace.pixel_counts, shift + namespace.offset,
-                    frame.shape)
-                namespace.offset = np.maximum(namespace.offset, -shift)
-                namespace.pixel_sums, namespace.pixel_counts \
-                    = _update_sums_and_counts(
+                namespace.pixel_sums, namespace.pixel_counts, \
+                    namespace.offset = _update_reference(
                         namespace.pixel_sums, namespace.pixel_counts,
-                        namespace.offset, shift, plane, p)
+                        namespace.offset, [p] + list(shift)[1:],
+                        np.expand_dims(plane, 0))
+
+
+def _update_reference(sums, counts, offset, displacement, image):
+    displacement = np.array(displacement)
+    sums = _resize_array(sums, displacement + offset, image.shape)
+    counts = _resize_array(counts, displacement + offset, image.shape)
+    offset = np.maximum(offset, -displacement)
+    sums, counts = _update_sums_and_counts(
+        sums, counts, offset, displacement, image)
+    return sums, counts, offset
+
 
 def _add_with_offset(array1, array2, offset):
     """
@@ -276,16 +280,16 @@ def _add_with_offset(array1, array2, offset):
 
 
 def _update_sums_and_counts(
-        pixel_sums, pixel_counts, offset, shift, plane, plane_idx):
+        pixel_sums, pixel_counts, offset, shift, image):
     """Updates pixel sums and counts of the reference image each frame
 
     >>> from sima.motion.frame_align import _update_sums_and_counts
     >>> import numpy as np
     >>> pixel_counts = np.zeros((4, 5, 5, 2))
     >>> pixel_sums = np.zeros((4, 5, 5, 2))
-    >>> plane = 2 * np.ones((2, 3, 2))
+    >>> plane = 2 * np.ones((1, 2, 3, 2))
     >>> pixel_sums, pixel_counts = _update_sums_and_counts(
-    ...     pixel_sums, pixel_counts, [0, 0, 0], [0, 1, 2], plane, 3)
+    ...     pixel_sums, pixel_counts, [0, 0, 0], [3, 1, 2], plane)
     >>> np.all(pixel_sums[3, 1:3, 2:5] == 2)
     True
     >>> np.all(pixel_counts[3, 1:3, 2:5] == 1)
@@ -293,13 +297,12 @@ def _update_sums_and_counts(
 
     """
     assert pixel_sums.ndim == 4
+    assert pixel_sums.ndim == image.ndim
     offset = np.array(offset)
     shift = np.array(shift)
-    disp = [plane_idx] + list(offset + shift)[1:]
-    _add_with_offset(
-        pixel_sums, np.expand_dims(np.nan_to_num(plane), 0), disp)
-    _add_with_offset(
-        pixel_counts, np.expand_dims(np.isfinite(plane), 0), disp)
+    disp = offset + shift
+    _add_with_offset(pixel_sums, np.nan_to_num(image), disp)
+    _add_with_offset(pixel_counts, np.isfinite(image), disp)
     assert pixel_sums.ndim == 4
     return pixel_sums, pixel_counts
 
@@ -344,7 +347,8 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
     def _estimate(self, dataset):
         reference = next(iter(next(iter(dataset))))
         sums = np.zeros_like(reference)
-        sum_squares = np.zeros_like(reference)
+        counts = np.zeros_like(reference)
+        offset = np.zeros(3, dtype=int)
         displacements = []
         disp_range = np.array([[0, 0, 0], [0, 0, 0]])
         for sequence in dataset:
@@ -357,17 +361,18 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
                             disp_range[0]),
                         np.maximum(
                             disp_range[0] + self._params.max_displacement,
-                            disp_range[1])])
+                            disp_range[1])]) + offset
                 else:
                     bounds = None
                 seq_displacements.append(
-                    pyramid_align(reference, frame, bounds=bounds))
+                    pyramid_align(reference, frame, bounds=bounds) - offset)
                 disp_range[0] = np.minimum(disp_range[0],
                                            seq_displacements[-1])
                 disp_range[1] = np.maximum(disp_range[1],
                                            seq_displacements[-1])
-                # reference = update_reference(
-                #     sums, sum_squares, frame, seq_displacements[-1])
+                sums, counts, offset = _update_reference(
+                    sums, counts, offset, seq_displacements[-1], frame)
+                reference = sums / counts
             displacements.append(np.array(seq_displacements))
         return displacements
 
@@ -385,8 +390,8 @@ def shifted_corr(reference, image, displacement):
     im -= nanmean(im.reshape(-1, im.shape[-1]), axis=0)
     im = np.nan_to_num(im)
     assert np.all(np.isfinite(ref)) and np.all(np.isfinite(im))
-    corr = np.mean([np.sum(i * r) / np.sqrt(np.sum(i * i) * np.sum(r * r))
-                    for i, r in zip(np.rollaxis(im, 3), np.rollaxis(ref, 3))])
+    corr = np.mean([np.sum(i * r) / np.sqrt(np.sum(i * i) * np.sum(r * r)) for
+                    i, r in zip(np.rollaxis(im, -1), np.rollaxis(ref, -1))])
     assert np.isfinite(corr)
     return corr
 
