@@ -16,7 +16,7 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
-import sima.motion.align3d
+import sima.motion.frame_align
 from sima import misc
 from sima import Sequence
 from sima.misc import example_hdf5, example_tiff
@@ -55,7 +55,7 @@ def test_shifted_corr():
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
     assert_almost_equal(
-        sima.motion.align3d.shifted_corr(reference, shifted, shifts), 1.)
+        sima.motion.frame_align.shifted_corr(reference, shifted, shifts), 1.)
 
 def teardown():
     # teardown is executed after all of the tests in this file have comlpeted
@@ -80,18 +80,29 @@ def test_base_alignment():
     shifted = reference
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
-    estimated_shifts = sima.motion.align3d.base_alignment(reference, shifted)
+    estimated_shifts = sima.motion.frame_align.base_alignment(reference, shifted)
     assert_array_equal(shifts, estimated_shifts)
 
 
 def test_pyramid_align():
-    reference = np.random.RandomState(seed=0).normal(size=(128, 256, 30, 3))
-    shifts = np.array([15, -20, 3])
+    # test volume
+    reference = np.random.RandomState(seed=0).normal(size=(30, 128, 256, 3))
+    shifts = np.array([3, 15, -20])
     shifted = reference
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
-    estimated_shifts = sima.motion.align3d.pyramid_align(reference, shifted)
+    estimated_shifts = sima.motion.frame_align.pyramid_align(reference, shifted)
     assert_array_equal(shifts, estimated_shifts)
+
+    # test plane
+    reference = np.random.RandomState(seed=0).normal(size=(1, 128, 256, 3))
+    shifts = np.array([0, -10, 23])
+    shifted = reference
+    for i, s in enumerate(shifts):
+        shifted = np.roll(shifted, -s, i)
+    estimated_shifts = sima.motion.frame_align.pyramid_align(reference, shifted)
+    assert_array_equal(shifts, estimated_shifts)
+
 
 if __name__ == "__main__":
     run_module_suite()
