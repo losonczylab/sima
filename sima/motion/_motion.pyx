@@ -115,8 +115,8 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     return sliceLookup
 
 
-# @cython.boundscheck(False)  # turn of bounds-checking for entire function
-# @cython.wraparound(False)
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.wraparound(False)
 def log_observation_probabilities_generalized(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
         np.ndarray[INT_TYPE_t, ndim=1] tmpStateIds,
