@@ -224,7 +224,8 @@ def _align_frame(inputs):
                                        axis=0)
                     displacement_bounds = p_offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
-                         np.maximum(min_shift + max_displacement, max_shift)])
+                         np.maximum(min_shift + max_displacement, max_shift)
+                         + 1])
                 else:
                     displacement_bounds = None
                 shift = pyramid_align(np.expand_dims(reference, 0),
@@ -423,7 +424,7 @@ def within_bounds(displacement, bounds):
         return True
     assert len(displacement) == bounds.shape[1]
     return np.all(bounds[0] <= displacement) and \
-        np.all(bounds[1] >= displacement)
+        np.all(bounds[1] > displacement)
 
 
 def pyramid_align(reference, target, min_shape=32, max_levels=None,
@@ -437,12 +438,20 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
     """
     if max_levels is None:
         max_levels = np.inf
-    assert bounds is None or np.all(bounds[0] < bounds[1])  # BUGBUG
+    assert bounds is None or np.all(bounds[0] < bounds[1])
     smallest_shape = np.minimum(reference.shape[:-1], target.shape[:-1])
     axes_bool = smallest_shape >= 2 * np.array(min_shape)
     if max_levels > 0 and np.any(axes_bool):
         axes = np.nonzero(axes_bool)[0]
         new_bounds = None if bounds is None else bounds / (1 + axes_bool)
+
+        if bounds is None:
+            new_bounds = None
+        else:
+            new_bounds = np.empty(bounds.shape, dtype=int)
+            new_bounds[0] = np.floor(bounds[0].astype(float) / (1 + axes_bool))
+            new_bounds[1] = np.ceil(bounds[1].astype(float) / (1 + axes_bool))
+
         disp = pyramid_align(pyr_down_3d(reference, axes),
                              pyr_down_3d(target, axes),
                              min_shape, max_levels - 1, new_bounds)
