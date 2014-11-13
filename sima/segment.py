@@ -226,11 +226,14 @@ def _processed_image_ca1pc(dataset, channel_idx=-1, x_diameter=10,
                            y_diameter=10):
     """Create a processed image for identifying CA1 pyramidal cell ROIs."""
     unsharp_mask_mask_weight = 0.5
-    im = dataset.time_averages[0][..., channel_idx]
-    return _unsharp_mask(_clahe(im, x_diameter, y_diameter),
-                         unsharp_mask_mask_weight,
-                         1 + unsharp_mask_mask_weight,
-                         x_diameter, y_diameter)
+    result = []
+    for plane_idx in np.arange(dataset.frame_shape[0]):
+        im = dataset.time_averages[plane_idx, :, :, channel_idx]
+        result.append(_unsharp_mask(_clahe(im, x_diameter, y_diameter),
+                                    unsharp_mask_mask_weight,
+                                    1 + unsharp_mask_mask_weight,
+                                    x_diameter, y_diameter))
+    return np.array(result)
 
 
 def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):

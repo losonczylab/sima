@@ -175,6 +175,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         from sima.misc import example_data_3D
         ts = UI_tSeries(example_data_3D(), self)
         self.tSeries_list.setCurrentItem(ts)
+        ts = UI_tSeries(example_data_3D(), self)
+        self.tSeries_list.setCurrentItem(ts)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -818,6 +820,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.hide_rois()
         if self.show_ROIs_checkbox.checkState():
             self.show_rois(active_tSeries)
+        self.plot.replot()
 
     def edit_label(self):
         """Edit the labels of the selected ROIs"""
@@ -1600,19 +1603,21 @@ class UI_tSeries(QListWidgetItem):
         """
 
         if target_tSeries not in self.transforms:
-
-            target_active_channel = target_tSeries.dataset.channel_names.index(
-                target_tSeries.active_channel)
+            self.transforms[target_tSeries] = {}
+        if self.active_plane not in self.transforms[target_tSeries]:
+            target_active_channel = \
+                target_tSeries.dataset.channel_names.index(
+                    target_tSeries.active_channel)
 
             ref_active_channel = self.dataset.channel_names.index(
                 self.active_channel)
 
             target = _processed_image_ca1pc(
                 target_tSeries.dataset, channel_idx=target_active_channel,
-                x_diameter=14, y_diameter=7)
+                x_diameter=14, y_diameter=7)[self.active_plane]
             ref = _processed_image_ca1pc(
-                self.dataset, channel_idx=ref_active_channel, x_diameter=14,
-                y_diameter=7)
+                self.dataset, channel_idx=ref_active_channel,
+                x_diameter=14, y_diameter=7)[self.active_plane]
 
             slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
                            for i in range(2))
@@ -1623,9 +1628,9 @@ class UI_tSeries(QListWidgetItem):
             if transform is None:
                 raise TransformError()
             transform[:, 2] += tuple(target_tSeries.shape[::-1])
-            self.transforms[target_tSeries] = transform
+            self.transforms[target_tSeries][self.active_plane] = transform
 
-        return self.transforms[target_tSeries]
+        return self.transforms[target_tSeries][self.active_plane]
 
     def initialize_rois(self):
         """Load the ROIs and store the original vertices as an
