@@ -311,12 +311,12 @@ class ROIList(list):
         ----------
         path : string
             Path to either a pickled ROIList or an ImageJ ROI zip file.
-        fmt : {'pkl', 'ImageJ'}
-            The file format being imported.
         label : str, optional
             The label for selecting the ROIList if multiple ROILists
             have been saved in the same file. By default, the most
             recently saved ROIList will be selected.
+        fmt : {'pkl', 'ImageJ'}
+            The file format being imported.
 
         Returns
         -------

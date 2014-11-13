@@ -34,16 +34,16 @@ def test_PlaneSTICA():
 
 
 def test_PlaneNormalizedCuts():
-    ds = ImagingDataset.load(example_data())
-    affinty_method = segment.BasicAffinityMatrix(num_pcs=3)
+    ds = ImagingDataset.load(example_data())[:, :, :, :50, :50]
+    affinty_method = segment.BasicAffinityMatrix(num_pcs=5)
     method = segment.PlaneWiseSegmentationStrategy(
         segment.PlaneNormalizedCuts(affinty_method))
     ds.segment(method)
 
 
 def test_PlaneCA1PC():
-    ds = ImagingDataset.load(example_data())
-    method = segment.PlaneCA1PC(num_pcs=3)
+    ds = ImagingDataset.load(example_data())[:, :, :, :50, :50]
+    method = segment.PlaneCA1PC(num_pcs=5)
     ds.segment(method)
 
 

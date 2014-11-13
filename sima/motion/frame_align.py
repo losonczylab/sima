@@ -6,10 +6,16 @@ import numpy as np
 try:
     from bottleneck import nanmean
 except ImportError:
-    from scipy import nanmean
+    from scipy.stats import nanmean
+import scipy.ndimage.filters
 
-from sima.misc.align import align_cross_correlation
 import motion
+from sima.misc.align import align_cross_correlation
+
+try:
+    from future_builtins import zip
+except ImportError:  # Python 3.x
+    pass
 
 
 # Setup global variables used during parallelized whole frame shifting
@@ -59,69 +65,14 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
             (2, num_frames*num_cycles)-array of integers giving the
             estimated displacement of each frame
         """
-        # if method == 'correlation':
-        #     displacements, correlations = estimate(
-        #         mc_sequences, max_displacement, n_processes=n_processes)
-        # elif method == 'ECC':
-        #     # http://docs.opencv.org/trunk/modules/video/doc
-        #     # /motion_analysis_and_object_tracking.html#findtransformecc
-        #     #
-        #     # http://xanthippi.ceid.upatras.gr/people/evangelidis/ecc/
-        #     raise NotImplementedError
-        # else:
-        #     raise ValueError("Unrecognized option for 'method'")
-
         params = self._params
-        frame_shape = dataset.frame_shape
-        DIST_CRITERION = 2.
-        if params.partitions is None:
-            params.partitions = (1, 1)
-        dy = frame_shape[1] / params.partitions[0]
-        dx = frame_shape[2] / params.partitions[1]
-
-        shifts_record = []
-        corr_record = []
-        for ny, nx in it.product(
-                range(params.partitions[0]), range(params.partitions[1])):
-            partioned_sequences = [s[:, :, ny*dy:(ny+1)*dy, nx*dx:(nx+1)*dx]
-                                   for s in dataset]
-            shifts, correlations = _frame_alignment_base(
-                partioned_sequences, params.max_displacement, params.method,
-                params.n_processes)
-            shifts_record.append(shifts)
-            corr_record.append(correlations)
-            if len(shifts_record) > 1:
-                first_shifts = []  # shifts to be return
-                second_shifts = []
-                out_corrs = []  # correlations to be returned
-                for corrs, shifts in zip(
-                        zip(*corr_record), zip(*shifts_record)):
-                    corr_array = np.array(corrs)  # (partions, frames, planes)
-                    shift_array = np.array(shifts)
-                    assert corr_array.ndim is 3 and shift_array.ndim is 4
-                    second, first = np.argpartition(
-                        corr_array, -2, axis=0)[-2:]
-                    first_shifts.append(np.concatenate(
-                        [np.expand_dims(first.choose(s), -1)
-                         for s in np.rollaxis(shift_array, -1)],
-                        axis=-1))
-                    second_shifts.append(np.concatenate(
-                        [np.expand_dims(second.choose(s), -1)
-                         for s in np.rollaxis(shift_array, -1)],
-                        axis=-1))
-                    out_corrs.append(first.choose(corr_array))
-                if np.mean([np.sum((f - s)**2, axis=-1)
-                            for f, s in zip(first_shifts, second_shifts)]
-                           ) < (DIST_CRITERION ** 2):
-                    break
-        try:
-            return first_shifts
-        except NameError:  # single parition case
-            return shifts
+        return _frame_alignment_base(
+            dataset, params.max_displacement, params.method,
+            params.n_processes)[0]
 
 
 def _frame_alignment_base(
-        sequences, max_displacement=None, method='correlation',
+        dataset, max_displacement=None, method='correlation',
         n_processes=None):
     """Estimate whole-frame displacements based on pixel correlations.
 
@@ -141,35 +92,35 @@ def _frame_alignment_base(
     n_processes : (None, int)
         Number of pool processes to spawn to parallelize frame alignment
     """
-
     if n_processes is None:
         n_pools = multiprocessing.cpu_count() / 2
     else:
         n_pools = n_processes
-    if n_pools == 0:
-        n_pools = 1
+        if n_pools == 0:
+            n_pools = 1
 
     global namespace
     global lock
     namespace = multiprocessing.Manager().Namespace()
-    namespace.offset = np.zeros(2, dtype=int)
-    namespace.pixel_counts = np.zeros(sequences[0].shape[1:])  # TODO: int?
-    namespace.pixel_sums = np.zeros(sequences[0].shape[1:]).astype('float64')
+    namespace.offset = np.zeros(3, dtype=int)
+    namespace.pixel_counts = np.zeros(dataset.frame_shape)  # TODO: int?
+    namespace.pixel_sums = np.zeros(dataset.frame_shape).astype('float64')
     # NOTE: float64 gives nan when divided by 0
     namespace.shifts = [
-        np.zeros(seq.shape[:2] + (2,), dtype=int) for seq in sequences]
-    namespace.correlations = [np.empty(seq.shape[:2]) for seq in sequences]
+        np.zeros(seq.shape[:2] + (3,), dtype=int) for seq in dataset]
+    namespace.correlations = [np.empty(seq.shape[:2]) for seq in dataset]
 
     lock = multiprocessing.Lock()
     pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
 
-    for cycle_idx, cycle in zip(it.count(), sequences):
-        if n_processes > 1:
+    for cycle_idx, cycle in zip(it.count(), dataset):
+        chunksize = min(1 + len(cycle) / n_pools, 200)
+        if n_pools > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
                     it.repeat(method), it.repeat(max_displacement)),
-                chunksize=1 + len(cycle) / n_pools)
+                chunksize=chunksize)
         else:
             map_generator = it.imap(
                 _align_frame,
@@ -195,9 +146,16 @@ def _frame_alignment_base(
         for seq in shifts:
             seq -= alteration
 
-    shifts = namespace.shifts
+    shifts = [s[..., 1:] for s in namespace.shifts]
+    correlations = namespace.correlations
+
+    del namespace.pixel_counts
+    del namespace.pixel_sums
+    del namespace.shifts
+    del namespace.correlations
+
     _align_planes(shifts)
-    return shifts, namespace.correlations
+    return shifts, correlations
 
 
 def _align_frame(inputs):
@@ -223,58 +181,12 @@ def _align_frame(inputs):
     """
 
     frame_idx, frame, cycle_idx, method, max_displacement = inputs
+    if max_displacement is not None:
+        max_displacement = [0] + list(max_displacement)
 
     # Pulls in the shared namespace and lock across all processes
     global namespace
     global lock
-
-    def _update_sums_and_counts(
-            pixel_sums, pixel_counts, offset, shift, plane, plane_idx):
-        """Updates pixel sums and counts of the reference image each frame"""
-        ref_indices = [offset + shift[plane_idx],
-                       offset + shift[plane_idx] + plane.shape[:-1]]
-        assert pixel_sums.ndim == 4
-        pixel_counts[plane_idx][ref_indices[0][0]:ref_indices[1][0],
-                                ref_indices[0][1]:ref_indices[1][1]
-                                ] += np.isfinite(plane)
-        pixel_sums[plane_idx][ref_indices[0][0]:ref_indices[1][0],
-                              ref_indices[0][1]:ref_indices[1][1]
-                              ] += np.nan_to_num(plane)
-        assert pixel_sums.ndim == 4
-        return pixel_sums, pixel_counts
-
-    def _resize_arrays(shift, pixel_sums, pixel_counts, offset, frame_shape):
-        """Enlarge storage arrays if necessary."""
-        l = - np.minimum(0, shift + offset)
-        r = np.maximum(
-            # 0, shift + offset + np.array(sequences[0].shape[2:-1]) -
-            0, shift + offset + np.array(frame_shape[1:-1]) -
-            np.array(pixel_sums.shape[1:-1])
-        )
-        assert pixel_sums.ndim == 4
-        if np.any(l > 0) or np.any(r > 0):
-            # adjust Y
-            pre_shape = (pixel_sums.shape[0], l[0]) + pixel_sums.shape[2:]
-            post_shape = (pixel_sums.shape[0], r[0]) + pixel_sums.shape[2:]
-            pixel_sums = np.concatenate(
-                [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
-                axis=1)
-            pixel_counts = np.concatenate(
-                [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
-                axis=1)
-            # adjust X
-            pre_shape = pixel_sums.shape[:2] + (l[1], pixel_sums.shape[3])
-            post_shape = pixel_sums.shape[:2] + (r[1], pixel_sums.shape[3])
-            pixel_sums = np.concatenate(
-                [np.zeros(pre_shape), pixel_sums, np.zeros(post_shape)],
-                axis=2)
-            pixel_counts = np.concatenate(
-                [np.zeros(pre_shape), pixel_counts, np.zeros(post_shape)],
-                axis=2)
-            offset += l
-        assert pixel_sums.ndim == 4
-        assert np.prod(pixel_sums.shape) < 4 * np.prod(frame_shape)
-        return pixel_sums, pixel_counts, offset
 
     for p, plane in zip(it.count(), frame):
         # if frame_idx in invalid_frames:
@@ -289,11 +201,10 @@ def _align_frame(inputs):
                 s = namespace.shifts
                 s[cycle_idx][frame_idx][p][:] = 0
                 namespace.shifts = s
-                namespace.pixel_sums, namespace.pixel_counts = \
-                    _update_sums_and_counts(
+                namespace.pixel_sums, namespace.pixel_counts, \
+                    namespace.offset = _update_reference(
                         namespace.pixel_sums, namespace.pixel_counts,
-                        namespace.offset,
-                        namespace.shifts[cycle_idx][frame_idx], plane, p)
+                        namespace.offset, [p, 0, 0], np.expand_dims(plane, 0))
         if any_check:
             # recompute reference using all aligned images
             with lock:
@@ -306,18 +217,20 @@ def _align_frame(inputs):
                 reference = p_sums / p_counts
             if method == 'correlation':
                 if max_displacement is not None and np.all(
-                        max_displacement > 0):
+                        np.array(max_displacement) >= 0):
                     min_shift = np.min(list(it.chain(*it.chain(*shifts))),
                                        axis=0)
                     max_shift = np.max(list(it.chain(*it.chain(*shifts))),
                                        axis=0)
                     displacement_bounds = p_offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
-                         np.maximum(min_shift + max_displacement, max_shift)])
+                         np.maximum(min_shift + max_displacement, max_shift)
+                         + 1])
                 else:
                     displacement_bounds = None
-                shift, p_corr = align_cross_correlation(
-                    reference, plane, displacement_bounds)
+                shift = pyramid_align(np.expand_dims(reference, 0),
+                                      np.expand_dims(plane, 0),
+                                      bounds=displacement_bounds)
                 if displacement_bounds is not None:
                     assert np.all(shift >= displacement_bounds[0])
                     assert np.all(shift <= displacement_bounds[1])
@@ -331,18 +244,228 @@ def _align_frame(inputs):
                 s = namespace.shifts
                 s[cycle_idx][frame_idx][p][:] = shift - p_offset
                 namespace.shifts = s
-                corrs = namespace.correlations
-                corrs[cycle_idx][frame_idx][p] = p_corr
-                namespace.correlations = corrs
 
             with lock:
-                namespace.pixel_sums, namespace.pixel_counts, namespace.offset\
-                    = _resize_arrays(
-                        namespace.shifts[cycle_idx][frame_idx][p],
+                shift = namespace.shifts[cycle_idx][frame_idx][p]
+                namespace.pixel_sums, namespace.pixel_counts, \
+                    namespace.offset = _update_reference(
                         namespace.pixel_sums, namespace.pixel_counts,
-                        namespace.offset, frame.shape)
-                namespace.pixel_sums, namespace.pixel_counts \
-                    = _update_sums_and_counts(
-                        namespace.pixel_sums, namespace.pixel_counts,
-                        namespace.offset,
-                        namespace.shifts[cycle_idx][frame_idx], plane, p)
+                        namespace.offset, [p] + list(shift)[1:],
+                        np.expand_dims(plane, 0))
+
+
+def _update_reference(sums, counts, offset, displacement, image):
+    displacement = np.array(displacement)
+    sums = _resize_array(sums, displacement + offset, image.shape)
+    counts = _resize_array(counts, displacement + offset, image.shape)
+    offset = np.maximum(offset, -displacement)
+    sums, counts = _update_sums_and_counts(
+        sums, counts, offset, displacement, image)
+    return sums, counts, offset
+
+
+def _add_with_offset(array1, array2, offset):
+    """
+
+    >>> from sima.motion.frame_align import _add_with_offset
+    >>> import numpy as np
+    >>> a1 = np.zeros((4, 4))
+    >>> a2 = np.ones((1, 2))
+    >>> _add_with_offset(a1, a2, (1, 2))
+    >>> np.array_equal(a1[1:2, 2:4], a2)
+    True
+
+    """
+    slices = tuple(slice(o, o + e) for o, e in zip(offset, array2.shape))
+    array1[slices] += array2
+
+
+def _update_sums_and_counts(
+        pixel_sums, pixel_counts, offset, shift, image):
+    """Updates pixel sums and counts of the reference image each frame
+
+    >>> from sima.motion.frame_align import _update_sums_and_counts
+    >>> import numpy as np
+    >>> pixel_counts = np.zeros((4, 5, 5, 2))
+    >>> pixel_sums = np.zeros((4, 5, 5, 2))
+    >>> plane = 2 * np.ones((1, 2, 3, 2))
+    >>> pixel_sums, pixel_counts = _update_sums_and_counts(
+    ...     pixel_sums, pixel_counts, [0, 0, 0], [3, 1, 2], plane)
+    >>> np.all(pixel_sums[3, 1:3, 2:5] == 2)
+    True
+    >>> np.all(pixel_counts[3, 1:3, 2:5] == 1)
+    True
+
+    """
+    assert pixel_sums.ndim == 4
+    assert pixel_sums.ndim == image.ndim
+    offset = np.array(offset)
+    shift = np.array(shift)
+    disp = offset + shift
+    _add_with_offset(pixel_sums, np.nan_to_num(image), disp)
+    _add_with_offset(pixel_counts, np.isfinite(image), disp)
+    assert pixel_sums.ndim == 4
+    return pixel_sums, pixel_counts
+
+
+def _resize_array(array, displacement, frame_shape):
+    """Enlarge storage arrays if necessary.
+
+    >>> from sima.motion.frame_align import _resize_array
+    >>> import numpy as np
+    >>> a = np.ones((2, 128, 128, 5))
+    >>> a = _resize_array(a, (0, -1, 2), (2, 128, 128, 5))
+    >>> a.shape
+    (2, 129, 130, 5)
+
+    """
+    pad_width = np.zeros((len(array.shape), 2))
+    pad_width[:3, 0] = - np.minimum(0, displacement)
+    pad_width[:3, 1] = np.maximum(
+        0, np.array(displacement) + np.array(frame_shape[:-1]) -
+        np.array(array.shape[:-1]))
+    if np.any(pad_width):
+        array = np.pad(array, tuple(tuple(x) for x in pad_width.astype(int)),
+                       'constant')
+    return array
+
+
+class VolumeTranslation(motion.MotionEstimationStrategy):
+    """Translate 3D volumes to maximize the correlation.
+
+    Parameters
+    ----------
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [z,y,x]. By
+        default, arbitrarily large displacements are allowed.
+    """
+
+    def __init__(self, max_displacement=None):
+        d = locals()
+        del d['self']
+        self._params = Struct(**d)
+
+    def _estimate(self, dataset):
+        reference = next(iter(next(iter(dataset))))
+        sums = np.zeros_like(reference)
+        counts = np.zeros_like(reference)
+        offset = np.zeros(3, dtype=int)
+        displacements = []
+        disp_range = np.array([[0, 0, 0], [0, 0, 0]])
+        for sequence in dataset:
+            seq_displacements = []
+            for frame in sequence:
+                if self._params.max_displacement is not None:
+                    bounds = np.array([
+                        np.minimum(
+                            disp_range[1] - self._params.max_displacement,
+                            disp_range[0]),
+                        np.maximum(
+                            disp_range[0] + self._params.max_displacement,
+                            disp_range[1])]) + offset
+                else:
+                    bounds = None
+                seq_displacements.append(
+                    pyramid_align(reference, frame, bounds=bounds) - offset)
+                disp_range[0] = np.minimum(disp_range[0],
+                                           seq_displacements[-1])
+                disp_range[1] = np.maximum(disp_range[1],
+                                           seq_displacements[-1])
+                sums, counts, offset = _update_reference(
+                    sums, counts, offset, seq_displacements[-1], frame)
+                reference = sums / counts
+            displacements.append(np.array(seq_displacements))
+        return displacements
+
+
+def shifted_corr(reference, image, displacement):
+    ref_cuts = np.maximum(0, displacement)
+    ref = reference[ref_cuts[0]:, ref_cuts[1]:, ref_cuts[2]:]
+    im_cuts = np.maximum(0, -displacement)
+    im = image[im_cuts[0]:, im_cuts[1]:, im_cuts[2]:]
+    s = np.minimum(im.shape, ref.shape)
+    ref = ref[:s[0], :s[1], :s[2]]
+    im = im[:s[0], :s[1], :s[2]]
+    ref -= nanmean(ref.reshape(-1, ref.shape[-1]), axis=0)
+    ref = np.nan_to_num(ref)
+    im -= nanmean(im.reshape(-1, im.shape[-1]), axis=0)
+    im = np.nan_to_num(im)
+    assert np.all(np.isfinite(ref)) and np.all(np.isfinite(im))
+    corr = np.mean([np.sum(i * r) / np.sqrt(np.sum(i * i) * np.sum(r * r)) for
+                    i, r in zip(np.rollaxis(im, -1), np.rollaxis(ref, -1))])
+    assert np.isfinite(corr)
+    return corr
+
+
+def pyr_down_3d(image, axes=None):
+    """Downsample an image along the specified axes.
+
+    Parameters
+    ----------
+    image : ndarray
+        The image to be downsampled.
+    axes : tuple of int
+        The axes along which the downsampling is to occur.  Defaults to
+        downsampling on all axes.
+    """
+    stdevs = [1.05 if i in axes else 0 for i in range(image.ndim)]
+    filtered_image = scipy.ndimage.filters.gaussian_filter(image, stdevs)
+    slices = tuple(slice(None, None, 2) if i in axes else slice(None)
+                   for i in range(filtered_image.ndim))
+    return filtered_image[slices]
+
+
+def base_alignment(reference, target, bounds=None):
+    return align_cross_correlation(reference, target, bounds)[0]
+
+
+def within_bounds(displacement, bounds):
+    if bounds is None:
+        return True
+    assert len(displacement) == bounds.shape[1]
+    return np.all(bounds[0] <= displacement) and \
+        np.all(bounds[1] > displacement)
+
+
+def pyramid_align(reference, target, min_shape=32, max_levels=None,
+                  bounds=None):
+    """
+    Parameters
+    ----------
+    min_shape : int or tuple of int
+    bounds : ndarray of int
+        Shape: (2, D).
+    """
+    if max_levels is None:
+        max_levels = np.inf
+    assert bounds is None or np.all(bounds[0] < bounds[1])
+    smallest_shape = np.minimum(reference.shape[:-1], target.shape[:-1])
+    axes_bool = smallest_shape >= 2 * np.array(min_shape)
+    if max_levels > 0 and np.any(axes_bool):
+        axes = np.nonzero(axes_bool)[0]
+        new_bounds = None if bounds is None else bounds / (1 + axes_bool)
+
+        if bounds is None:
+            new_bounds = None
+        else:
+            new_bounds = np.empty(bounds.shape, dtype=int)
+            new_bounds[0] = np.floor(bounds[0].astype(float) / (1 + axes_bool))
+            new_bounds[1] = np.ceil(bounds[1].astype(float) / (1 + axes_bool))
+
+        disp = pyramid_align(pyr_down_3d(reference, axes),
+                             pyr_down_3d(target, axes),
+                             min_shape, max_levels - 1, new_bounds)
+        best_corr = -np.inf
+        best_displacement = None
+        for adjustment in it.product(
+                *[range(-1, 2) if a else range(1) for a in axes_bool]):
+            displacement = (1 + axes_bool) * disp + np.array(adjustment)
+            if within_bounds(displacement, bounds):
+                corr = shifted_corr(reference, target, displacement)
+                if corr > best_corr:
+                    best_corr = corr
+                    best_displacement = displacement
+        assert best_displacement is not None
+        return best_displacement
+    else:
+        return base_alignment(reference, target, bounds)

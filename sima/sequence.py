@@ -32,12 +32,20 @@
 
 import itertools as it
 import warnings
+import collections
 from distutils.version import StrictVersion
-from os.path import (abspath, dirname, join, normpath, normcase, isfile,
-                     samefile)
+from os.path import (abspath, dirname, join, normpath, normcase, isfile)
 from abc import ABCMeta, abstractmethod
-
 import numpy as np
+
+try:
+    from os.path import samefile
+except ImportError:
+    # Windows does not have the samefile function
+    from os import stat
+
+    def samefile(file1, file2):
+        return stat(file1) == stat(file2)
 
 try:
     from libtiff import TIFF
@@ -307,16 +315,21 @@ class Sequence(object):
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
         """
+        depth = lambda L: \
+            isinstance(L, collections.Sequence) and \
+            (not isinstance(L, str)) and max(map(depth, L)) + 1
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 2:
+            raise ValueError
 
         # Make directories necessary for saving the files.
-        try:
+        try:  # HDF5 case
             out_dirs = [[dirname(filenames)]]
-        except AttributeError:
+        except AttributeError:  # TIFF case
             out_dirs = [[dirname(f) for f in plane] for plane in filenames]
-        for f in filter(None, it.chain(*out_dirs)):
-            sima.misc.mkdir_p(dirname(f))
+        for d in filter(None, it.chain(*out_dirs)):
+            sima.misc.mkdir_p(d)
 
         if 'TIFF' in fmt:
             output_files = [[TiffFileWriter(fn) for fn in plane]
@@ -596,6 +609,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
     Parameters
     ----------
     base : Sequence
+    extent : tuple
+        (num_planes, num_rows, num_columns)
 
     displacements : array
         The _D displacement of each row in the image cycle.
@@ -604,41 +619,50 @@ class _MotionCorrectedSequence(_WrapperSequence):
     This object has the same attributes and methods as the class it wraps."""
     # TODO: check clipping and output frame size
 
-    def __init__(self, base, displacements, frame_shape):
+    def __init__(self, base, displacements, extent):
         super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
-        if frame_shape is None:
+        if extent is None:
             max_disp = np.max(
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-            frame_shape = np.array(base.sequences[0].shape)[1:]
-            frame_shape[1:3] += max_disp
-        self._frame_shape = frame_shape  # (planes, rows, columns)
+            extent = np.array(base.sequences[0].shape)[1:]
+            extent[1:3] += max_disp
+        assert len(extent) == 3
+        self._frame_shape_zyx = tuple(extent)   # (planes, rows, columns)
+
+    @ property
+    def _frame_shape(self):
+        return self._frame_shape_zyx + (self._base.shape[4],)
 
     def __len__(self):
         return len(self._base)  # Faster to calculate len without aligning
 
     def _align(self, frame, displacement):
         if displacement.ndim == 3:
-            return _align_frame(frame.astype(float), displacement,
+            return _align_frame(frame.astype(float), displacement.astype(int),
                                 self._frame_shape)
-        elif displacement.ndim == 2:
-            out = np.nan * np.ones(self._frame_shape)
-            s = frame.shape[1:]
-            for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
-                out[p, disp[0]:(disp[0] + s[0]), disp[1]:(disp[1] + s[1])
-                    ] = plane
-            return out
-        elif displacement.ndim == 1:
+        elif displacement.ndim == 2:  # plane-wise displacement
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape
-            out[displacement[0]:(displacement[0]+s[0]),
-                displacement[1]:(displacement[1]+s[1]),
-                displacement[2]:(displacement[2]+s[2])] = frame
+            for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
+                if len(disp) == 2:
+                    disp = [0] + list(disp)
+                out[p + disp[0],
+                    disp[1]:(disp[1] + s[1]),
+                    disp[2]:(disp[2] + s[2])] = plane
+            return out
+        elif displacement.ndim == 1:  # frame-wise displacement
+            out = np.nan * np.ones(self._frame_shape)
+            s = frame.shape
+            out[displacement[0]:(displacement[0] + s[0]),
+                displacement[1]:(displacement[1] + s[1]),
+                displacement[2]:(displacement[2] + s[2])] = frame
             return out
 
     @property
     def shape(self):
-        return (len(self),) + self._frame_shape  # Avoid aligning image
+        # Avoid aligning image
+        return (len(self),) + self._frame_shape
 
     def __iter__(self):
         for frame, displacement in it.izip(self._base, self.displacements):
@@ -657,15 +681,15 @@ class _MotionCorrectedSequence(_WrapperSequence):
             return _MotionCorrectedSequence(
                 self._base[times],
                 self.displacements[times],
-                self._frame_shape
+                self._frame_shape[:-1]
             )[new_indices]
         if len(indices) == 5:
-            chans = indices[5]
+            chans = indices[4]
             return _MotionCorrectedSequence(
                 self._base[:, :, :, :, chans],
-                self.displacements[:, :, :, chans],
-                self._frame_shape
-            )[indices[:5]]
+                self.displacements,
+                self._frame_shape[:-1]
+            )[indices[:4]]
         # TODO: similar for planes ???
         return _IndexedSequence(self, indices)
 
@@ -674,7 +698,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
             '__class__': self.__class__,
             'base': self._base._todict(),
             'displacements': self.displacements,
-            'frame_shape': self._frame_shape,
+            'extent': self._frame_shape[:3],
         }
 
 
