@@ -376,6 +376,8 @@ class _HiddenMarkov(MotionEstimationStrategy):
         max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
 
         # add a bit of extra room to move around
+        if params.max_displacement.size == 2:
+            params.max_displacement = np.hstack(([0], params.max_displacement))
         extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
                         ).astype(int)
         min_displacements = (min_shifts - extra_buffer)
