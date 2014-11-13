@@ -88,6 +88,7 @@ def jaccard_index(roi1, roi2):
     roi1, roi2 : shapely.geometry.Polygon
 
     """
+    # TODO: MAKE WORK FOR 3D!
     union = roi1.union(roi2).area
     intersection = roi1.intersection(roi2).area
     jaccard = intersection / union
@@ -810,11 +811,13 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         self.freeform_tool.shape = None
         active_tSeries = self.tSeries_list.currentItem()
-        active_tSeries.update_rois()
+        if self.mode == 'edit':
+            active_tSeries.update_rois()
         active_tSeries.active_plane = self.plane_index_box.value()
         active_tSeries.show()
         self.hide_rois()
-        self.show_rois(active_tSeries)
+        if self.show_ROIs_checkbox.checkState():
+            self.show_rois(active_tSeries)
 
     def edit_label(self):
         """Edit the labels of the selected ROIs"""
@@ -1254,6 +1257,14 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def register_rois(self):
 
+        def intersects(roi1, roi2):
+            """
+            returns boolean valued on whether roi1 intersects roi2
+            """
+            for p1 in roi1.polygons:
+                for p2 in roi2.polygons:
+                    debug_trace()
+
         if not self.show_all_checkbox.isChecked():
             self.show_all_checkbox.setChecked(True)
 
@@ -1313,6 +1324,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     condensed_distance_matrix.append(0.)
                 for tSeries2 in tSeries_list[setIdx + 1:]:
                     for roi2 in roi_polygons[tSeries2]:
+                        #TODO: MAKE SURE THIS WORKS FOR 3D
                         if roi1.intersects(roi2):
                             condensed_distance_matrix.append(
                                 jaccard_index(roi1, roi2))
