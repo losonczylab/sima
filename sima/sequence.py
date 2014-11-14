@@ -188,6 +188,16 @@ class Sequence(object):
     def join(sequences):
         """Join together sequences representing different channels.
 
+        Parameters
+        ----------
+        sequences : list of Sequence
+            The sequences that are to be joined together.
+
+        Returns
+        -------
+        sequence : Sequence
+            A single sequence with multiple channels.
+
         Examples
         --------
 

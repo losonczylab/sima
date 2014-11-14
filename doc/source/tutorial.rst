@@ -39,7 +39,7 @@ Individual classes or functions can be imported from submodules.
 For example, we can import the iterable object for use with multi-page
 TIFF files with the following command:
 
-    >>> from sima.sequence import MultiPageTIFF
+    >>> from sima.segment import PlaneSTICA
 
 For more details on importing, consult the `Python documentation
 <https://docs.python.org/2.7/>`_.
@@ -84,37 +84,32 @@ Numpy arrays
 To begin with, we create some Numpy arrays containing random data.
 
     >>> import numpy as np
-    >>> cycle1_channel1 = np.random.rand(100, 128, 128)
-    >>> cycle1_channel2 = np.random.rand(100, 128, 128)
-    >>> cycle2_channel1 = np.random.rand(100, 128, 128)
-    >>> cycle2_channel2 = np.random.rand(100, 128, 128)
+    >>> array1 = np.random.rand(100, 128, 128, 2)
+    >>> array2 = np.random.rand(100, 128, 128, 2)
 
 Once we have the Numpy arrays containing the imaging data, we create the
 ImagingDataset object as follows.
 
-    >>> sequence = [
-    ...     [cycle1_channel1, cycle1_channel2],
-    ...     [cycle2_channel1, cycle2_channel2]
-    ... ]
+    >>> sequences = [
+    ...     sima.Sequence.create('ndarray', array1),
+    ...     sima.Sequence.create('ndarray', array2)]
     >>> dataset = sima.ImagingDataset(
-    ...     sequence, 'example_np.sima', channel_names=['green', 'red'])
+    ...     sequences, 'example_np.sima', channel_names=['green', 'red'])
 
 Multipage TIFF files
 ....................
 For simplicity, we consider the case of only a single cycle and channel.
 
-    >>> from sima.sequence import MultiPageTIFF
-    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.ImagingDataset(sequence, 'example_TIFF.sima')
+    >>> sequence = sima.Sequence.create('TIFF', 'example_Ch1.tif')
+    >>> dataset = sima.ImagingDataset([sequence], 'example_TIFF.sima')
 
 HDF5 files
 ..........
 The argument 'yxt' specifies that the first index of the HDF5 array corresponds
 to the row, the second to the column, and the third to the time.
 
-    >>> from sima.sequence import HDF5
-    >>> sequence = [[HDF5('example.h5', 'yxt')]]
-    >>> dataset = sima.ImagingDataset(sequence, 'example_HDF5.sima')
+    >>> sequence = sima.create('HDF5', 'example.h5', 'yxt')
+    >>> dataset = sima.ImagingDataset([sequence], 'example_HDF5.sima')
 
 
 Loading ImagingDataset objects
@@ -134,10 +129,9 @@ is used to indicate that the maximum possible displacement is 20 rows and 30
 columns.
 
     >>> import sima.motion
-    >>> from sima.sequence import MultiPageTIFF
-    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.motion.hmm(sequence, 'example_mc.sima',
-    ...                           max_displacement=[20,30], verbose=False)
+    >>> sequence = sima.Sequence.create('TIFF', 'example_Ch1.tif')
+    >>> dataset = sima.motion.HiddenMarkov2D(max_displacement=[20,30]).correct(
+    ...     [sequence], 'example_mc.sima')
 
 When the signal is of interest is very sparse or highly dynamic, it is sometimes
 helpful to use a second static channel to estimate the displacements for motion
@@ -147,13 +141,12 @@ alogorithm, and the second channel contains a static tdTomato signal that provid
 a stable reference.
 
     >>> import sima.motion
-    >>> from sima.sequence import MultiPageTIFF
-    >>> sequence = [[MultiPageTIFF('example_Ch1.tif'), 
-    ...               MultiPageTIFF('example_Ch2.tif')]]
-    >>> dataset = sima.motion.hmm(
-    ...     sequence, 'example_mc2.sima', max_displacement=[20,30], 
-    ...     channel_names=['GCaMP', 'tdTomato'],
-    ...     correction_channels=['tdTomato'], verbose=False)
+    >>> sequence = sima.Sequence.join(
+    ...     [sima.Sequence.create('TIFF', 'example_Ch1.tif'),
+    ...      sima.Sequence.create('TIFF', 'example_Ch2.tif')])
+    >>> dataset = sima.motion.HiddenMarkov2D(max_displacement=[20,30]).correct(
+    ...     [sequence], 'example_mc2.sima', channel_names=['GCaMP', 'tdTomato'],
+    ...     correction_channels=['tdTomato'])
 
 When motion correction is invoked as above, only the tdTomato channel is used
 for estimating the displacements, which are then applied to both channels.
