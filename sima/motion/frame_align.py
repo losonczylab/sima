@@ -40,15 +40,10 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         Alignment method to be used.
     n_processes : (None, int)
         Number of pool processes to spawn to parallelize frame alignment
-    partitions : tuple of int, optional
-        The number of partitions in y and x respectively. The alignement
-        will be calculated separately on each partition and then the
-        results compared. Default: calculates an appropriate value based
-        on max_displacement and the frame shape.
     """
 
     def __init__(self, max_displacement=None, method='correlation',
-                 n_processes=None, partitions=None):
+                 n_processes=None):
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -343,6 +338,11 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [z,y,x]. By
         default, arbitrarily large displacements are allowed.
+    criterion : float, optional
+        The number of standard deviations below the mean correlation that
+        a frame's correlation can have following displacement for the
+        displacement to be considered valid. Invalid displacements will be
+        masked.
     """
 
     def __init__(self, max_displacement=None, criterion=None):

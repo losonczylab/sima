@@ -112,7 +112,7 @@ def _whole_frame_shifting(dataset, shifts):
     reference = np.zeros(out_shape)
     sum_squares = np.zeros_like(reference)
     count = np.zeros_like(reference)
-    for frame, shift in it.izip(it.chain(*dataset), it.chain(*shifts)):
+    for frame, shift in zip(it.chain(*dataset), it.chain(*shifts)):
         if shift.ndim == 1:  # single shift for the whole volume
             l = shift - min_shifts
             h = shift + frame.shape[:-1]
@@ -120,9 +120,9 @@ def _whole_frame_shifting(dataset, shifts):
             sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame ** 2
             count[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.isfinite(frame)
         else:  # plane-specific shifts
-            for plane, p_shifts, ref, ssq, cnt in it.izip(
+            for plane, p_shifts, ref, ssq, cnt in zip(
                     frame, shift, reference, sum_squares, count):
-                low = (p_shifts - min_shifts)  # TOOD: NaN considerations
+                low = p_shifts - min_shifts  # TOOD: NaN considerations
                 high = low + plane.shape[:-1]
                 ref[low[0]:high[0], low[1]:high[1]] += plane
                 ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
