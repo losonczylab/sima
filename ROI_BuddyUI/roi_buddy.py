@@ -88,11 +88,64 @@ def jaccard_index(roi1, roi2):
     roi1, roi2 : shapely.geometry.Polygon
 
     """
-    # TODO: MAKE WORK FOR 3D!
-    union = roi1.union(roi2).area
-    intersection = roi1.intersection(roi2).area
-    jaccard = intersection / union
+    union = 0
+    intersection = 0
 
+    roi1_polys = [p for p in roi1]
+    roi2_polys = [p for p in roi2]
+
+    while(len(roi1_polys)):
+        for first_poly in roi1_polys:
+            z = np.array(first_poly.exterior.coords)[0, 2]
+
+            co_planar_polys1 = [first_poly]
+            for other_poly in [p for p in roi1_polys if p is not first_poly]:
+                if np.array(other_poly.exterior.coords)[0, 2] == z:
+                    co_planar_polys1.append(other_poly)
+            p1 = MultiPolygon(co_planar_polys1)
+            if not p1.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p1],
+                    im_size=self.base_im.data.shape))
+
+            co_planar_polys2 = []
+            for p in roi2_polys:
+                if np.array(p.exterior.coords)[0, 2] == z:
+                    co_planar_polys2.append(p)
+            p2 = MultiPolygon(co_planar_polys2)
+            if not p2.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p2],
+                    im_size=self.base_im.data.shape))
+
+            union += p1.union(p2).area
+            intersection += p1.intersection(p2).area
+
+            for p in co_planar_polys1[::-1]:
+                roi1_polys.remove(p)
+            for p in co_planar_polys2[::-1]:
+                roi2_polys.remove(p)
+
+    while(len(roi2_polys)):
+        for extra in roi2_polys:
+            z = np.array(remaining_polygon.exterior.coords)[0, 2]
+
+            co_planar_polys = [extra_polygon]
+            for other_poly in [p for p in roi2_polys if p is not extra]:
+                if np.array(other_poly.exterior.coords)[0, 2] == z:
+                    co_planar_polys.append(other_poly)
+            p0 = MultiPolygon(co_planar_polys)
+            if not p.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p0],
+                    im_size=self.base_im.data.shape))
+
+            union += p.area
+
+            for p in co_planar_polys[::-1]:
+                roi2_polys.remove(p)
+
+    jaccard = intersection / union
     return jaccard
 
 
@@ -492,6 +545,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 self.plot.del_item(item)
 
     def show_rois(self, tSeries, show_in_list=None):
+        if self.mode == 'edit':
+            tSeries.transform_rois()
         for roi in tSeries.roi_list:
             if roi.coords[0][0, 2] == tSeries.active_plane:
                 roi.show(show_in_list)
@@ -813,13 +868,23 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         self.freeform_tool.shape = None
         active_tSeries = self.tSeries_list.currentItem()
+        tSeries_list = [self.tSeries_list.item(i)
+                        for i in range(self.tSeries_list.count())]
         if self.mode == 'edit':
             active_tSeries.update_rois()
-        active_tSeries.active_plane = self.plane_index_box.value()
+
+        # Note: toggling planes changes the active plane for every UI_tSeries!
+        for tSeries in tSeries_list:
+            tSeries.active_plane = self.plane_index_box.value()
         active_tSeries.show()
         self.hide_rois()
         if self.show_ROIs_checkbox.checkState():
-            self.show_rois(active_tSeries)
+            if self.show_all_checkbox.checkState():
+                self.show_all_checkbox.setChecked(False)
+                self.show_all_checkbox.setChecked(True)
+            else:
+                active_tSeries.transform_rois(active_tSeries)
+                self.show_rois(active_tSeries)
         self.plot.replot()
 
     def edit_label(self):
@@ -1264,9 +1329,13 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             """
             returns boolean valued on whether roi1 intersects roi2
             """
-            for p1 in roi1.polygons:
-                for p2 in roi2.polygons:
-                    debug_trace()
+            for p1 in roi1:
+                for p2 in roi2:
+                    if np.array(p1.exterior.coords)[0, 2] == \
+                            np.array(p2.exterior.coords)[0, 2]:
+                        if p1.intersects(p2):
+                            return True
+            return False
 
         if not self.show_all_checkbox.isChecked():
             self.show_all_checkbox.setChecked(True)
@@ -1302,23 +1371,40 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 name = roi.label
                 if name is None or name not in roi_names[tSeries]:
                     rois[tSeries].append([roi])
+                    points = roi.get_points()
+                    z = np.empty((len(points), 1))
+                    z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries].append(
-                        [Polygon(roi.get_points().tolist())])
+                        [Polygon(np.hstack((points, z)))])
                     roi_names[tSeries].append(name)
                 else:
                     idx = roi_names[tSeries].index(name)
                     rois[tSeries][idx].append(roi)
+                    points = roi.get_points()
+                    z = np.empty((len(points), 1))
+                    z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries][idx].append(
-                        Polygon(roi.get_points().tolist()))
+                        Polygon(np.hstack((points, z))))
 
+        # Cast each ROI as a MultiPolygon (one per name.  Note that each Multi-
+        # Polygon might be comprised of Polygons with different z-coordinates)
         for tSeries in tSeries_list:
             for roi_idx, roi in enumerate(roi_polygons[tSeries]):
                 roi_polygons[tSeries][roi_idx] = MultiPolygon(roi)
-                if not roi_polygons[tSeries][roi_idx].is_valid:
-                    roi_polygons[tSeries][roi_idx] = mask2poly(
-                        poly2mask([np.array(poly.exterior.coords).tolist() for
-                                   poly in roi_polygons[tSeries][roi_idx]],
-                                  im_size=self.base_im.data.shape))
+
+                # TODO: I think the next block can all be moved up to the jaccard
+                # Note that this currently doesn't actually modify the ROIs, it just
+                # prepares them for the union and intersection calculations...so if they were
+                # invalid before this, they'll still be invalid.
+                # if not roi_polygons[tSeries][roi_idx].is_valid:
+                #     # This might happen when you have overlapping ROIs in the same plane?  Or different planes??
+                #     # Need to do a validity check on each plane separately...doesn't work for non-overlapping polys in different planes
+                #     # Perhaps this could just be done in the Jaccard function!
+                #     debug_trace()
+                #     roi_polygons[tSeries][roi_idx] = mask2poly(
+                #         poly2mask([np.array(poly.exterior.coords).tolist() for
+                #                    poly in roi_polygons[tSeries][roi_idx]],
+                #                   im_size=self.base_im.data.shape))
 
         condensed_distance_matrix = []
         for setIdx, tSeries in enumerate(tSeries_list):
@@ -1327,8 +1413,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     condensed_distance_matrix.append(0.)
                 for tSeries2 in tSeries_list[setIdx + 1:]:
                     for roi2 in roi_polygons[tSeries2]:
-                        #TODO: MAKE SURE THIS WORKS FOR 3D
-                        if roi1.intersects(roi2):
+                        if intersects(roi1, roi2):
                             condensed_distance_matrix.append(
                                 jaccard_index(roi1, roi2))
                         else:
@@ -1530,8 +1615,9 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
-            data = transform_array(data, self.transform(self),
-                                   final_shape=self.transform_shape[::-1])
+            data = transform_array(
+                data, self.transform(self)[self.active_plane],
+                final_shape=self.transform_shape[::-1])
 
         self.parent.base_im = make.image(data=data, title='Base image',
                                          colormap='gray',
@@ -1582,8 +1668,9 @@ class UI_tSeries(QListWidgetItem):
             else:
                 transform = self.transform(target_tSeries)
                 for polygon in self.roi_list:
+                    z = int(polygon.coords[0][0, 2])
                     orig_verts = polygon.coords[0][:, :2]
-                    new_verts = [np.dot(transform, np.hstack([vert, 1]))
+                    new_verts = [np.dot(transform[z], np.hstack([vert, 1]))
                                  for vert in orig_verts]
                     polygon.set_points(new_verts)
 
@@ -1603,8 +1690,7 @@ class UI_tSeries(QListWidgetItem):
         """
 
         if target_tSeries not in self.transforms:
-            self.transforms[target_tSeries] = {}
-        if self.active_plane not in self.transforms[target_tSeries]:
+
             target_active_channel = \
                 target_tSeries.dataset.channel_names.index(
                     target_tSeries.active_channel)
@@ -1612,25 +1698,27 @@ class UI_tSeries(QListWidgetItem):
             ref_active_channel = self.dataset.channel_names.index(
                 self.active_channel)
 
-            target = _processed_image_ca1pc(
-                target_tSeries.dataset, channel_idx=target_active_channel,
-                x_diameter=14, y_diameter=7)[self.active_plane]
-            ref = _processed_image_ca1pc(
-                self.dataset, channel_idx=ref_active_channel,
-                x_diameter=14, y_diameter=7)[self.active_plane]
+            self.transforms[target_tSeries] = []
+            for plane in xrange(self.num_planes):
+                target = _processed_image_ca1pc(
+                    target_tSeries.dataset, channel_idx=target_active_channel,
+                    x_diameter=14, y_diameter=7)[plane]
+                ref = _processed_image_ca1pc(
+                    self.dataset, channel_idx=ref_active_channel,
+                    x_diameter=14, y_diameter=7)[plane]
 
-            slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
-                           for i in range(2))
+                slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
+                               for i in range(2))
 
-            transform = cv2.estimateRigidTransform(
-                sima.misc.to8bit(ref[slice_]),
-                sima.misc.to8bit(target[slice_]), True)
-            if transform is None:
-                raise TransformError()
-            transform[:, 2] += tuple(target_tSeries.shape[::-1])
-            self.transforms[target_tSeries][self.active_plane] = transform
-
-        return self.transforms[target_tSeries][self.active_plane]
+                transform = cv2.estimateRigidTransform(
+                    sima.misc.to8bit(ref[slice_]),
+                    sima.misc.to8bit(target[slice_]), True)
+                if transform is None:
+                    raise TransformError()
+                transform[:, 2] += tuple(target_tSeries.shape[::-1])
+                self.transforms[target_tSeries].append(transform)
+        #index the result by plane
+        return self.transforms[target_tSeries]
 
     def initialize_rois(self):
         """Load the ROIs and store the original vertices as an
