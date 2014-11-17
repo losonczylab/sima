@@ -700,7 +700,6 @@ def _beam_search(imdata, positions, transitions, references, state_table,
             # If none of the observation probabilities are finite,
             # then use states from the previous timestep.
             warnings.warn('No finite observation probabilities.')
-            raise Exception('No finite observation probabilities.')
             states.append(states[-1])
             backpointer.append(np.arange(num_retained))
     end_state_idx = np.argmax(log_p_old)
