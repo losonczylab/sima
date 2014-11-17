@@ -1804,8 +1804,36 @@ class UI_tSeries(QListWidgetItem):
                     if item in keep_list:
                         new_keep_list.append(item)
             elif isinstance(item, PolygonShape):
-                new_roi = UI_ROI.convert_polygon(
-                    parent=self, polygon=item)
+                if item.__class__ == EllipseShape:
+                    center = item.get_center()
+                    p = item.get_points()
+                    radius = np.amax((np.linalg.norm(p[1] - p[0]),
+                                      np.linalg.norm(p[1] - p[2]),
+                                      np.linalg.norm(p[1] - p[3]))) / 2
+
+                    mask = np.zeros(self.parent.base_im.data.shape, dtype=bool)
+                    for x in np.arange(
+                            np.floor(center[0] - radius),
+                            np.ceil(center[0] + radius)):
+                        for y in np.arange(
+                                np.floor(center[1] - radius),
+                                np.ceil(center[1] + radius)):
+
+                            d = np.linalg.norm(
+                                np.array((x, y)) - np.array(center))
+
+                            if d < radius:
+                                mask[y, x] = True
+
+                    poly = mask2poly(mask)
+
+                    points = np.array(poly[0].exterior.coords)[:, :2]
+                    new_roi = UI_ROI(self, points)
+                    self.parent.plot.del_item(item)
+                    self.parent.plot.add_item(new_roi)
+                else:
+                    new_roi = UI_ROI.convert_polygon(
+                        parent=self, polygon=item)
                 coords = new_roi.coords[0]
                 coords[:, 2] = self.active_plane
                 new_roi.polygons = coords
