@@ -579,7 +579,7 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        method : {'stica', 'normcut', 'ca1pc'}, optional
+        method : sima.segment.SegmentationStrategy
             The method for segmentation. Defaults to normcut.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
