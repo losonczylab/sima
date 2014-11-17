@@ -225,11 +225,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.toggle_button_state(False)
 
         self.toggle_button_state(True)
-        from sima.misc import example_data_3D
-        ts = UI_tSeries(example_data_3D(), self)
-        self.tSeries_list.setCurrentItem(ts)
-        ts = UI_tSeries(example_data_3D(), self)
-        self.tSeries_list.setCurrentItem(ts)
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
