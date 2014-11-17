@@ -1392,20 +1392,6 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             for roi_idx, roi in enumerate(roi_polygons[tSeries]):
                 roi_polygons[tSeries][roi_idx] = MultiPolygon(roi)
 
-                # TODO: I think the next block can all be moved up to the jaccard
-                # Note that this currently doesn't actually modify the ROIs, it just
-                # prepares them for the union and intersection calculations...so if they were
-                # invalid before this, they'll still be invalid.
-                # if not roi_polygons[tSeries][roi_idx].is_valid:
-                #     # This might happen when you have overlapping ROIs in the same plane?  Or different planes??
-                #     # Need to do a validity check on each plane separately...doesn't work for non-overlapping polys in different planes
-                #     # Perhaps this could just be done in the Jaccard function!
-                #     debug_trace()
-                #     roi_polygons[tSeries][roi_idx] = mask2poly(
-                #         poly2mask([np.array(poly.exterior.coords).tolist() for
-                #                    poly in roi_polygons[tSeries][roi_idx]],
-                #                   im_size=self.base_im.data.shape))
-
         condensed_distance_matrix = []
         for setIdx, tSeries in enumerate(tSeries_list):
             for roi1_idx, roi1 in enumerate(roi_polygons[tSeries]):
