@@ -629,13 +629,13 @@ class _MotionCorrectedSequence(_WrapperSequence):
     This object has the same attributes and methods as the class it wraps."""
     # TODO: check clipping and output frame size
 
-    def __init__(self, base, displacements, extent):
+    def __init__(self, base, displacements, extent=None):
         super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
         if extent is None:
             max_disp = np.max(
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-            extent = np.array(base.sequences[0].shape)[1:]
+            extent = np.array(base._sequences[0].shape)[1:-1]
             extent[1:3] += max_disp
         assert len(extent) == 3
         self._frame_shape_zyx = tuple(extent)   # (planes, rows, columns)
@@ -710,6 +710,22 @@ class _MotionCorrectedSequence(_WrapperSequence):
             'displacements': self.displacements,
             'extent': self._frame_shape[:3],
         }
+
+    # Need to define in this class to accommodate argument change in __init__
+    # 'frame_shape' is no longer a required __init__ argument in SIMA v1.
+    @classmethod
+    def _from_dict(cls, d, savedir=None):
+        base_dict = d.pop('base')
+        base_class = base_dict.pop('__class__')
+        base = base_class._from_dict(base_dict, savedir)
+        try:
+            return cls(base, **d)
+        except TypeError:
+            if 'frame_shape' in d:
+                d.pop('frame_shape')
+                return cls(base, **d)
+            else:
+                raise Exception('Error import motion corrected sequence')
 
 
 class _MaskedSequence(_WrapperSequence):
