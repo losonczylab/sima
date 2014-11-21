@@ -1809,7 +1809,8 @@ class UI_tSeries(QListWidgetItem):
                     poly = mask2poly(mask)
 
                     points = np.array(poly[0].exterior.coords)[:, :2]
-                    new_roi = UI_ROI(self, points)
+                    new_roi = UI_ROI(self, points, id=None,
+                                     label=parent.next_label(), tags=None)
                     self.parent.plot.del_item(item)
                     self.parent.plot.add_item(new_roi)
                 else:
