@@ -391,9 +391,8 @@ def shifted_corr(reference, image, displacement):
     im -= nanmean(im.reshape(-1, im.shape[-1]), axis=0)
     im = np.nan_to_num(im)
     assert np.all(np.isfinite(ref)) and np.all(np.isfinite(im))
-    corr = np.mean([np.sum(i * r) / np.sqrt(np.sum(i * i) * np.sum(r * r)) for
+    corr = np.nanmean([np.sum(i * r) / np.sqrt(np.sum(i * i) * np.sum(r * r)) for
                     i, r in zip(np.rollaxis(im, -1), np.rollaxis(ref, -1))])
-    assert np.isfinite(corr)
     return corr
 
 
