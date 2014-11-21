@@ -424,7 +424,7 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
         processed_image = _processed_image_ca1pc(
             dataset, self._params.channel, self._params.x_diameter,
-            self._params.y_diameter)
+            self._params.y_diameter)[0]
         time_avg = processed_image
         std = np.std(time_avg)
         time_avg = np.minimum(time_avg, 2 * std)
@@ -513,7 +513,7 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
 
     def _segment(self, dataset):
         params = self._params
-        affinity = params.affinty_method.calculate(dataset)
+        affinity = params.affinity_method.calculate(dataset)
         shape = dataset.frame_shape[1:3]
         cuts = itercut(affinity, shape, params.cut_max_pen,
                        params.cut_min_size, params.cut_max_size)
@@ -960,7 +960,7 @@ class CA1PCNucleus(PostProcessingStep):
 
     def apply(self, rois, dataset):
         processed_im = _processed_image_ca1pc(
-            dataset, self._channel, self._x_diameter, self._y_diameter)
+            dataset, self._channel, self._x_diameter, self._y_diameter)[0]
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
