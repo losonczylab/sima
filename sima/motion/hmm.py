@@ -6,7 +6,7 @@ except ImportError:  # Python 3.x
     pass
 
 import numpy as np
-from numpy.linalg import det, svd, pinv
+from numpy.linalg import det, svd
 from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
@@ -165,66 +165,6 @@ def _discrete_transition_prob(r, r0, transition_probs, n):
     return p / (n ** 4)
 
 
-def _estimate_movement_model(shifts, num_rows):
-    """Estimate the HMM motion parameters by fitting to an AR(1) model
-
-    .. math:: D_t \sim N(A D_{t-1}, C)
-
-    Parameters
-    ----------
-    shifts : list of array
-        The estimated displacement of each frame.  Size: (2, T).
-    num_rows : int
-        The number of rows in each image frame.
-
-    Returns
-    -------
-    cov_matrix : array
-        Estimated covariance matrix for the
-    decay_matrix : array
-
-    log_transition_matrix : array
-        The log transition probabilities for nearest neighbor discrete jumps.
-    """
-    shifts = np.array(list(it.chain(*it.chain(*shifts))))
-    assert shifts.shape[1] == 2
-    diffs = np.diff(shifts, axis=0)
-    num_frames = len(shifts)
-    cov_matrix = np.cov(diffs[np.isfinite(diffs).all(axis=1)].T) / num_rows
-    # don't allow singular covariance matrix
-    for i in range(len(cov_matrix)):
-        cov_matrix[i, i] = max(cov_matrix[i, i], 1. / (num_frames * num_rows))
-    assert det(cov_matrix) > 0
-
-    mean_shift = np.nanmean(shifts, axis=0)
-    assert len(mean_shift) == 2
-    centered_shifts = np.nan_to_num(shifts - mean_shift)
-    # fit to autoregressive AR(1) model
-    A = np.dot(pinv(centered_shifts[:-1]), centered_shifts[1:])
-    # symmetrize A, assume independent motion on orthogonal axes
-    A = 0.5 * (A + A.T)
-    U, s, _ = svd(A)  # U == V for positive definite A
-    s **= 1. / num_rows
-    decay_matrix = np.dot(U, np.dot(np.diag(s), U))  # take A^(1/num_rows)
-
-    # Gaussian Transition Probabilities
-    transition_probs = lambda x, x0: 1. / np.sqrt(
-        2 * np.pi * det(cov_matrix)) * np.exp(
-        -np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)) / 2.)
-    max_jump_size = 1  # Only allow nearest-neighbor shifts (per line)
-    log_transition_matrix = -np.inf * np.ones([
-        max_jump_size + 1, max_jump_size + 1])
-    for i in range(max_jump_size + 1):
-        for j in range(max_jump_size + 1):
-            log_transition_matrix[i, j] = np.log(
-                _discrete_transition_prob(
-                    np.array([i, j]), np.array([0., 0.]), transition_probs, 8))
-    assert np.all(np.isfinite(cov_matrix)) and \
-        np.all(np.isfinite(decay_matrix)) and \
-        np.all(np.isfinite(log_transition_matrix))
-    return cov_matrix, decay_matrix, log_transition_matrix, mean_shift
-
-
 def _threshold_gradient(im):
     """Indicate pixel locations with gradient below the bottom 10th percentile
 
@@ -304,6 +244,8 @@ def _lookup_tables(position_bounds, log_markov_matrix):
     log_markov_matrix_tbl = []
     for step in it.product(
             *[range(-s + 1, s) for s in log_markov_matrix.shape]):
+        if len(step) is 2:
+            step = (0,) + step
         tmp_tbl = []
         for pos in position_tbl:
             new_position = tuple(pos + np.array(step))
@@ -350,53 +292,47 @@ class Struct:
         self.__dict__.update(entries)
 
 
-class HiddenMarkov2D(MotionEstimationStrategy):
-    """
-    Row-wise hidden Markov model (HMM).
+class _HiddenMarkov(MotionEstimationStrategy):
 
-    Parameters
-    ----------
-    num_states_retained : int, optional
-        Number of states to retain at each time step of the HMM.
-        Defaults to 50.
-    max_displacement : array of int, optional
-        The maximum allowed displacement magnitudes in [y,x]. By
-        default, arbitrarily large displacements are allowed.
-
-    References
-    ----------
-    * Dombeck et al. 2007. Neuron. 56(1): 43-57.
-    * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
-
-    """
-
-    def __init__(self, num_states_retained=50, max_displacement=None,
-                 n_processes=None, verbose=True):
+    def __init__(self, granularity=3, num_states_retained=50,
+                 max_displacement=None, n_processes=None, verbose=True):
 
         d = locals()
         del d['self']
         self._params = Struct(**d)
 
     def _neighbor_viterbi(
-            self, dataset, log_transition_matrix, references, gains,
-            decay_matrix, cov_matrix_est, mean_shift, offset,
+            self, dataset, references, gains, movement_model,
             min_displacements, max_displacements, pixel_means, pixel_variances,
-            num_states_retained, verbose=True):
+            max_step=1):
         """Estimate the MAP trajectory with the Viterbi Algorithm.
 
-        See _MCCycle.neighbor_viterbi for details."""
+        """
+        assert references.ndim == 4
+        granularity = self._params.granularity
+        scaled_refs = references / gains
+        displacement_tbl, transition_tbl, log_markov_tbl, = _lookup_tables(
+            [min_displacements, max_displacements + 1],
+            movement_model.log_transition_matrix(
+                max_distance=max_step,
+                dt=1./np.prod(references.shape[:(granularity-1)])))
+        assert displacement_tbl.dtype == int
+        tmp_states, log_p = movement_model.initial_probs(
+            displacement_tbl, min_displacements, max_displacements)
         displacements = []
-        for i, cycle in enumerate(dataset):
-            if verbose:
+        for i, sequence in enumerate(dataset):
+            if self._params.verbose:
                 print 'Estimating displacements for cycle ', i
-            displacements.append(
-                SolverHMM(cycle).neighbor_viterbi(
-                    log_transition_matrix, references, gains, decay_matrix,
-                    cov_matrix_est, mean_shift, offset, min_displacements,
-                    max_displacements, pixel_means, pixel_variances,
-                    num_states_retained, verbose=verbose
-                )
-            )
+            imdata = NormalizedIterator(sequence, gains, pixel_means,
+                                        pixel_variances, granularity)
+            positions = PositionIterator(sequence.shape[:-1], granularity)
+            disp = _beam_search(
+                imdata, positions,
+                it.repeat((transition_tbl, log_markov_tbl)), scaled_refs,
+                displacement_tbl, (tmp_states, log_p),
+                self._params.num_states_retained)
+            displacements.append(disp.reshape(
+                sequence.shape[:granularity] + (disp.shape[-1],)))
         return displacements
 
     def _estimate(self, dataset):
@@ -418,36 +354,71 @@ class HiddenMarkov2D(MotionEstimationStrategy):
         params = self._params
         if params.verbose:
             print 'Estimating model parameters.'
-        if params.max_displacement is not None:
-            params.max_displacement = np.array(params.max_displacement)
-        else:
-            params.max_displacement = np.array([-1, -1])  # TODO
-
-        shifts = sima.motion.frame_align.PlaneTranslation2D(
-            params.max_displacement, n_processes=params.n_processes
-        ).estimate(dataset)
+        shifts = self._estimate_shifts(dataset)
         references, variances, offset = _whole_frame_shifting(dataset, shifts)
+        if params.max_displacement is None:
+            params.max_displacement = np.array(dataset.frame_shape[:3]) / 2
+        else:
+            params.max_displacement = np.array(params.max_displacement)
+        assert np.all(offset == 0)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
-        assert np.all(np.isfinite(gains)) and np.all(gains > 0)
+        if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
+            raise Exception('Failed to estimate positive gains')
         pixel_means, pixel_variances = _pixel_distribution(dataset)
-        cov_matrix_est, decay_matrix, log_transition_matrix, mean_shift = \
-            _estimate_movement_model(shifts, dataset.frame_shape[1])
+        movement_model = MovementModel.estimate(shifts)
+        if shifts[0].shape[-1] == 2:
+            shifts = [np.concatenate([np.zeros(s.shape[:-1] + (1,), dtype=int),
+                                      s], axis=-1) for s in shifts]
 
-        # add a bit of extra room to move around
+        # TODO: detect unreasonable shifts before doing this calculation
         min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
         max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
+
+        # add a bit of extra room to move around
+        if params.max_displacement.size == 2:
+            params.max_displacement = np.hstack(([0], params.max_displacement))
         extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
                         ).astype(int)
-        extra_buffer[params.max_displacement < 0] = 5
         min_displacements = (min_shifts - extra_buffer)
         max_displacements = (max_shifts + extra_buffer)
 
-        return self._neighbor_viterbi(
-            dataset, log_transition_matrix, references, gains, decay_matrix,
-            cov_matrix_est, mean_shift, offset, min_displacements,
-            max_displacements, pixel_means, pixel_variances,
-            params.num_states_retained, params.verbose)
+        displacements = self._neighbor_viterbi(
+            dataset, references, gains, movement_model, min_displacements,
+            max_displacements, pixel_means, pixel_variances)
+
+        return self._post_process(displacements)
+
+    def _post_process(self, displacements):
+        return displacements
+
+
+class HiddenMarkov2D(_HiddenMarkov):
+    """
+    Row-wise hidden Markov model (HMM).
+
+    Parameters
+    ----------
+    num_states_retained : int, optional
+        Number of states to retain at each time step of the HMM.
+        Defaults to 50.
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [y,x]. By
+        default, arbitrarily large displacements are allowed.
+
+    References
+    ----------
+    * Dombeck et al. 2007. Neuron. 56(1): 43-57.
+    * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
+
+    """
+    def _estimate_shifts(self, dataset):
+        return sima.motion.frame_align.PlaneTranslation2D(
+            self._params.max_displacement,
+            n_processes=self._params.n_processes).estimate(dataset)
+
+    def _post_process(self, displacements):
+        return [d[..., 1:] for d in displacements]
 
 
 class MovementModel(object):
@@ -580,29 +551,36 @@ class MovementModel(object):
         log_transition_probs = lambda x, x0: -0.5 * (
             np.log(2 * np.pi * det(cov_matrix)) +
             np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)))
-        log_transition_matrix = -np.inf * np.ones([max_distance + 1] * 3)
-        for i, j, k in it.product(*([range(max_distance + 1)]*3)):
-            log_transition_matrix[i, j, k] = log_transition_probs(
-                np.array([i, j, k]), np.array([0., 0., 0.]))
+        log_transition_matrix = -np.inf * np.ones(
+            [max_distance + 1] * len(cov_matrix))
+        for disp in it.product(*([range(max_distance + 1)] * len(cov_matrix))):
+            log_transition_matrix[disp] = log_transition_probs(
+                np.array(disp), np.zeros(len(cov_matrix)))
         assert np.all(np.isfinite(log_transition_matrix))
+        if log_transition_matrix.ndim is 2:
+            log_transition_matrix = np.expand_dims(log_transition_matrix, 0)
         return log_transition_matrix
 
     def _initial_distribution(self):
         """Get the initial distribution of the displacements."""
         decay = self.decay_matrix()
         noise_cov = self.cov_matrix()
-        initial_cov = np.linalg.solve(np.diag([1, 1, 1]) - decay * decay.T,
-                                      noise_cov.newbyteorder('>').byteswap())
+        initial_cov = np.linalg.solve(
+            np.diag(np.ones(len(decay))) - decay * decay.T,
+            noise_cov.newbyteorder('>').byteswap())
         for _ in range(1000):
             initial_cov = decay * initial_cov * decay.T + noise_cov
         # don't let C be singular
-        initial_cov[0, 0] = max(initial_cov[0, 0], 0.1)
-        initial_cov[1, 1] = max(initial_cov[1, 1], 0.1)
-        initial_cov[2, 2] = max(initial_cov[2, 2], 0.1)
+        for i in range(len(initial_cov)):
+            initial_cov[i, i] = max(initial_cov[i, i], 0.1)
 
-        f = lambda x:  np.exp(
-            - 0.5 * np.dot(x - self.mean_shift,
-                           np.linalg.solve(initial_cov, x - self.mean_shift))
+        def f(x):
+            if len(x) is 3 and len(initial_cov) is 2:
+                x = x[1:]
+            return np.exp(
+                -0.5 * np.dot(x - self.mean_shift,
+                              np.linalg.solve(initial_cov, x - self.mean_shift)
+                              )
             ) / np.sqrt(2.0 * np.pi * det(initial_cov))
         assert np.isfinite(f(self.mean_shift))
         return f
@@ -625,178 +603,212 @@ class MovementModel(object):
         return np.array(states, dtype='int'), np.array(log_p)
 
 
-class SolverHMM(object):
-
-    """_ImagingCycle sub-classed with motion correction methods.
+class PositionIterator(object):
+    """Position iterator
 
     Parameters
     ----------
-    channels : list of iterable
-        A list of iterable objects, one for each channel.
-        Each iterable should yield 2D numpy arrays.
+    shape : tuple of int
+        (times, planes, rows, columns)
 
-    Attributes
-    ----------
-    num_frames, num_channels, num_rows, num_columns : int
+    Examples
+    --------
+
+    >>> from sima.motion.hmm import PositionIterator
+    >>> pi = PositionIterator((100, 5, 128, 256), 'frame')
+    >>> positions = next(iter(pi))
+
+    >>> pi = PositionIterator((100, 5, 128, 256), 'plane')
+    >>> positions = next(iter(pi))
+
+    >>> pi = PositionIterator((100, 5, 128, 256), 'row', [10, 12])
+    >>> positions = next(iter(pi))
+
+    >>> pi = PositionIterator((100, 5, 128, 256), 'column', [3, 10, 12])
+    >>> positions = next(iter(pi))
+
     """
 
-    def __init__(self, sequence):
+    def __init__(self, shape, granularity, offset=None):
+        try:
+            self.granularity = int(granularity)
+        except ValueError:
+            self.granularity = {'frame': 1,
+                                'plane': 2,
+                                'row': 3,
+                                'column': 4}[granularity]
+        self.shape = shape
+        if offset is None:
+            self.offset = [0, 0, 0, 0]
+        else:
+            self.offset = ([0, 0, 0, 0] + list(offset))[-4:]
+
+    def __iter__(self):
+        for base in it.product(*[range(o, x + o) for x, o in
+                                 zip(self.shape[:self.granularity],
+                                     self.offset[:self.granularity])]):
+            l = [[x] for x in base[1:]] + [
+                xrange(x) for x in self.shape[self.granularity:]]
+            yield np.concatenate(
+                [a.reshape(-1, 1) for a in np.meshgrid(*l)],
+                axis=1)
+
+
+def _beam_search(imdata, positions, transitions, references, state_table,
+                 initial_dist, num_retained=50):
+    """Perform a beam search (modified Viterbi algorithm).
+
+    Parameters
+    ----------
+    imdata : iterator of ndarray
+        The imaging data for each time step.
+    positions : iterator
+        The acquisition positions (e.g. position of scan-head) corresponding
+        to the imdata.
+    transitions : iterator of tuple ()
+    references : ndarray
+    state_table : ndarray
+    initial_dist : tuple
+    num_retained : int
+
+    """
+    if state_table.shape[1] is not 3:
+        raise ValueError
+    log_references = np.log(references)
+    backpointer = []
+    states = []
+    states.append(initial_dist[0])
+    log_p_old = initial_dist[1]
+    assert np.any(np.isfinite(log_p_old))
+    for data, pos, trans in zip(imdata, positions, transitions):
+        transition_table, log_transition_probs = trans
+        tmp_states, log_p, tmp_backpointer = mc.transitions(
+            states[-1], log_transition_probs, log_p_old, state_table,
+            transition_table)
+        obs, log_obs_fac, log_obs_p = data
+        assert len(obs) == len(pos)
+        mc.log_observation_probabilities_generalized(
+            log_p, tmp_states, obs, log_obs_p, log_obs_fac,
+            references, log_references, pos, state_table)
+        if np.any(np.isfinite(log_p)):
+            log_p[np.isnan(log_p)] = -np.Inf  # Remove nans to sort.
+            ix = np.argsort(-log_p)[0:num_retained]  # Keep likely states.
+            states.append(tmp_states[ix])
+            log_p_old = log_p[ix] - log_p[ix[0]]
+            backpointer.append(tmp_backpointer[ix])
+        else:
+            # If none of the observation probabilities are finite,
+            # then use states from the previous timestep.
+            warnings.warn('No finite observation probabilities.')
+            states.append(states[-1])
+            backpointer.append(np.arange(num_retained))
+    end_state_idx = np.argmax(log_p_old)
+    return _backtrace(end_state_idx, backpointer[1:], states[1:], state_table)
+
+
+class HiddenMarkov3D(_HiddenMarkov):
+    """
+    Row-wise hidden Markov model (HMM).
+
+    Parameters
+    ----------
+    num_states_retained : int, optional
+        Number of states to retain at each time step of the HMM.
+        Defaults to 50.
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [y,x]. By
+        default, arbitrarily large displacements are allowed.
+
+    References
+    ----------
+    * Dombeck et al. 2007. Neuron. 56(1): 43-57.
+    * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
+
+    """
+    def _estimate_shifts(self, dataset):
+        return sima.motion.frame_align.VolumeTranslation(
+            self._params.max_displacement).estimate(dataset)
+
+
+class NormalizedIterator(object):
+    """Generator of preprocessed frames for efficient computation.
+
+    Parameters
+    ----------
+    sequence : sima.Sequence
+    gains : array
+        The photon-to-intensity gains for each channel.
+    pixel_means : array
+        The mean pixel intensities for each channel.
+    pixel_variances : array
+        The pixel intensity variance for each channel.
+
+    Yields
+    ------
+    im : list of array
+        The estimated photon counts for each channel.
+    log_im_fac : list of array
+        The logarithm of the factorial of the photon counts in im.
+    log_im_p: list of array
+        The log likelihood of observing each pixel intensity (without
+        spatial information).
+
+    Examples
+    --------
+
+    Plane-wise iteration
+
+    >>> from sima.motion.hmm import NormalizedIterator
+    >>> it = NormalizedIterator(
+    ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
+    ...         np.ones(2), 'plane')
+    >>> next(iter(it))[0].shape
+    (30, 2)
+
+    Row-wise iteration:
+
+    >>> it = NormalizedIterator(
+    ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
+    ...         np.ones(2), 'row')
+    >>> next(iter(it))[0].shape
+    (5, 2)
+
+    """
+    def __init__(self, sequence, gains, pixel_means, pixel_variances,
+                 granularity):
         self.sequence = sequence
+        self.gains = gains
+        self.pixel_means = pixel_means
+        self.pixel_variances = pixel_variances
+        try:
+            self.granularity = int(granularity)
+        except ValueError:
+            self.granularity = {'frame': 1,
+                                'plane': 2,
+                                'row': 3,
+                                'column': 4}[granularity]
 
-    def _iter_processed(self, gains, pixel_means, pixel_variances):
-        """Generator of preprocessed frames for efficient computation.
-
-        Parameters
-        ----------
-        gains : array
-            The photon-to-intensity gains for each channel.
-        pixel_means : array
-            The mean pixel intensities for each channel.
-        pixel_variances : array
-            The pixel intensity variance for each channel.
-
-        Yields
-        ------
-        im : list of array
-            The estimated photon counts for each channel.
-        log_im_fac : list of array
-            The logarithm of the factorial of the photon counts in im.
-        log_im_p: list of array
-            The log likelihood of observing each pixel intensity (without
-            spatial information).
-        """
-        means = pixel_means / gains
-        variances = pixel_variances / gains ** 2
+    def __iter__(self):
+        means = self.pixel_means / self.gains
+        variances = self.pixel_variances / self.gains ** 2
         for frame in self.sequence:
-            im = frame / gains
-            # replace NaN pixels with the mean value
-            for ch_idx, ch_mean in enumerate(means):
-                im_nans = np.isnan(im[..., ch_idx])
-                im[..., ch_idx][im_nans] = ch_mean
-            assert(np.all(np.isfinite(im)))
-            # take the log of the factorial of each pixel
-            log_im_fac = gammaln(im + 1)
-            # probability of observing the pixels (ignoring reference)
-            log_im_p = -(im - means) ** 2 / (2 * variances) \
-                - 0.5 * np.log(2. * np.pi * variances)
-            # inf_indices = np.logical_not(np.isfinite(log_im_fac))
-            # log_im_fac[inf_indices] = im[inf_indices] * (
-            #     np.log(im[inf_indices]) - 1)
-            assert(np.all(np.isfinite(log_im_fac)))
-            assert(np.all(np.isfinite(log_im_p)))
-            yield im, log_im_fac, log_im_p
-
-    def neighbor_viterbi(
-            self, log_markov_matrix, references, gains, mov_decay, mov_cov,
-            mean_shift, offset, min_displacements, max_displacements,
-            pixel_means, pixel_variances, num_retained, verbose=False):
-        """Apply Viterbi algorithm to estimate the MAP displacement trajectory.
-
-        Parameters
-        ----------
-        log_markov_matrix : array
-            The log transition probabilities.
-        references : array
-            Time average of each channel after frame-by-frame alignment.
-            Shape: (num_channels, num_rows, num_columns)
-        gains : array
-            The photon-to-intensity gains for each channel.
-        mov_decay : array
-            The per-line decay-term in the AR(1) motion model
-        mov_cov : array
-            The per-line covariance-term in the AR(1) motion model
-        mean_shift: the mean of the whole-frame displacement estimates
-        offset : array
-            The displacement to add to each shift to align the minimal shift
-            with the edge of the corrected image.
-        min_displacements : array
-            The minimum allowable displacement
-        max_displacements : array
-            The maximum allowable position.
-        pixel_means : array
-            The mean pixel intensity for each channel.
-        pixel_variances : array
-            The pixel intensity variance for each channel.
-        num_retained : int
-            The number of states to retain at each time step of the Viterbi
-            algorithm.
-        verbose : bool, optional
-            Whether to print progress. Defaults to True.
-
-        Returns
-        -------
-        array
-            The maximum aposteriori displacement trajectory.  Shape: (2, T).
-        """
-        offset = np.array(offset, dtype=int)  # type verification
-        T = np.prod(self.sequence.shape[:3])  # determine number of timesteps
-        backpointer = []
-        states = []
-
-        # store outputs of various functions applied to the reference images
-        # for later use
-        assert references.ndim == 4
-        scaled_refs = references / gains
-        log_scaled_refs = np.log(scaled_refs)
-        position_tbl, transition_tbl, log_markov_matrix_tbl = _lookup_tables(
-            [min_displacements, max_displacements + 1], log_markov_matrix)
-        slice_tbls = [
-            mc.slice_lookup(r, position_tbl, self.sequence.shape[3], offset)
-            for r in references]
-        initial_dist = _initial_distribution(mov_decay, mov_cov, mean_shift)
-        iter_processed = iter(self._iter_processed(gains, pixel_means,
-                                                   pixel_variances))
-
-        def initial_probs():
-            tmp_states = []
-            log_p = []
-            for index, position in enumerate(position_tbl):  # TODO parallelize
-                # check that the displacement is allowable
-                if np.all(min_displacements <= position) and np.all(
-                        position <= max_displacements):
-                    tmp_states.append(index)
-                    # probability of initial displacement
-                    log_p.append(np.log(initial_dist(position)))
-            return np.array(tmp_states, dtype='int'), np.array(log_p)
-
-        t = 0
-        log_p_old = None  # for flaking purposes; does nothing
-        for frame in iter_processed:
-            for (plane, log_plane_fac, log_plane_p, plane_ref, log_plane_ref,
-                 stbl) in zip(
-                    *(frame + (scaled_refs, log_scaled_refs, slice_tbls))):
-                for row_idx, row in enumerate(plane):
-                    if t == 0:
-                        tmp_states, log_p = initial_probs()
-                    else:
-                        tmp_states, log_p, tmp_backpointer = mc.transitions(
-                            states[-1], log_markov_matrix_tbl, log_p_old,
-                            position_tbl, transition_tbl)
-                    mc.log_observation_probabilities(
-                        log_p, tmp_states, plane, log_plane_p,
-                        log_plane_fac, plane_ref, log_plane_ref, row_idx,
-                        stbl, position_tbl, offset, references[0].shape[0])
-                    if np.any(np.isfinite(log_p)):
-                        # Remove nans to sort.
-                        log_p[np.isnan(log_p)] = -np.Inf
-                        # Keep only num_retained most likely states.
-                        ix = np.argsort(-log_p)[0:num_retained]
-                        states.append(tmp_states[ix])
-                        log_p_old = log_p[ix] - log_p[ix[0]]
-                        if t > 0:
-                            backpointer.append(tmp_backpointer[ix])
-                    else:
-                        # If none of the observation probabilities are finite,
-                        # then use states from the previous timestep.
-                        states.append(states[-1])
-                        backpointer.append(np.arange(num_retained))
-                        warnings.warn('No finite observation probabilities.')
-                    if verbose and (t * 10) % T < 10:
-                        print t * 100 / T, '% done'  # report progress
-                    t += 1
-
-        assert position_tbl.dtype == int
-        displacements = _backtrace(np.argmax(log_p_old), backpointer, states,
-                                   position_tbl)
-        assert displacements.dtype == int
-        return displacements.reshape(self.sequence.shape[:3] + (2,))
+            frame = frame.reshape(
+                int(np.prod(frame.shape[:(self.granularity-1)])),
+                -1, frame.shape[-1])
+            for chunk in frame:
+                im = chunk / self.gains
+                # replace NaN pixels with the mean value for the channel
+                for ch_idx, ch_mean in enumerate(means):
+                    im_nans = np.isnan(im[..., ch_idx])
+                    im[..., ch_idx][im_nans] = ch_mean
+                assert(np.all(np.isfinite(im)))
+                log_im_fac = gammaln(im + 1)  # take the log of the factorial
+                # probability of observing the pixels (ignoring reference)
+                log_im_p = -(im - means) ** 2 / (2 * variances) \
+                    - 0.5 * np.log(2. * np.pi * variances)
+                # inf_indices = np.logical_not(np.isfinite(log_im_fac))
+                # log_im_fac[inf_indices] = im[inf_indices] * (
+                #     np.log(im[inf_indices]) - 1)
+                assert(np.all(np.isfinite(log_im_fac)))
+                assert(np.all(np.isfinite(log_im_p)))
+                yield im, log_im_fac, log_im_p

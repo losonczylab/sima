@@ -188,6 +188,16 @@ class Sequence(object):
     def join(sequences):
         """Join together sequences representing different channels.
 
+        Parameters
+        ----------
+        sequences : list of Sequence
+            The sequences that are to be joined together.
+
+        Returns
+        -------
+        sequence : Sequence
+            A single sequence with multiple channels.
+
         Examples
         --------
 
@@ -619,13 +629,13 @@ class _MotionCorrectedSequence(_WrapperSequence):
     This object has the same attributes and methods as the class it wraps."""
     # TODO: check clipping and output frame size
 
-    def __init__(self, base, displacements, extent):
+    def __init__(self, base, displacements, extent=None):
         super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
         if extent is None:
             max_disp = np.max(
                 list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
-            extent = np.array(base.sequences[0].shape)[1:]
+            extent = np.array(base._sequences[0].shape)[1:-1]
             extent[1:3] += max_disp
         assert len(extent) == 3
         self._frame_shape_zyx = tuple(extent)   # (planes, rows, columns)
