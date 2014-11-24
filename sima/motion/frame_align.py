@@ -345,7 +345,10 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
         default, arbitrarily large displacements are allowed.
     """
 
-    def __init__(self, max_displacement=None):
+    def __init__(self, max_displacement=None, criterion=None):
+        if not (criterion is None or
+                isinstance(criterion, (int, long, float))):
+            raise ValueError('Criterion must be a number')
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -356,9 +359,11 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
         counts = np.zeros_like(reference)
         offset = np.zeros(3, dtype=int)
         displacements = []
+        correlations = []
         disp_range = np.array([[0, 0, 0], [0, 0, 0]])
         for sequence in dataset:
             seq_displacements = []
+            seq_correlations = []
             for frame in sequence:
                 if self._params.max_displacement is not None:
                     bounds = np.array([
@@ -370,20 +375,44 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
                             disp_range[1])]) + offset
                 else:
                     bounds = None
-                seq_displacements.append(
-                    pyramid_align(reference, frame, bounds=bounds) - offset)
-                disp_range[0] = np.minimum(disp_range[0],
-                                           seq_displacements[-1])
-                disp_range[1] = np.maximum(disp_range[1],
-                                           seq_displacements[-1])
+                displacement = pyramid_align(
+                    reference, frame, bounds=bounds) - offset
+                seq_displacements.append(displacement)
+                disp_range[0] = np.minimum(disp_range[0], displacement)
+                disp_range[1] = np.maximum(disp_range[1], displacement)
                 sums, counts, offset = _update_reference(
-                    sums, counts, offset, seq_displacements[-1], frame)
+                    sums, counts, offset, displacement, frame)
+                if self._params.criterion is not None:
+                    seq_correlations.append(
+                        shifted_corr(reference, frame, offset + displacement))
                 reference = sums / counts
             displacements.append(np.array(seq_displacements))
+            correlations.append(np.array(seq_correlations))
+        if self._params.criterion is not None:
+            threshold = correlations.mean() - \
+                self._params.criterion * np.std(correlations)
+            for seq_idx, seq_correlations in enumerate(correlations):
+                if np.any(seq_correlations < threshold):
+                    displacements[seq_idx] = np.ma.array(
+                        displacements[seq_idx],
+                        mask=(seq_displacements < threshold))
         return displacements
 
 
 def shifted_corr(reference, image, displacement):
+    """Calculate the correlation between the reference and the image shifted
+    by the given displacement.
+
+    Parameters
+    ----------
+    reference : np.ndarray
+    image : np.ndarray
+    displacement : np.ndarray
+
+    Returns
+    -------
+    correlation : float
+    """
     ref_cuts = np.maximum(0, displacement)
     ref = reference[ref_cuts[0]:, ref_cuts[1]:, ref_cuts[2]:]
     im_cuts = np.maximum(0, -displacement)
