@@ -728,7 +728,7 @@ class HiddenMarkov3D(_HiddenMarkov):
     """
     def _estimate_shifts(self, dataset):
         return sima.motion.frame_align.VolumeTranslation(
-            self._params.max_displacement).estimate(dataset)
+            self._params.max_displacement, criterion=2.5).estimate(dataset)
 
 
 class NormalizedIterator(object):
