@@ -5,7 +5,7 @@ import itertools as it
 import os
 import errno
 import csv
-from os.path import dirname, join, relpath, abspath
+from os.path import dirname, join, abspath
 import cPickle as pickle
 from distutils.version import StrictVersion
 from distutils.util import strtobool
@@ -256,37 +256,12 @@ class ImagingDataset(object):
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
-        def set_paths(d):
-            try:
-                p = d.pop('path')
-            except KeyError:
-                pass
-            else:
-                d['_abspath'] = abspath(p)
-                d['_relpath'] = relpath(p, savedir)
-
-        def pack(sequence):
-            try:
-                d = sequence._todict()
-            # TODO: is this necessary?
-            except AttributeError:
-                return sequence
-            else:
-                set_paths(d)
-                d['__class__'] = sequence.__class__
-                return d
-
-        sequences = [sequence._todict() for sequence in self]
-        d = {
-            'sequences': sequences,
-            'savedir': abspath(self.savedir),
-            'channel_names': self.channel_names,
-            'num_frames': self.num_frames,
-            '__version__': sima.__version__
-        }
-        if hasattr(self, '_lazy__trim_coords'):
-            d['_lazy__trim_coords'] = self._trim_coords
-        return d
+        sequences = [sequence._todict(savedir) for sequence in self]
+        return {'sequences': sequences,
+                'savedir': abspath(self.savedir),
+                'channel_names': self.channel_names,
+                'num_frames': self.num_frames,
+                '__version__': sima.__version__}
 
     def add_ROIs(self, ROIs, label=None):
         """Add a set of ROIs to the ImagingDataset.
