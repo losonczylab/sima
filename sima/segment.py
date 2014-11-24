@@ -110,7 +110,7 @@ class PlaneWiseSegmentationStrategy(SegmentationStrategy):
             old_mask = roi.mask
             return ROI(
                 mask=[sparse.lil_matrix(old_mask[0].shape, old_mask[0].dtype)
-                      for _ in range(z-1)] + [old_mask[0]])
+                      for _ in range(z - 1)] + [old_mask[0]])
 
         rois = ROIList([])
         for plane in range(dataset.frame_shape[0]):
@@ -226,11 +226,14 @@ def _processed_image_ca1pc(dataset, channel_idx=-1, x_diameter=10,
                            y_diameter=10):
     """Create a processed image for identifying CA1 pyramidal cell ROIs."""
     unsharp_mask_mask_weight = 0.5
-    im = dataset.time_averages[0][..., channel_idx]
-    return _unsharp_mask(_clahe(im, x_diameter, y_diameter),
-                         unsharp_mask_mask_weight,
-                         1 + unsharp_mask_mask_weight,
-                         x_diameter, y_diameter)
+    im = dataset.time_averages[..., channel_idx]
+    result = []
+    for plane_idx in np.arange(dataset.frame_shape[0]):
+        result.append(_unsharp_mask(
+            _clahe(im[plane_idx], x_diameter, y_diameter),
+            unsharp_mask_mask_weight, 1 + unsharp_mask_mask_weight,
+            x_diameter, y_diameter))
+    return np.array(result)
 
 
 def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):
@@ -396,7 +399,7 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
                     yrange = range(-max_dist[0], max_dist[0] + 1)
                 for dy in yrange:
                     r0 = (y, x)
-                    r1 = (y+dy, x+dx)
+                    r1 = (y + dy, x + dx)
                     if (x + dx < shape[1]) and (y + dy >= 0) and \
                             (y + dy < shape[0]):
                         w = self._weight(r0, r1)
@@ -421,7 +424,7 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
         processed_image = _processed_image_ca1pc(
             dataset, self._params.channel, self._params.x_diameter,
-            self._params.y_diameter)
+            self._params.y_diameter)[0]
         time_avg = processed_image
         std = np.std(time_avg)
         time_avg = np.minimum(time_avg, 2 * std)
@@ -476,11 +479,11 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
 
     """
-    def __init__(self, affinty_method=None, cut_max_pen=0.01,
+    def __init__(self, affinity_method=None, cut_max_pen=0.01,
                  cut_min_size=40, cut_max_size=200):
         super(PlaneNormalizedCuts, self).__init__()
-        if affinty_method is None:
-            affinty_method = BasicAffinityMatrix(channel=0, num_pcs=75)
+        if affinity_method is None:
+            affinity_method = BasicAffinityMatrix(channel=0, num_pcs=75)
         d = locals()
         d.pop('self')
         self._params = Struct(**d)
@@ -510,7 +513,7 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
 
     def _segment(self, dataset):
         params = self._params
-        affinity = params.affinty_method.calculate(dataset)
+        affinity = params.affinity_method.calculate(dataset)
         shape = dataset.frame_shape[1:3]
         cuts = itercut(affinity, shape, params.cut_max_pen,
                        params.cut_min_size, params.cut_max_size)
@@ -635,15 +638,16 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 
     # preprocess the PCA data
     for i in range(space_pcs.shape[2]):
-        space_pcs[:, :, i] = mu*(space_pcs[:, :, i] -
-                                 nanmean(space_pcs[:, :, i]))/np.max(space_pcs)
+        space_pcs[:, :, i] = mu * \
+            (space_pcs[:, :, i] -
+             nanmean(space_pcs[:, :, i])) / np.max(space_pcs)
     for i in range(time_pcs.shape[1]):
-        time_pcs[:, i] = (1-mu)*(time_pcs[:, i]-nanmean(time_pcs[:, i])) / \
-            np.max(time_pcs)
+        time_pcs[:, i] = (1 - mu) * \
+            (time_pcs[:, i] - nanmean(time_pcs[:, i])) / np.max(time_pcs)
 
     # concatenate the space and time PCs
     y = np.concatenate((space_pcs.reshape(
-        space_pcs.shape[0]*space_pcs.shape[1],
+        space_pcs.shape[0] * space_pcs.shape[1],
         space_pcs.shape[2]), time_pcs))
 
     # execute the FastICA algorithm
@@ -652,7 +656,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 
     # pull out the spacial portion of the st_components
     st_components = \
-        st_components[:(space_pcs.shape[0]*space_pcs.shape[1]), :]
+        st_components[:(space_pcs.shape[0] * space_pcs.shape[1]), :]
     st_components = st_components.reshape(space_pcs.shape[0],
                                           space_pcs.shape[1],
                                           st_components.shape[1])
@@ -660,8 +664,8 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     # normalize the ica results
     for i in range(st_components.shape[2]):
         st_component = st_components[:, :, i]
-        st_component = abs(st_component-np.mean(st_component))
-        st_component = st_component/np.max(st_component)
+        st_component = abs(st_component - np.mean(st_component))
+        st_component = st_component / np.max(st_component)
         st_components[:, :, i] = st_component
 
     # save the ica components if a path has been provided
@@ -706,33 +710,33 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
 
         # copy the component, remove pixels with low weights
         frame = st_components[:, :, i].copy()
-        frame[frame < 2*np.std(frame)] = 0
+        frame[frame < 2 * np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
         for n in xrange(x_smoothing):
-            check = frame[1:-1, :-2]+frame[1:-1, 2:]+frame[:-2, 1:-1] + \
+            check = frame[1:-1, :-2] + frame[1:-1, 2:] + frame[:-2, 1:-1] + \
                 frame[2, 1:-1]
             z = np.zeros(frame.shape)
             z[1:-1, 1:-1] = check
             frame[np.logical_not(z)] = 0
 
             blurred = ndimage.gaussian_filter(frame, sigma=1)
-            frame = blurred+frame
+            frame = blurred + frame
 
-            frame = frame/np.max(frame)
-            frame[frame < 2*np.std(frame)] = 0
+            frame = frame / np.max(frame)
+            frame[frame < 2 * np.std(frame)] = 0
 
         # calculate the remaining static in the component
-        static = np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 1:-1])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 1:-1])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, :-2])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[1:-1, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[2:, :-2])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1]-frame[:-2, :-2]))
+        static = np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 1:-1])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 2:])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, :-2])) + \
+            np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, :-2]))
 
-        static = static*2.0/(frame.shape[0]*frame.shape[1])
+        static = static * 2.0 / (frame.shape[0] * frame.shape[1])
 
         # decide if the component should be accepted or rejected
         if np.sum(static) < threshold:
@@ -771,7 +775,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
         component_mask = np.zeros(img.shape, 'bool')
 
         for i in xrange(seg_count):
-            segment = np.where(img == i+1)
+            segment = np.where(img == i + 1)
             if segment[0].size >= min_area:
                 if spatial_sep:
                     thisroi = np.zeros(img.shape, 'bool')
@@ -782,7 +786,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
         if not spatial_sep and np.any(component_mask):
             rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
 
-        frame_no = frame_no+1
+        frame_no = frame_no + 1
 
     return rois
 
@@ -816,7 +820,8 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                     small_area = np.min(
                         (rois[i].mask.size, rois[j].mask.size))
 
-                    if len(np.where(overlap)[0]) > percent_overlap*small_area:
+                    if len(np.where(overlap)[0]) > \
+                            percent_overlap * small_area:
                         new_shape = np.logical_or(rois[i].mask.toarray(),
                                                   rois[j].mask.toarray())
 
@@ -955,7 +960,7 @@ class CA1PCNucleus(PostProcessingStep):
 
     def apply(self, rois, dataset):
         processed_im = _processed_image_ca1pc(
-            dataset, self._channel, self._x_diameter, self._y_diameter)
+            dataset, self._channel, self._x_diameter, self._y_diameter)[0]
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
@@ -1018,9 +1023,9 @@ def _smooth_roi(roi, radius=3):
     frame = roi.mask[0].todense().copy()
 
     frame[frame > 0] = 1
-    check = frame[:-2, :-2]+frame[1:-1, :-2]+frame[2:, :-2] + \
-        frame[:-2, 1:-1]+frame[2:, 1:-1]+frame[:-2:, 2:] + \
-        frame[1:-1, 2:]+frame[2:, 2:]
+    check = frame[:-2, :-2] + frame[1:-1, :-2] + frame[2:, :-2] + \
+        frame[:-2, 1:-1] + frame[2:, 1:-1] + frame[:-2:, 2:] + \
+        frame[1:-1, 2:] + frame[2:, 2:]
     z = np.zeros(frame.shape)
     z[1:-1, 1:-1] = check
 
@@ -1036,25 +1041,25 @@ def _smooth_roi(roi, radius=3):
 
     # store wether the radius of search is increased aboved the initial value
     tmp_rad = False
-    for i in range(limit-1):
+    for i in range(limit - 1):
         b.append(p)
         # find the ist of all points at the given radius and adjust to be lined
         # up for clockwise traversal
-        x = np.roll(np.array(list(p[0]+range(-radius, radius)) +
-                             [p[0]+radius]*(2*radius+1) +
-                             list(p[0]+range(-radius, radius)[::-1]) +
-                             [p[0]-(radius+1)]*(2*radius+1)), -2)
-        y = np.roll(np.array([p[1]-radius]*(2*radius) +
+        x = np.roll(np.array(list(p[0] + range(-radius, radius)) +
+                             [p[0] + radius] * (2 * radius + 1) +
+                             list(p[0] + range(-radius, radius)[::-1]) +
+                             [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
+        y = np.roll(np.array([p[1] - radius] * (2 * radius) +
                              list(p[1] + range(-radius, radius)) +
-                             [p[1] + radius] * (2*radius+1) +
+                             [p[1] + radius] * (2 * radius + 1) +
                              list(p[1] + range(-radius, (radius + 1))[::-1])),
                     -radius)
 
         # insure that the x and y points are within the image
         x[x < 0] = 0
         y[y < 0] = 0
-        x[x >= z.shape[1]] = z.shape[1]-1
-        y[y >= z.shape[0]] = z.shape[0]-1
+        x[x >= z.shape[1]] = z.shape[1] - 1
+        y[y >= z.shape[0]] = z.shape[0] - 1
 
         vals = z[y, x]
 
@@ -1071,8 +1076,8 @@ def _smooth_roi(roi, radius=3):
         # check if the traveral is near to the starting point indicating that
         # the algirthm has completed. If less then 3 points are found this is
         # not yet a valid ROI
-        if ((p[0]-base[0])**2+(p[1]-base[1])**2)**0.5 < 1.5*radius and \
-                len(b) > 3:
+        if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
+                1.5 * radius and len(b) > 3:
             new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
             if new_roi.mask[0].size != 0:
                 # "well formed ROI"
@@ -1093,7 +1098,7 @@ def _smooth_roi(roi, radius=3):
                 tmp_rad = False
 
             else:
-                radius = radius+1
+                radius = radius + 1
                 tmp_rad = True
                 if len(b) > 3:
                     p = b[-3]
@@ -1223,7 +1228,7 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         if isinstance(self._params.components, int):
             self._params.components = range(self._params.components)
         _, space_pcs, time_pcs = _OPCA(
-            dataset, self._params.channel, self._params.components[-1]+1,
+            dataset, self._params.channel, self._params.components[-1] + 1,
             path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
             dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
