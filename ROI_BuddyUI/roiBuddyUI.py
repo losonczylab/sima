@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'roiBuddyUI.ui'
+# Form implementation generated from reading ui file 'ROI_BuddyUI/roiBuddyUI.ui'
 #
-# Created: Fri Aug 15 15:52:36 2014
+# Created: Mon Oct 13 22:29:59 2014
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -22,6 +22,16 @@ class Ui_ROI_Buddy(object):
         self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
         self.gridLayout = QtGui.QGridLayout(self.centralwidget)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
+        self.lookupTableFrame = QtGui.QFrame(self.centralwidget)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(2)
+        sizePolicy.setHeightForWidth(self.lookupTableFrame.sizePolicy().hasHeightForWidth())
+        self.lookupTableFrame.setSizePolicy(sizePolicy)
+        self.lookupTableFrame.setFrameShape(QtGui.QFrame.StyledPanel)
+        self.lookupTableFrame.setFrameShadow(QtGui.QFrame.Raised)
+        self.lookupTableFrame.setObjectName(_fromUtf8("lookupTableFrame"))
+        self.gridLayout.addWidget(self.lookupTableFrame, 3, 1, 1, 1)
         self.itemListFrame = QtGui.QFrame(self.centralwidget)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
@@ -33,16 +43,6 @@ class Ui_ROI_Buddy(object):
         self.itemListFrame.setFrameShadow(QtGui.QFrame.Raised)
         self.itemListFrame.setObjectName(_fromUtf8("itemListFrame"))
         self.gridLayout.addWidget(self.itemListFrame, 1, 1, 2, 1)
-        self.lookupTableFrame = QtGui.QFrame(self.centralwidget)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(1)
-        sizePolicy.setVerticalStretch(2)
-        sizePolicy.setHeightForWidth(self.lookupTableFrame.sizePolicy().hasHeightForWidth())
-        self.lookupTableFrame.setSizePolicy(sizePolicy)
-        self.lookupTableFrame.setFrameShape(QtGui.QFrame.StyledPanel)
-        self.lookupTableFrame.setFrameShadow(QtGui.QFrame.Raised)
-        self.lookupTableFrame.setObjectName(_fromUtf8("lookupTableFrame"))
-        self.gridLayout.addWidget(self.lookupTableFrame, 3, 1, 1, 1)
         self.channelSelectionFrame = QtGui.QFrame(self.centralwidget)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
@@ -54,6 +54,12 @@ class Ui_ROI_Buddy(object):
         self.channelSelectionFrame.setObjectName(_fromUtf8("channelSelectionFrame"))
         self.horizontalLayout = QtGui.QHBoxLayout(self.channelSelectionFrame)
         self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
+        self.label_2 = QtGui.QLabel(self.channelSelectionFrame)
+        self.label_2.setObjectName(_fromUtf8("label_2"))
+        self.horizontalLayout.addWidget(self.label_2)
+        self.plane_index_box = QtGui.QSpinBox(self.channelSelectionFrame)
+        self.plane_index_box.setObjectName(_fromUtf8("plane_index_box"))
+        self.horizontalLayout.addWidget(self.plane_index_box)
         self.baseImage_label = QtGui.QLabel(self.channelSelectionFrame)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
@@ -212,7 +218,7 @@ class Ui_ROI_Buddy(object):
         self.gridLayout.addWidget(self.tSeriesListFrame, 0, 1, 1, 1)
         ROI_Buddy.setCentralWidget(self.centralwidget)
         self.menubar = QtGui.QMenuBar(ROI_Buddy)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1200, 15))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1200, 22))
         self.menubar.setObjectName(_fromUtf8("menubar"))
         ROI_Buddy.setMenuBar(self.menubar)
         self.statusbar = QtGui.QStatusBar(ROI_Buddy)
@@ -224,6 +230,7 @@ class Ui_ROI_Buddy(object):
 
     def retranslateUi(self, ROI_Buddy):
         ROI_Buddy.setWindowTitle(QtGui.QApplication.translate("ROI_Buddy", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
+        self.label_2.setText(QtGui.QApplication.translate("ROI_Buddy", "Plane:", None, QtGui.QApplication.UnicodeUTF8))
         self.baseImage_label.setText(QtGui.QApplication.translate("ROI_Buddy", "Base Image:", None, QtGui.QApplication.UnicodeUTF8))
         self.processed_checkbox.setText(QtGui.QApplication.translate("ROI_Buddy", "Processed", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("ROI_Buddy", "ROI List:", None, QtGui.QApplication.UnicodeUTF8))
