@@ -389,8 +389,8 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
             displacements.append(np.array(seq_displacements))
             correlations.append(np.array(seq_correlations))
         if self._params.criterion is not None:
-            threshold = correlations.mean() - \
-                self._params.criterion * np.std(correlations)
+            threshold = np.concatenate(correlations).mean() - \
+                self._params.criterion * np.std(np.concatenate(correlations))
             for seq_idx, seq_correlations in enumerate(correlations):
                 if np.any(seq_correlations < threshold):
                     displacements[seq_idx] = np.ma.array(
