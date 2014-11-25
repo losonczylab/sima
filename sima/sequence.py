@@ -764,7 +764,7 @@ class _MaskedSequence(_WrapperSequence):
                     frame[:, :, :, outer[1]] = np.nan
                 else:
                     frame[:, :, :, outer[1]][outer[0]] = np.nan
-            elif len(outer) == 3:
+            elif len(outer) == 3:  # (planes, yx, channels)
                 planes = \
                     range(frame.shape[-1]) if outer[0] is None else outer[0]
                 for p in planes:

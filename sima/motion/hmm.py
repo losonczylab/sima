@@ -61,8 +61,9 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
             # sums += im.sum(axis=0).sum(axis=0)
             # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
             # cnt += np.prod(im.shape[0] * im.shape[1])
-            sums += nansum(nansum(plane, axis=0), axis=0)
-            sum_squares += nansum(nansum(plane ** 2, axis=0), axis=0)
+            sums += np.nan_to_num(nansum(nansum(plane, axis=0), axis=0))
+            sum_squares += np.nan_to_num(
+                nansum(nansum(plane ** 2, axis=0), axis=0))
             counts += np.isfinite(plane).sum(axis=0).sum(axis=0)
             t += 1
     assert np.all(mean_est > 0)
