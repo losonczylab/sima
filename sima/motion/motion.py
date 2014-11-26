@@ -7,14 +7,30 @@ import sima
 import _motion as mc
 
 
+def add_with_offset(array1, array2, offset):
+    """
+
+    >>> from sima.motion.motion import add_with_offset
+    >>> import numpy as np
+    >>> a1 = np.zeros((4, 4))
+    >>> a2 = np.ones((1, 2))
+    >>> add_with_offset(a1, a2, (1, 2))
+    >>> np.array_equal(a1[1:2, 2:4], a2)
+    True
+
+    """
+    slices = tuple(slice(o, o + e) for o, e in zip(offset, array2.shape))
+    array1[slices] += array2
+
+
 class MotionEstimationStrategy(object):
     __metaclass__ = abc.ABCMeta
 
     @classmethod
     def _make_nonnegative(cls, displacements):
         min_displacement = np.min(
-            list(it.chain(*[d.reshape(-1, d.shape[-1])
-                            for d in displacements])),
+            list(it.chain.from_iterable(d.reshape(-1, d.shape[-1])
+                                        for d in displacements)),
             axis=0)
         return [d - min_displacement for d in displacements]
 
@@ -33,7 +49,21 @@ class MotionEstimationStrategy(object):
         -------
         displacements : list of ndarray of int
         """
-        return self._make_nonnegative(self._estimate(dataset))
+        shifts = self._estimate(dataset)
+        assert np.any(np.all(x is not np.ma.masked for x in shift)
+                      for shift in it.chain.from_iterable(shifts))
+        assert np.all(
+            np.all(x is np.ma.masked for x in shift) or
+            not np.any(x is np.ma.masked for x in shift)
+            for shift in it.chain.from_iterable(shifts))
+        shifts = self._make_nonnegative(shifts)
+        assert np.any(np.all(x is not np.ma.masked for x in shift)
+                      for shift in it.chain.from_iterable(shifts))
+        assert np.all(
+            np.all(x is np.ma.masked for x in shift) or
+            not np.any(x is np.ma.masked for x in shift)
+            for shift in it.chain.from_iterable(shifts))
+        return shifts
 
     def correct(self, sequences, savedir, channel_names=None, info=None,
                 correction_channels=None, trim_criterion=None):
@@ -77,9 +107,9 @@ class MotionEstimationStrategy(object):
             mc_sequences = sequences
         displacements = self.estimate(sima.ImagingDataset(mc_sequences, None))
         disp_dim = displacements[0].shape[-1]
-        max_disp = np.max(
-            list(it.chain(*[d.reshape(-1, disp_dim) for d in displacements])),
-            axis=0)
+        max_disp = np.max(list(it.chain.from_iterable(d.reshape(-1, disp_dim)
+                               for d in displacements)),
+                          axis=0)
         frame_shape = np.array(sequences[0].shape)[1: -1]  # (z, y, x)
         if len(max_disp) == 2:  # if 2D displacements
             frame_shape[1:3] += max_disp
@@ -107,7 +137,7 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
         trim_criterion = epsilon
     if isinstance(trim_criterion, (float, int)):
         obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
-                         for d in it.chain(*displacements))
+                         for d in it.chain.from_iterable(displacements))
         num_frames = sum(len(x) for x in displacements)
         occupancy = obs_counts.astype(float) / num_frames
 
@@ -155,6 +185,13 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
                 d[2]:(d[2] + raw_shape[2])] += 1
         return cnt
     elif displacements.ndim == 3:
-        return mc.observation_counts(raw_shape, displacements, untrimmed_shape)
+        if displacements.shape[-1] == 2:
+            return mc.observation_counts(raw_shape, displacements,
+                                         untrimmed_shape)
+        else:
+            for plane, p_disp in enumerate(displacements):
+                for row, r_disp in enumerate(p_disp):
+                    add_with_offset(cnt, np.ones((1, 1, raw_shape[2])),
+                                    r_disp + np.array([plane, row, 0]))
     else:
         raise ValueError

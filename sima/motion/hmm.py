@@ -47,7 +47,7 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
     sum_squares = np.zeros_like(sums)
     counts = np.zeros_like(sums)
     t = 0
-    for frame in it.chain(*dataset):
+    for frame in it.chain.from_iterable(dataset):
         for plane in frame:
             if t > 0:
                 mean_est = sums / counts
@@ -91,15 +91,11 @@ def _whole_frame_shifting(dataset, shifts):
         The displacement to add to each shift to align the minimal shift
         with the edge of the corrected image.
     """
-    # # Calculate a correlation threshold for each plane of the frame
-    # thresh = \
-    #     np.nanmean(list(it.chain(*correlations)), axis=0) - \
-    #     2 * np.nanstd(list(it.chain(*correlations)), axis=0)
-    # # only include image frames with sufficiently high correlation
-    min_shifts = np.nanmin(
-        list(it.chain(*[s.reshape(-1, s.shape[-1]) for s in shifts])), 0)
-    max_shifts = np.nanmax(
-        list(it.chain(*[s.reshape(-1, s.shape[-1]) for s in shifts])), 0)
+    min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                            for s in shifts], 0)
+    assert np.all(min_shifts == 0)
+    max_shifts = np.nanmax([np.nanmax(s.reshape(-1, s.shape[-1]), 0)
+                            for s in shifts], 0)
     out_shape = list(dataset.frame_shape)
     if len(min_shifts) == 2:
         out_shape[1] += max_shifts[0] - min_shifts[0]
@@ -112,7 +108,8 @@ def _whole_frame_shifting(dataset, shifts):
     reference = np.zeros(out_shape)
     sum_squares = np.zeros_like(reference)
     count = np.zeros_like(reference)
-    for frame, shift in zip(it.chain(*dataset), it.chain(*shifts)):
+    for frame, shift in zip(it.chain.from_iterable(dataset),
+                            it.chain.from_iterable(shifts)):
         if shift.ndim == 1:  # single shift for the whole volume
             if any(x is np.ma.masked for x in shift):
                 continue
@@ -137,8 +134,7 @@ def _whole_frame_shifting(dataset, shifts):
         assert np.all(np.isnan(reference[np.equal(count, 0)]))
         variances = (sum_squares / count) - reference ** 2
         assert not np.any(variances < 0)
-    offset = - min_shifts
-    return reference, variances, offset
+    return reference, variances
 
 
 def _discrete_transition_prob(r, r0, transition_probs, n):
@@ -360,12 +356,11 @@ class _HiddenMarkov(MotionEstimationStrategy):
         if params.verbose:
             print 'Estimating model parameters.'
         shifts = self._estimate_shifts(dataset)
-        references, variances, offset = _whole_frame_shifting(dataset, shifts)
+        references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:
             params.max_displacement = np.array(dataset.frame_shape[:3]) / 2
         else:
             params.max_displacement = np.array(params.max_displacement)
-        assert np.all(offset == 0)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
@@ -376,17 +371,18 @@ class _HiddenMarkov(MotionEstimationStrategy):
             shifts = [np.concatenate([np.zeros(s.shape[:-1] + (1,), dtype=int),
                                       s], axis=-1) for s in shifts]
 
-        # TODO: detect unreasonable shifts before doing this calculation
-        min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
-        max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
+        min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                                for s in shifts], 0)
+        max_shifts = np.nanmax([np.nanmax(s.reshape(-1, s.shape[-1]), 0)
+                                for s in shifts], 0)
 
         # add a bit of extra room to move around
         if params.max_displacement.size == 2:
             params.max_displacement = np.hstack(([0], params.max_displacement))
         extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
                         ).astype(int)
-        min_displacements = (min_shifts - extra_buffer)
-        max_displacements = (max_shifts + extra_buffer)
+        min_displacements = min_shifts - extra_buffer
+        max_displacements = max_shifts + extra_buffer
 
         displacements = self._neighbor_viterbi(
             dataset, references, gains, movement_model, min_displacements,
@@ -455,21 +451,11 @@ class MovementModel(object):
             displacements are estimated per volume, per plane, per row, etc.
 
         """
-        shifts = np.array(list(it.chain(
-            *[s.reshape(-1, s.shape[-1]) for s in shifts])))
+        # TODO: add mean value at boundaries to eliminate boundary effects
+        # between cycles
+        shifts = np.concatenate(shifts).reshape(-1, shifts[0].shape[-1])
         if not shifts.shape[1] in (2, 3):
             raise ValueError
-        # var_model = VAR(shifts)
-        # results = var_model.fit(1)  # fit VAR(1) modoel
-        # A = results.coefs[0]
-        # cov_matrix = results.sigma_u
-        # diffs = np.diff(shifts, axis=0)
-        # cov_matrix = np.cov(diffs[np.isfinite(diffs).all(axis=1)].T)
-        # # don't allow singular covariance matrix
-        # for i in range(len(cov_matrix)):
-        #     cov_matrix[i, i] = max(cov_matrix[i, i], 1. / len(shifts))
-        # assert det(cov_matrix) > 0
-
         mean_shift = np.nanmean(shifts, axis=0)
         assert len(mean_shift) == shifts.shape[1]
         centered_shifts = np.nan_to_num(shifts - mean_shift)
@@ -479,7 +465,7 @@ class MovementModel(object):
         past_past = np.dot(past.T, past)
         idx = 0
         D = shifts.shape[1]
-        n = D * (D+1) / 2
+        n = D * (D + 1) / 2
         y = np.zeros(n)
         M = np.zeros((n, n))
         for i in range(D):
@@ -731,8 +717,10 @@ class HiddenMarkov3D(_HiddenMarkov):
 
     """
     def _estimate_shifts(self, dataset):
-        return sima.motion.frame_align.VolumeTranslation(
+        shifts = sima.motion.frame_align.VolumeTranslation(
             self._params.max_displacement, criterion=2.5).estimate(dataset)
+        assert all(np.all(s) >= 0 for s in shifts)
+        return shifts
 
 
 class NormalizedIterator(object):

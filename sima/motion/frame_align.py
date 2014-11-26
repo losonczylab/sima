@@ -104,6 +104,8 @@ def _frame_alignment_base(
     namespace.shifts = [
         np.zeros(seq.shape[:2] + (3,), dtype=int) for seq in dataset]
     namespace.correlations = [np.empty(seq.shape[:2]) for seq in dataset]
+    namespace.min_shift = np.zeros(3)
+    namespace.max_shift = np.zeros(3)
 
     lock = multiprocessing.Lock()
     pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
@@ -135,7 +137,7 @@ def _frame_alignment_base(
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
-        mean_shift = nanmean(list(it.chain(*it.chain(*shifts))), axis=0)
+        mean_shift = nanmean(np.concatenate(shifts), axis=0)
         # calculate alteration of shape (num_planes, dim)
         alteration = (mean_shift - mean_shift[0]).astype(int)
         for seq in shifts:
@@ -206,17 +208,14 @@ def _align_frame(inputs):
                 p_sums = namespace.pixel_sums[p]
                 p_counts = namespace.pixel_counts[p]
                 offset = namespace.offset
-                shifts = namespace.shifts
+                min_shift = namespace.min_shift
+                max_shift = namespace.max_shift
             with warnings.catch_warnings():  # ignore divide by 0
                 warnings.simplefilter("ignore")
                 reference = p_sums / p_counts
             if method == 'correlation':
                 if max_displacement is not None and np.all(
                         np.array(max_displacement) >= 0):
-                    min_shift = np.min(list(it.chain(*it.chain(*shifts))),
-                                       axis=0)
-                    max_shift = np.max(list(it.chain(*it.chain(*shifts))),
-                                       axis=0)
                     displacement_bounds = offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
                          np.maximum(min_shift + max_displacement, max_shift)
@@ -252,6 +251,8 @@ def _align_frame(inputs):
                         namespace.pixel_sums, namespace.pixel_counts,
                         namespace.offset, [p] + list(shift)[1:],
                         np.expand_dims(plane, 0))
+                namespace.min_shift = np.minimum(shift, min_shift)
+                namespace.max_shift = np.maximum(shift, max_shift)
 
 
 def _update_reference(sums, counts, offset, displacement, image):
@@ -262,22 +263,6 @@ def _update_reference(sums, counts, offset, displacement, image):
     sums, counts = _update_sums_and_counts(
         sums, counts, offset, displacement, image)
     return sums, counts, offset
-
-
-def _add_with_offset(array1, array2, offset):
-    """
-
-    >>> from sima.motion.frame_align import _add_with_offset
-    >>> import numpy as np
-    >>> a1 = np.zeros((4, 4))
-    >>> a2 = np.ones((1, 2))
-    >>> _add_with_offset(a1, a2, (1, 2))
-    >>> np.array_equal(a1[1:2, 2:4], a2)
-    True
-
-    """
-    slices = tuple(slice(o, o + e) for o, e in zip(offset, array2.shape))
-    array1[slices] += array2
 
 
 def _update_sums_and_counts(
@@ -302,8 +287,8 @@ def _update_sums_and_counts(
     offset = np.array(offset)
     shift = np.array(shift)
     disp = offset + shift
-    _add_with_offset(pixel_sums, np.nan_to_num(image), disp)
-    _add_with_offset(pixel_counts, np.isfinite(image), disp)
+    motion.add_with_offset(pixel_sums, np.nan_to_num(image), disp)
+    motion.add_with_offset(pixel_counts, np.isfinite(image), disp)
     assert pixel_sums.ndim == 4
     return pixel_sums, pixel_counts
 
@@ -395,7 +380,12 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
                 if np.any(seq_correlations < threshold):
                     displacements[seq_idx] = np.ma.array(
                         displacements[seq_idx],
-                        mask=(seq_displacements < threshold))
+                        mask=np.outer(seq_correlations < threshold,
+                                      np.ones(3)))
+        assert np.all(
+            np.all(x is np.ma.masked for x in shift) or
+            not np.any(x is np.ma.masked for x in shift)
+            for shift in it.chain.from_iterable(displacements))
         return displacements
 
 
