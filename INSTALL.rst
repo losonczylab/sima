@@ -53,16 +53,16 @@ If you build the package from source, you may also need:
 SIMA installation
 =================
 
-Linux / Mac OS X
-----------------
+Linux
+-----
 
 The SIMA package can be installed from the python package index::
 
-    $ pip install sima
+    $ sudo pip install sima
 
 The easy_install tool can also be used::
 
-    $ easy_install sima
+    $ sudo easy_install sima
 
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
@@ -82,3 +82,19 @@ If building SIMA from source or using pip or easy_install on Windows, you may
 also need to follow these `instructions for compiling the Cython extensions
 <https://github.com/cython/cython/wiki/64BitCythonExtensionsOnWindows>`_.
 
+Mac OS X
+--------
+For installing the dependencies, we recommend using MacPorts. If you do not already
+have XCode installed, downloading XCode from the App Store, and then run the following
+commands in the Terminal to complete the XCode installation and license agreement::
+
+    $ xcode-select --install
+    $ gcc -v
+
+Next, download and install MacPorts. Then run the following command in terminal to
+install SIMA and its dependencies::
+
+    $ sudo port install python27 py27-numpy py27-scipy py27-matplotlib py27-shapely py27-pip py27-h5py opencv +python27
+    $ sudo port select --set python python27
+    $ sudo port select --set pip pip27
+    $ sudo pip install sima

@@ -54,6 +54,18 @@ The ROI Buddy GUI depends on SIMA, so shares all dependencies with SIMA. In addi
     bindings, as it enables more efficient memory handling.  Alternatively, 
     initializing SIMA iterables with HDF5 datasets enables rapid data access.
 
+Mac OS X
+--------
+We recommend using MacPorts for installing the dependencies.
+After installing SIMA using MacPorts as described `here <install>`__,
+run the following command in Terminal to install an additional dependency::
+
+    $ sudo port install py27-pyqwt
+
+Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
+`guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
+the `source file <http://losonczylab.org/ROI_Buddy_Source.zip>`__.
+
 
 User Interface
 ==============
