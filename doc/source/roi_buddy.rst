@@ -32,15 +32,15 @@ Typical Workflow
 Installation
 ============
 
-The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is 
-available for **download** `here
-<http://losonczylab.org/ROI_Buddy.zip>`__.  Launch the application directly by opening
-the .exe file.
+The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is
+available for **download** `here <http://losonczylab.org/ROI_Buddy.zip>`__.
+Launch the application directly by opening the .exe file.
 
 Alternatively, the ROI Buddy GUI can be built from source.  Source code is
 available for **download** `here
-<http://losonczylab.org/ROI_Buddy_Source.zip>`__.
-The ROI Buddy GUI depends on SIMA, so shares all dependencies with SIMA. In addition, the following packages are required:
+<http://losonczylab.org/ROI_Buddy_Source.zip>`__.  The ROI Buddy GUI depends on
+SIMA, so shares all dependencies with SIMA. In addition, the following packages
+are required:
 
 * PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
 * guidata (https://code.google.com/p/guidata/)
@@ -54,6 +54,17 @@ The ROI Buddy GUI depends on SIMA, so shares all dependencies with SIMA. In addi
     bindings, as it enables more efficient memory handling.  Alternatively, 
     initializing SIMA sequence with HDF5 datasets enables rapid data access.
 
+Mac OS X
+--------
+We recommend using MacPorts for installing the dependencies. 
+After installing SIMA using MacPorts as described `here <install>`__,
+run the following command in Terminal to install an additional dependency::
+
+    $ sudo port install py27-pyqwt
+
+Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
+`guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
+the `source file <http://losonczylab.org/ROI_Buddy_Source.zip>`__.
 
 User Interface
 ==============
