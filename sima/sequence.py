@@ -34,7 +34,8 @@ import itertools as it
 import warnings
 import collections
 from distutils.version import StrictVersion
-from os.path import (abspath, dirname, join, normpath, normcase, isfile)
+from os.path import (abspath, dirname, join, normpath, normcase, isfile,
+                     relpath)
 from abc import ABCMeta, abstractmethod
 import numpy as np
 
@@ -121,7 +122,7 @@ class Sequence(object):
         raise NotImplementedError
 
     @abstractmethod
-    def _todict(self):
+    def _todict(self, savedir=None):
         raise NotImplementedError
 
     @classmethod
@@ -424,12 +425,17 @@ class _Sequence_TIFF_Interleaved(Sequence):
         if libtiff_available:
             tiff.close()
 
-    def _todict(self):
-        return {'path': self._path,
-                '__class__': self.__class__,
-                'num_planes': self._num_planes,
-                'num_channels': self._num_channels,
-                'len_': self._len}
+    def _todict(self, savedir=None):
+        d = {'__class__': self.__class__,
+             'num_planes': self._num_planes,
+             'num_channels': self._num_channels,
+             'len_': self._len}
+        if savedir is None:
+            d.update({'path': abspath(self._path)})
+        else:
+            d.update({'_abspath': abspath(self._path),
+                      '_relpath': relpath(self._path, savedir)})
+        return d
 
     def __len__(self):
         if self._len is None:
@@ -462,7 +468,7 @@ class _Sequence_ndarray(_IndexableSequence):
     def _get_frame(self, t):
         return self._array[t].astype(float)
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         return {'__class__': self.__class__, 'array': self._array}
 
 
@@ -477,7 +483,7 @@ class _Sequence_HDF5(_IndexableSequence):
     def __init__(self, path, dim_order, group=None, key=None):
         if not h5py_available:
             raise ImportError('h5py >= 2.3.1 required')
-        self.path = abspath(path)
+        self._path = abspath(path)
         self._file = h5py.File(path, 'r')
         if group is None:
             group = '/'
@@ -528,14 +534,17 @@ class _Sequence_HDF5(_IndexableSequence):
         assert frame.ndim == 4
         return frame.astype(float)
 
-    def _todict(self):
-        return {
-            '__class__': self.__class__,
-            'path': abspath(self.path),
-            'dim_order': self._dim_order,
-            'group': self._group.name,
-            'key': self._key,
-        }
+    def _todict(self, savedir=None):
+        d = {'__class__': self.__class__,
+             'dim_order': self._dim_order,
+             'group': self._group.name,
+             'key': self._key}
+        if savedir is None:
+            d.update({'path': abspath(self._path)})
+        else:
+            d.update({'_abspath': abspath(self._path),
+                      '_relpath': relpath(self._path, savedir)})
+        return d
 
 
 class _Joined_Sequence(Sequence):
@@ -569,10 +578,10 @@ class _Joined_Sequence(Sequence):
         return np.concatenate([seq._get_frame(t) for seq in self._sequences],
                               axis=3)
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         return {
             '__class__': self.__class__,
-            'sequences': [s._todict() for s in self._sequences],
+            'sequences': [s._todict(savedir) for s in self._sequences],
         }
 
     @classmethod
@@ -601,7 +610,7 @@ class _WrapperSequence(Sequence):
             else:
                 raise err
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         raise NotImplementedError
 
     @classmethod
@@ -703,10 +712,10 @@ class _MotionCorrectedSequence(_WrapperSequence):
         # TODO: similar for planes ???
         return _IndexedSequence(self, indices)
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         return {
             '__class__': self.__class__,
-            'base': self._base._todict(),
+            'base': self._base._todict(savedir),
             'displacements': self.displacements,
             'extent': self._frame_shape[:3],
         }
@@ -755,7 +764,7 @@ class _MaskedSequence(_WrapperSequence):
                     frame[:, :, :, outer[1]] = np.nan
                 else:
                     frame[:, :, :, outer[1]][outer[0]] = np.nan
-            elif len(outer) == 3:
+            elif len(outer) == 3:  # (planes, yx, channels)
                 planes = \
                     range(frame.shape[-1]) if outer[0] is None else outer[0]
                 for p in planes:
@@ -783,10 +792,10 @@ class _MaskedSequence(_WrapperSequence):
     def __len__(self):
         return len(self._base)
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         return {
             '__class__': self.__class__,
-            'base': self._base._todict(),
+            'base': self._base._todict(savedir),
             'outers': self._outers
         }
 
@@ -826,10 +835,10 @@ class _IndexedSequence(_WrapperSequence):
     def __len__(self):
         return len(range(len(self._base))[self._indices[0]])
 
-    def _todict(self):
+    def _todict(self, savedir=None):
         return {
             '__class__': self.__class__,
-            'base': self._base._todict(),
+            'base': self._base._todict(savedir),
             'indices': self._indices
         }
 
@@ -872,24 +881,27 @@ def _fill_gaps(frame_iter1, frame_iter2):
 
 
 def _resolve_paths(d, savedir):
+    """Resolve the relative and absolute paths to the sequence data."""
+    def path_compare(p1, p2):
+        """Compare two file paths."""
+        return samefile(normcase(abspath(normpath(p1))),
+                        normcase(abspath(normpath(p2))))
     paths = set()
     try:
-        relp = d.pop('_relpath')
+        paths.add(abspath(join(savedir, d.pop('_relpath'))))
     except KeyError:
         pass
-    else:
-        paths.add(normcase(abspath(normpath(join(savedir, relp)))))
     try:
-        paths.add(normcase(abspath(normpath(d.pop('_abspath')))))
+        paths.add(d.pop('_abspath'))
     except KeyError:
         pass
     if len(paths):
         paths = filter(isfile, paths)
-        if len(paths) != 1:
+        if not len(paths):
+            raise Exception('Files have been moved. Cannot locate data.')
+        if len(paths) > 1:
             testfile = paths.pop()
-            if not all(samefile(testfile, p) for p in paths):
-                raise Exception(
-                    'Files have been moved. The path '
-                    'cannot be unambiguously resolved.'
-                )
+            if not all(path_compare(testfile, p) for p in paths):
+                raise Exception('Files have been moved. The path '
+                                'cannot be unambiguously resolved.')
         d['path'] = paths.pop()

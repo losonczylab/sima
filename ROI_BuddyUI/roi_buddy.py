@@ -1,6 +1,8 @@
 #! python
-import sys
 import os
+import sys
+from sys import path
+path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from os.path import join, dirname, isdir
 
 import numpy as np
@@ -26,9 +28,10 @@ from PyQt4.QtGui import *
 
 from guidata import qthelpers
 from guiqwt.plot import ImageDialog
-from guiqwt.tools import FreeFormTool, InteractiveTool
+from guiqwt.tools import FreeFormTool, InteractiveTool, \
+    RectangleTool, RectangularShapeTool
 from guiqwt.builder import make
-from guiqwt.shapes import PolygonShape
+from guiqwt.shapes import PolygonShape, EllipseShape
 from guiqwt.events import setup_standard_tool_filter, PanHandler
 
 from pudb import set_trace
@@ -85,10 +88,64 @@ def jaccard_index(roi1, roi2):
     roi1, roi2 : shapely.geometry.Polygon
 
     """
-    union = roi1.union(roi2).area
-    intersection = roi1.intersection(roi2).area
-    jaccard = intersection / union
+    union = 0
+    intersection = 0
 
+    roi1_polys = [p for p in roi1]
+    roi2_polys = [p for p in roi2]
+
+    while(len(roi1_polys)):
+        for first_poly in roi1_polys:
+            z = np.array(first_poly.exterior.coords)[0, 2]
+
+            co_planar_polys1 = [first_poly]
+            for other_poly in [p for p in roi1_polys if p is not first_poly]:
+                if np.array(other_poly.exterior.coords)[0, 2] == z:
+                    co_planar_polys1.append(other_poly)
+            p1 = MultiPolygon(co_planar_polys1)
+            if not p1.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p1],
+                    im_size=self.base_im.data.shape))
+
+            co_planar_polys2 = []
+            for p in roi2_polys:
+                if np.array(p.exterior.coords)[0, 2] == z:
+                    co_planar_polys2.append(p)
+            p2 = MultiPolygon(co_planar_polys2)
+            if not p2.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p2],
+                    im_size=self.base_im.data.shape))
+
+            union += p1.union(p2).area
+            intersection += p1.intersection(p2).area
+
+            for p in co_planar_polys1[::-1]:
+                roi1_polys.remove(p)
+            for p in co_planar_polys2[::-1]:
+                roi2_polys.remove(p)
+
+    while(len(roi2_polys)):
+        for extra in roi2_polys:
+            z = np.array(remaining_polygon.exterior.coords)[0, 2]
+
+            co_planar_polys = [extra_polygon]
+            for other_poly in [p for p in roi2_polys if p is not extra]:
+                if np.array(other_poly.exterior.coords)[0, 2] == z:
+                    co_planar_polys.append(other_poly)
+            p0 = MultiPolygon(co_planar_polys)
+            if not p.is_valid:
+                mask2poly(poly2mask(
+                    [np.array(p.exterior.coords).tolist() for p in p0],
+                    im_size=self.base_im.data.shape))
+
+            union += p.area
+
+            for p in co_planar_polys[::-1]:
+                roi2_polys.remove(p)
+
+    jaccard = intersection / union
     return jaccard
 
 
@@ -107,6 +164,22 @@ class PanTool(InteractiveTool):
         PanHandler(filter, Qt.LeftButton, start_state=start_state)
 
         return setup_standard_tool_filter(filter, start_state)
+
+
+class EllipseTool(RectangularShapeTool):
+    #TODO: Modify this such that it draws like an ImageJ ellipse?
+
+    TITLE = "Ellipse"
+    ICON = "ellipse_shape.png"
+
+    def create_shape(self):
+        shape = EllipseShape(0, 0, 1, 1)
+        self.set_shape_style(shape)
+        return shape, 0, 1
+
+    def handle_final_shape(self, shape):
+        shape.switch_to_ellipse()
+        super(EllipseTool, self).handle_final_shape(shape)
 
 
 class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
@@ -131,6 +204,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         #filter for Esc button behavior
         self.viewer.keyPressEvent = self.viewer_keyPressEvent
+        self.viewer.wheelEvent = self.viewer_wheelEvent
         self.viewer.add_tool(PanTool)
 
         self.initialize_roi_manager()
@@ -150,12 +224,27 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         #deactivate buttons until a t-series is added
         self.toggle_button_state(False)
 
+        self.toggle_button_state(True)
+
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
         if (event.key() == Qt.Key_Escape):
             event.ignore()
         else:
             ImageDialog.keyPressEvent(self.viewer, event)
+
+    def viewer_wheelEvent(self, event):
+        """Capture scroll events to toggle the base image z-plane"""
+        active_tSeries = self.tSeries_list.currentItem()
+        delta = event.delta()
+        if delta < 0:
+            if active_tSeries.active_plane + 1 >= active_tSeries.num_planes:
+                return
+            self.plane_index_box.setValue(active_tSeries.active_plane + 1)
+        else:
+            if active_tSeries.active_plane - 1 < 0:
+                return
+            self.plane_index_box.setValue(active_tSeries.active_plane - 1)
 
     def create_menu(self):
         self.file_menu = self.menuBar().addMenu("&File")
@@ -291,6 +380,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.new_set_button.clicked.connect(self.new_roi_set)
         self.delete_set_button.clicked.connect(self.delete_roi_set)
 
+        #z-plane selection
+        self.plane_index_box.valueChanged.connect(self.toggle_plane)
+
         #Channel selection
         self.baseImage_list.activated.connect(self.toggle_base_image)
         self.processed_checkbox.clicked.connect(self.toggle_base_image)
@@ -338,6 +430,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                              wintitle='Experiment Image Display')
         #Add the freeform tool
         viewer.add_tool(FreeFormTool)
+        viewer.add_tool(EllipseTool)
+        viewer.add_tool(RectangleTool)
         #Remove the grid from the item list manager
         viewer.get_plot().get_items()[0].set_private(True)
         #add viewer to the display frame layout
@@ -349,7 +443,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
         self.plot = viewer.get_plot()
         self.selection_tool = viewer.tools[2]
-        self.freeform_tool = viewer.tools[-1]
+        self.freeform_tool = viewer.tools[-3]
 
         return viewer
 
@@ -427,7 +521,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         [button.setEnabled(enabled) for button in
          self.channelSelectionFrame.children() if
          isinstance(button, QComboBox) or
-         isinstance(button, QCheckBox)]
+         isinstance(button, QCheckBox) or
+         isinstance(button, QSpinBox)]
 
         [action.setEnabled(enabled) for action in
          self.viewer.get_itemlist_panel().findChild(QToolBar).actions()]
@@ -445,8 +540,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 self.plot.del_item(item)
 
     def show_rois(self, tSeries, show_in_list=None):
+        if self.mode == 'edit':
+            tSeries.transform_rois()
         for roi in tSeries.roi_list:
-            roi.show(show_in_list)
+            if roi.coords[0][0, 2] == tSeries.active_plane:
+                roi.show(show_in_list)
 
     def hide_rois(self, show_in_list=None):
         for item in self.plot.items:
@@ -628,6 +726,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             tSeries.active_channel)
         self.baseImage_list.setCurrentIndex(current_idx)
 
+    def initialize_z_planes_box(self, tSeries):
+        self.plane_index_box.setWrapping(True)
+        self.plane_index_box.setRange(0, tSeries.num_planes - 1)
+        self.plane_index_box.setValue(tSeries.active_plane)
+
     def new_roi_set(self):
         """Add a new ROI Set to the imaging dataset"""
 
@@ -718,8 +821,10 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.hide_rois(show_in_list=False)
         self.initialize_base_image_list(current)
         self.initialize_roi_set_list(current)
+        self.initialize_z_planes_box(current)
 
         current.show()
+
         self.show_rois(current, show_in_list=self.mode == 'edit')
         self.toggle_show_rois()
 
@@ -753,6 +858,29 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             active_tSeries.initialize_rois()
             self.show_rois(active_tSeries, show_in_list=self.mode == 'edit')
             self.plot.replot()
+
+    def toggle_plane(self):
+
+        self.freeform_tool.shape = None
+        active_tSeries = self.tSeries_list.currentItem()
+        tSeries_list = [self.tSeries_list.item(i)
+                        for i in range(self.tSeries_list.count())]
+        if self.mode == 'edit':
+            active_tSeries.update_rois()
+
+        # Note: toggling planes changes the active plane for every UI_tSeries!
+        for tSeries in tSeries_list:
+            tSeries.active_plane = self.plane_index_box.value()
+        active_tSeries.show()
+        self.hide_rois()
+        if self.show_ROIs_checkbox.checkState():
+            if self.show_all_checkbox.checkState():
+                self.show_all_checkbox.setChecked(False)
+                self.show_all_checkbox.setChecked(True)
+            else:
+                active_tSeries.transform_rois(active_tSeries)
+                self.show_rois(active_tSeries)
+        self.plot.replot()
 
     def edit_label(self):
         """Edit the labels of the selected ROIs"""
@@ -1192,6 +1320,18 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def register_rois(self):
 
+        def intersects(roi1, roi2):
+            """
+            returns boolean valued on whether roi1 intersects roi2
+            """
+            for p1 in roi1:
+                for p2 in roi2:
+                    if np.array(p1.exterior.coords)[0, 2] == \
+                            np.array(p2.exterior.coords)[0, 2]:
+                        if p1.intersects(p2):
+                            return True
+            return False
+
         if not self.show_all_checkbox.isChecked():
             self.show_all_checkbox.setChecked(True)
 
@@ -1226,23 +1366,26 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 name = roi.label
                 if name is None or name not in roi_names[tSeries]:
                     rois[tSeries].append([roi])
+                    points = roi.get_points()
+                    z = np.empty((len(points), 1))
+                    z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries].append(
-                        [Polygon(roi.get_points().tolist())])
+                        [Polygon(np.hstack((points, z)))])
                     roi_names[tSeries].append(name)
                 else:
                     idx = roi_names[tSeries].index(name)
                     rois[tSeries][idx].append(roi)
+                    points = roi.get_points()
+                    z = np.empty((len(points), 1))
+                    z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries][idx].append(
-                        Polygon(roi.get_points().tolist()))
+                        Polygon(np.hstack((points, z))))
 
+        # Cast each ROI as a MultiPolygon (one per name.  Note that each Multi-
+        # Polygon might be comprised of Polygons with different z-coordinates)
         for tSeries in tSeries_list:
             for roi_idx, roi in enumerate(roi_polygons[tSeries]):
                 roi_polygons[tSeries][roi_idx] = MultiPolygon(roi)
-                if not roi_polygons[tSeries][roi_idx].is_valid:
-                    roi_polygons[tSeries][roi_idx] = mask2poly(
-                        poly2mask([np.array(poly.exterior.coords).tolist() for
-                                   poly in roi_polygons[tSeries][roi_idx]],
-                                  im_size=self.base_im.data.shape))
 
         condensed_distance_matrix = []
         for setIdx, tSeries in enumerate(tSeries_list):
@@ -1251,7 +1394,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     condensed_distance_matrix.append(0.)
                 for tSeries2 in tSeries_list[setIdx + 1:]:
                     for roi2 in roi_polygons[tSeries2]:
-                        if roi1.intersects(roi2):
+                        if intersects(roi1, roi2):
                             condensed_distance_matrix.append(
                                 jaccard_index(roi1, roi2))
                         else:
@@ -1426,9 +1569,8 @@ class UI_tSeries(QListWidgetItem):
         for channel_name in self.dataset.channel_names:
             self.base_images[channel_name] = []
         for plane in self.dataset.time_averages:
-            for ch_idx in np.arange(plane.shape[2]):
-                self.base_images[self.dataset.channel_names[ch_idx]].append(
-                    plane[:, :, ch_idx])
+            for ch_idx, ch_name in enumerate(self.dataset.channel_names):
+                self.base_images[ch_name].append(plane[:, :, ch_idx])
 
     def show(self):
         try:
@@ -1454,8 +1596,9 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
-            data = transform_array(data, self.transform(self),
-                                   final_shape=self.transform_shape[::-1])
+            data = transform_array(
+                data, self.transform(self)[self.active_plane],
+                final_shape=self.transform_shape[::-1])
 
         self.parent.base_im = make.image(data=data, title='Base image',
                                          colormap='gray',
@@ -1502,12 +1645,13 @@ class UI_tSeries(QListWidgetItem):
         if len(self.roi_list):
             if target_tSeries is None:
                 for polygon in self.roi_list:
-                    polygon.set_points(polygon.coords[0])
+                    polygon.set_points(polygon.coords[0][:, :2])
             else:
                 transform = self.transform(target_tSeries)
                 for polygon in self.roi_list:
-                    orig_verts = polygon.coords[0]
-                    new_verts = [np.dot(transform, np.hstack([vert, 1]))
+                    z = int(polygon.coords[0][0, 2])
+                    orig_verts = polygon.coords[0][:, :2]
+                    new_verts = [np.dot(transform[z], np.hstack([vert, 1]))
                                  for vert in orig_verts]
                     polygon.set_points(new_verts)
 
@@ -1528,30 +1672,33 @@ class UI_tSeries(QListWidgetItem):
 
         if target_tSeries not in self.transforms:
 
-            target_active_channel = target_tSeries.dataset.channel_names.index(
-                target_tSeries.active_channel)
+            target_active_channel = \
+                target_tSeries.dataset.channel_names.index(
+                    target_tSeries.active_channel)
 
             ref_active_channel = self.dataset.channel_names.index(
                 self.active_channel)
 
-            target = _processed_image_ca1pc(
-                target_tSeries.dataset, channel_idx=target_active_channel,
-                x_diameter=14, y_diameter=7)
-            ref = _processed_image_ca1pc(
-                self.dataset, channel_idx=ref_active_channel, x_diameter=14,
-                y_diameter=7)
+            self.transforms[target_tSeries] = []
+            for plane in xrange(self.num_planes):
+                target = _processed_image_ca1pc(
+                    target_tSeries.dataset, channel_idx=target_active_channel,
+                    x_diameter=14, y_diameter=7)[plane]
+                ref = _processed_image_ca1pc(
+                    self.dataset, channel_idx=ref_active_channel,
+                    x_diameter=14, y_diameter=7)[plane]
 
-            slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
-                           for i in range(2))
+                slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
+                               for i in range(2))
 
-            transform = cv2.estimateRigidTransform(
-                sima.misc.to8bit(ref[slice_]),
-                sima.misc.to8bit(target[slice_]), True)
-            if transform is None:
-                raise TransformError()
-            transform[:, 2] += tuple(target_tSeries.shape[::-1])
-            self.transforms[target_tSeries] = transform
-
+                transform = cv2.estimateRigidTransform(
+                    sima.misc.to8bit(ref[slice_]),
+                    sima.misc.to8bit(target[slice_]), True)
+                if transform is None:
+                    raise TransformError()
+                transform[:, 2] += tuple(target_tSeries.shape[::-1])
+                self.transforms[target_tSeries].append(transform)
+        #index the result by plane
         return self.transforms[target_tSeries]
 
     def initialize_rois(self):
@@ -1570,11 +1717,13 @@ class UI_tSeries(QListWidgetItem):
             for roi in rois:
                 new_rois = []
                 for poly in roi.coords:
-                    new_rois.append(UI_ROI(parent=self,
-                                           points=poly.tolist(),
-                                           id=roi.id,
-                                           tags=roi.tags,
-                                           label=roi.label))
+                    new_roi = UI_ROI(parent=self,
+                                     points=poly[:, :2].tolist(),
+                                     id=roi.id,
+                                     tags=roi.tags,
+                                     label=roi.label)
+                    new_roi.polygons = poly
+                    new_rois.append(new_roi)
 
                 self.roi_list.extend(new_rois)
                 # Keep track of ROIs that are MulitPolygons so we make sure
@@ -1622,19 +1771,55 @@ class UI_tSeries(QListWidgetItem):
         # This line is necessary if the user failed to finalize the polygon
         self.parent.freeform_tool.shape = None
 
-        self.roi_list = []
+        self.roi_list = [r for r in self.roi_list if r.coords[0][0, 2]
+                         != self.active_plane]
         # Note need to iterate backwards because convert_polygon modifies
         # plot items list
         for item in reversed(self.parent.plot.get_items()):
             if isinstance(item, UI_ROI):
+                if item.coords[0][0, 2] != self.active_plane:
+                    continue
                 if item.parent == self:
                     item.update_points()
                     self.roi_list.append(item)
                     if item in keep_list:
                         new_keep_list.append(item)
             elif isinstance(item, PolygonShape):
-                new_roi = UI_ROI.convert_polygon(
-                    parent=self, polygon=item)
+                if item.__class__ == EllipseShape:
+                    center = item.get_center()
+                    p = item.get_points()
+                    radius = np.amax((np.linalg.norm(p[1] - p[0]),
+                                      np.linalg.norm(p[1] - p[2]),
+                                      np.linalg.norm(p[1] - p[3]))) / 2
+
+                    mask = np.zeros(self.parent.base_im.data.shape, dtype=bool)
+                    for x in np.arange(
+                            np.floor(center[0] - radius),
+                            np.ceil(center[0] + radius)):
+                        for y in np.arange(
+                                np.floor(center[1] - radius),
+                                np.ceil(center[1] + radius)):
+
+                            d = np.linalg.norm(
+                                np.array((x, y)) - np.array(center))
+
+                            if d < radius:
+                                mask[y, x] = True
+
+                    poly = mask2poly(mask)
+
+                    points = np.array(poly[0].exterior.coords)[:, :2]
+                    new_roi = UI_ROI(self, points, id=None,
+                                     label=parent.next_label(), tags=None)
+                    self.parent.plot.del_item(item)
+                    self.parent.plot.add_item(new_roi)
+                else:
+                    new_roi = UI_ROI.convert_polygon(
+                        parent=self, polygon=item)
+                coords = new_roi.coords[0]
+                coords[:, 2] = self.active_plane
+                new_roi.polygons = coords
+
                 if new_roi is not None:
                     self.roi_list.append(new_roi)
                     if item in keep_list:
@@ -1707,6 +1892,10 @@ class UI_ROI(PolygonShape, ROI):
         new_roi = UI_ROI(parent=parent, points=points.tolist(), id=None,
                          label=parent.next_label(), tags=None)
 
+        coords = new_roi.coords
+        coords[0][:, 2] = parent.active_plane
+        new_roi.polygons = coords
+
         parent.parent.plot.del_item(polygon)
         parent.parent.plot.add_item(new_roi)
 
@@ -1749,7 +1938,10 @@ class UI_ROI(PolygonShape, ROI):
         self.setTitle(name)
 
     def update_points(self):
-        self.polygons = self.get_points().tolist()
+        points = self.get_points()
+        z = np.empty((len(points), 1))
+        z.fill(self.parent.active_plane)
+        self.polygons = np.hstack((points, z))
 
     def toggle_editing(self, value):
         """Lock or unlock the ROIs for editing
