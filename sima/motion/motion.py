@@ -174,7 +174,6 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
         cnt[z:(z + raw_shape[0]),
             y:(y + raw_shape[1]),
             x:(x + raw_shape[2])] = 1
-        return cnt
     elif displacements.ndim == 2:
         for plane in range(raw_shape[0]):
             d = list(displacements[plane])
@@ -183,7 +182,6 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
             cnt[plane + d[0],
                 d[1]:(d[1] + raw_shape[1]),
                 d[2]:(d[2] + raw_shape[2])] += 1
-        return cnt
     elif displacements.ndim == 3:
         if displacements.shape[-1] == 2:
             return mc.observation_counts(raw_shape, displacements,
@@ -195,3 +193,4 @@ def _observation_counts(raw_shape, displacements, untrimmed_shape):
                                     r_disp + np.array([plane, row, 0]))
     else:
         raise ValueError
+    return cnt
