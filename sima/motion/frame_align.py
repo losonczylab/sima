@@ -210,7 +210,7 @@ def _align_frame(inputs):
             with lock:
                 p_sums = namespace.pixel_sums[p]
                 p_counts = namespace.pixel_counts[p]
-                p_offset = namespace.offset
+                offset = namespace.offset
                 shifts = namespace.shifts
             with warnings.catch_warnings():  # ignore divide by 0
                 warnings.simplefilter("ignore")
@@ -222,7 +222,7 @@ def _align_frame(inputs):
                                        axis=0)
                     max_shift = np.max(list(it.chain(*it.chain(*shifts))),
                                        axis=0)
-                    displacement_bounds = p_offset + np.array(
+                    displacement_bounds = offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
                          np.maximum(min_shift + max_displacement, max_shift)
                          + 1])
@@ -231,10 +231,10 @@ def _align_frame(inputs):
                 shift = pyramid_align(np.expand_dims(reference, 0),
                                       np.expand_dims(plane, 0),
                                       bounds=displacement_bounds)
-                if displacement_bounds is not None:
+                if displacement_bounds is not None and shifts is not None:
                     assert np.all(shift >= displacement_bounds[0])
                     assert np.all(shift <= displacement_bounds[1])
-                    assert np.all(abs(shift - p_offset) <= max_displacement)
+                    assert np.all(abs(shift - offset) <= max_displacement)
             elif method == 'ECC':
                 raise NotImplementedError
                 # cv2.findTransformECC(reference, plane)
@@ -242,7 +242,12 @@ def _align_frame(inputs):
                 raise ValueError('Unrecognized alignment method')
             with lock:
                 s = namespace.shifts
-                s[cycle_idx][frame_idx][p][:] = shift - p_offset
+                if shift is None:  # if no shift could be calculated
+                    try:
+                        shift = s[cycle_idx][frame_idx-1][p] + offset
+                    except IndexError:
+                        shift = s[cycle_idx][frame_idx][p] + offset
+                s[cycle_idx][frame_idx][p][:] = shift - offset
                 namespace.shifts = s
 
             with lock:
@@ -465,7 +470,8 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
                 if corr > best_corr:
                     best_corr = corr
                     best_displacement = displacement
-        assert best_displacement is not None
+        if best_displacement is None:
+            warnings.warn('Could not align all frames.')
         return best_displacement
     else:
         return base_alignment(reference, target, bounds)
