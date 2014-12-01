@@ -225,7 +225,7 @@ def _align_frame(inputs):
                 shift = pyramid_align(np.expand_dims(reference, 0),
                                       np.expand_dims(plane, 0),
                                       bounds=displacement_bounds)
-                if displacement_bounds is not None and shifts is not None:
+                if displacement_bounds is not None and shift is not None:
                     assert np.all(shift >= displacement_bounds[0])
                     assert np.all(shift <= displacement_bounds[1])
                     assert np.all(abs(shift - offset) <= max_displacement)
