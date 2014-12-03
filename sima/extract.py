@@ -170,15 +170,15 @@ def _save_extract_summary(signals, save_directory, rois):
     mean_frame = signals['mean_frame']
 
     figs = []
-    for plane_idx in xrange(mean_frame.shape[2]):
+    for plane_idx in xrange(mean_frame.shape[0]):
         fig = plt.figure(figsize=(11, 8))
-        ax = fig.add_subplot(111, rasterized=True)
+        ax = fig.add_subplot(111, rasterized=False)
 
         ax.imshow(
-            mean_frame[:, :, plane_idx], cmap='gray', interpolation='none')
+            mean_frame[plane_idx, :, :], cmap='gray', interpolation='none')
 
         for mask in signals['_masks']:
-            m = mask.toarray().reshape((mean_frame.shape))[:, :, plane_idx]
+            m = mask.toarray().reshape((mean_frame.shape))[plane_idx, :, :]
             if not np.all(m == 0):
                 ax.spy(m, marker='.', markersize=2, aspect='auto',
                        color='cyan')
@@ -198,8 +198,8 @@ def _save_extract_summary(signals, save_directory, rois):
             # '0's and overlap[1] is the actual indices
             overlap_pix = np.unravel_index(
                 signals['overlap'][1], mean_frame.shape)
-            if len(overlap_pix[2]) and overlap_pix[2][0] == plane_idx:
-                ax.plot(overlap_pix[1], overlap_pix[0], 'r.', markersize=2)
+            if len(overlap_pix[0]) and overlap_pix[0][0] == plane_idx:
+                ax.plot(overlap_pix[2], overlap_pix[1], 'r.', markersize=2)
 
         ax.tick_params(bottom=False, top=False, left=False,
                        right=False, labelbottom=False, labeltop=False,
@@ -442,7 +442,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     if demixer is not None:
         signals['demixed_raw'] = demixed_signal
     signals['_masks'] = [masks[idx].tolil() for idx in rois_to_include]
-    signals['mean_frame'] = dataset.time_averages[signal_channel]
+    signals['mean_frame'] = dataset.time_averages[..., signal_channel]
     if remove_overlap:
         signals['overlap'] = overlap
     signals['signal_channel'] = signal_channel
