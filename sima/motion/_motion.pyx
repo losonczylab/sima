@@ -5,7 +5,7 @@ import warnings
 import itertools as it
 
 import cython
-import cython.parallel
+# import cython.parallel
 import numpy as np
 cimport numpy as np
 
@@ -137,7 +137,7 @@ def log_observation_probabilities_generalized(
     Y = scaled_references.shape[1]
     X = scaled_references.shape[2]
 
-    for i in cython.parallel.prange(tmpLogP.shape[0], nogil=True):
+    for i in range(tmpLogP.shape[0]):  # cython.parallel.prange(tmpLogP.shape[0], nogil=True):
         index = tmpStateIds[i]
         logp = 0.0
         for j in range(im.shape[0]):
@@ -177,7 +177,7 @@ def log_observation_probabilities(
     cdef double logp, ninf
     ninf = -float('inf')
 
-    for i in cython.parallel.prange(tmpLogP.shape[0], nogil=True):
+    for i in range(tmpLogP.shape[0]):  # cython.parallel.prange(tmpLogP.shape[0], nogil=True):
         index = tmpStateIds[i]
         reference_row = frame_row + positionLookup[index, 0] + offset[0]
         if reference_row < 0 or reference_row >= num_reference_rows:
