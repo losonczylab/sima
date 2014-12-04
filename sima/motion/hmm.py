@@ -137,7 +137,7 @@ def _whole_frame_shifting(dataset, shifts):
     return reference, variances
 
 
-def _discrete_transition_prob(r, r0, transition_probs, n):
+def _discrete_transition_prob(r, log_transition_probs, n):
     """Calculate the transition probability between two discrete position
     states.
 
@@ -145,8 +145,6 @@ def _discrete_transition_prob(r, r0, transition_probs, n):
     ----------
     r : array
         The location being transitioned to.
-    r0 : array
-        The location being transitioned from.
     transition_probs : function
         The continuous transition probability function.
     n : int
@@ -157,13 +155,35 @@ def _discrete_transition_prob(r, r0, transition_probs, n):
     float
         The discrete transition probability between the two states.
     """
-    p = 0.
-    for x in (r[0] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-        for x0 in (r0[0] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-            for y in (r[1] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-                for y0 in (r0[1] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-                    p += transition_probs(np.array([x, y]), np.array([x0, y0]))
-    return p / (n ** 4)
+    def _log_add(a, b):
+        """Add two log probabilities to get a new log probability.
+
+        Returns log(exp(a) + exp(b))
+
+        """
+        m = min(a, b)
+        M = max(a, b)
+        if M == -np.inf:
+            return -np.inf
+        return M + np.log(1. + np.exp(m-M))
+
+    logp = - np.inf
+    for x in np.linspace(-1, 1, n + 2)[1:-1]:
+        for y in np.linspace(-1, 1, n + 2)[1:-1]:
+            if len(r) == 2:
+                logp = _log_add(log_transition_probs(r + np.array([y, x])) +
+                                np.log(1 - abs(y)) + np.log(1 - abs(x)), logp)
+            else:
+                for z in np.linspace(-1, 1, n + 2)[1:-1]:
+                    new_logp = _log_add(
+                        log_transition_probs(r + np.array([z, y, x])) +
+                        np.log(1 - abs(z)) + np.log(1 - abs(y)) +
+                        np.log(1 - abs(x)), logp)
+                    if not np.isnan(new_logp):
+                        logp = new_logp
+                    else:
+                        raise Exception
+    return logp - len(r) * np.log(n)
 
 
 def _threshold_gradient(im):
@@ -297,7 +317,6 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=3, num_states_retained=50,
                  max_displacement=None, n_processes=None, verbose=True):
-
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -539,14 +558,14 @@ class MovementModel(object):
 
         """
         cov_matrix = self.cov_matrix(dt)
-        log_transition_probs = lambda x, x0: -0.5 * (
+        log_transition_probs = lambda x: -0.5 * (
             np.log(2 * np.pi * det(cov_matrix)) +
-            np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)))
+            np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
         for disp in it.product(*([range(max_distance + 1)] * len(cov_matrix))):
-            log_transition_matrix[disp] = log_transition_probs(
-                np.array(disp), np.zeros(len(cov_matrix)))
+            log_transition_matrix[disp] = _discrete_transition_prob(
+                disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
         if log_transition_matrix.ndim is 2:
             log_transition_matrix = np.expand_dims(log_transition_matrix, 0)
@@ -565,7 +584,7 @@ class MovementModel(object):
         for i in range(len(initial_cov)):
             initial_cov[i, i] = max(initial_cov[i, i], 0.1)
 
-        def f(x):
+        def idist(x):
             if len(x) is 3 and len(initial_cov) is 2:
                 x = x[1:]
             return np.exp(
@@ -573,8 +592,8 @@ class MovementModel(object):
                               np.linalg.solve(initial_cov, x - self.mean_shift)
                               )
             ) / np.sqrt(2.0 * np.pi * det(initial_cov))
-        assert np.isfinite(f(self.mean_shift))
-        return f
+        assert np.isfinite(idist(self.mean_shift))
+        return idist
 
     def initial_probs(self, displacement_tbl, min_displacements,
                       max_displacements):
