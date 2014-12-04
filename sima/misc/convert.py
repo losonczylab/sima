@@ -2,7 +2,6 @@ import os
 import sys
 from pickle import Unpickler as _Unpickler
 import cPickle as pkl
-from itertools import chain
 try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
