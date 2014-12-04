@@ -377,9 +377,9 @@ class _HiddenMarkov(MotionEstimationStrategy):
         shifts = self._estimate_shifts(dataset)
         references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:
-            params.max_displacement = np.array(dataset.frame_shape[:3]) / 2
+            max_displacement = np.array(dataset.frame_shape[:3]) / 2
         else:
-            params.max_displacement = np.array(params.max_displacement)
+            max_displacement = np.array(params.max_displacement)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
@@ -396,9 +396,9 @@ class _HiddenMarkov(MotionEstimationStrategy):
                                 for s in shifts], 0)
 
         # add a bit of extra room to move around
-        if params.max_displacement.size == 2:
-            params.max_displacement = np.hstack(([0], params.max_displacement))
-        extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
+        if max_displacement.size == 2:
+            max_displacement = np.hstack(([0], max_displacement))
+        extra_buffer = ((max_displacement - max_shifts + min_shifts) / 2
                         ).astype(int)
         min_displacements = min_shifts - extra_buffer
         max_displacements = max_shifts + extra_buffer
