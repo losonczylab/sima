@@ -135,35 +135,34 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
         trim_criterion = 1.
     if trim_criterion == 0.:
         trim_criterion = epsilon
-    if isinstance(trim_criterion, (float, int)):
-        obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
-                         for d in it.chain.from_iterable(displacements))
-        num_frames = sum(len(x) for x in displacements)
-        occupancy = obs_counts.astype(float) / num_frames
-
-        plane_occupancy = occupancy.sum(axis=2).sum(axis=1) / (
-            raw_shape[1] * raw_shape[2])
-        good_planes = plane_occupancy + epsilon > trim_criterion
-        plane_min = np.nonzero(good_planes)[0].min()
-        plane_max = np.nonzero(good_planes)[0].max() + 1
-
-        row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
-            raw_shape[0] * raw_shape[2])
-        good_rows = row_occupancy + epsilon > trim_criterion
-        row_min = np.nonzero(good_rows)[0].min()
-        row_max = np.nonzero(good_rows)[0].max() + 1
-
-        col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
-            raw_shape[:2])
-        good_cols = col_occupancy + epsilon > trim_criterion
-        col_min = np.nonzero(good_cols)[0].min()
-        col_max = np.nonzero(good_cols)[0].max() + 1
-
-        rows = slice(row_min, row_max)
-        columns = slice(col_min, col_max)
-        planes = slice(plane_min, plane_max)
-    else:
+    if not isinstance(trim_criterion, (float, int)):
         raise TypeError('Invalid type for trim_criterion')
+    obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
+                     for d in it.chain.from_iterable(displacements))
+    num_frames = sum(len(x) for x in displacements)
+    occupancy = obs_counts.astype(float) / num_frames
+
+    plane_occupancy = occupancy.sum(axis=2).sum(axis=1) / (
+        raw_shape[1] * raw_shape[2])
+    good_planes = plane_occupancy + epsilon > trim_criterion
+    plane_min = np.nonzero(good_planes)[0].min()
+    plane_max = np.nonzero(good_planes)[0].max() + 1
+
+    row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
+        raw_shape[0] * raw_shape[2])
+    good_rows = row_occupancy + epsilon > trim_criterion
+    row_min = np.nonzero(good_rows)[0].min()
+    row_max = np.nonzero(good_rows)[0].max() + 1
+
+    col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
+        raw_shape[:2])
+    good_cols = col_occupancy + epsilon > trim_criterion
+    col_min = np.nonzero(good_cols)[0].min()
+    col_max = np.nonzero(good_cols)[0].max() + 1
+
+    rows = slice(row_min, row_max)
+    columns = slice(col_min, col_max)
+    planes = slice(plane_min, plane_max)
     return planes, rows, columns
 
 
