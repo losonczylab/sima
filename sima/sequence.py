@@ -339,7 +339,7 @@ class Sequence(object):
             out_dirs = [[dirname(filenames)]]
         except AttributeError:  # TIFF case
             out_dirs = [[dirname(f) for f in plane] for plane in filenames]
-        for d in filter(None, it.chain(*out_dirs)):
+        for d in filter(None, it.chain.from_iterable(out_dirs)):
             sima.misc.mkdir_p(d)
 
         if 'TIFF' in fmt:
@@ -370,7 +370,7 @@ class Sequence(object):
                         raise ValueError('Unrecognized output format.')
 
         if 'TIFF' in fmt:
-            for f in it.chain(*output_files):
+            for f in it.chain.from_iterable(output_files):
                 f.close()
         elif fmt == 'HDF5':
             f.create_dataset(name='imaging', data=output_array)
@@ -642,8 +642,8 @@ class _MotionCorrectedSequence(_WrapperSequence):
         super(_MotionCorrectedSequence, self).__init__(base)
         self.displacements = displacements
         if extent is None:
-            max_disp = np.max(
-                list(it.chain(*it.chain(*it.chain(*displacements)))), axis=0)
+            max_disp = np.nanmax([np.nanmax(d.reshape(-1, d.shape[-1]), 0)
+                                  for d in displacements], 0)
             extent = np.array(base._sequences[0].shape)[1:-1]
             extent[1:3] += max_disp
         assert len(extent) == 3

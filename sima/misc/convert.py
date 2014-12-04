@@ -2,7 +2,6 @@ import os
 import sys
 from pickle import Unpickler as _Unpickler
 import cPickle as pkl
-from itertools import chain
 try:
     from future_builtins import zip
 except ImportError:  # Python 3.x
@@ -114,7 +113,8 @@ def _load_version0(path):
         pass
     else:
         assert all(np.all(d >= 0) for d in displacements)
-        max_disp = np.max(list(chain(*displacements)), axis=0)
+        max_disp = np.nanmax([np.nanmax(d.reshape(-1, d.shape[-1]), 0)
+                              for d in displacements], 0)
         frame_shape = np.array(sequences[0].shape)[1:-1]  # z, y, x
         frame_shape[1:3] += max_disp
         sequences = [

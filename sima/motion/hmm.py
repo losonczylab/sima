@@ -47,7 +47,7 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
     sum_squares = np.zeros_like(sums)
     counts = np.zeros_like(sums)
     t = 0
-    for frame in it.chain(*dataset):
+    for frame in it.chain.from_iterable(dataset):
         for plane in frame:
             if t > 0:
                 mean_est = sums / counts
@@ -91,15 +91,11 @@ def _whole_frame_shifting(dataset, shifts):
         The displacement to add to each shift to align the minimal shift
         with the edge of the corrected image.
     """
-    # # Calculate a correlation threshold for each plane of the frame
-    # thresh = \
-    #     np.nanmean(list(it.chain(*correlations)), axis=0) - \
-    #     2 * np.nanstd(list(it.chain(*correlations)), axis=0)
-    # # only include image frames with sufficiently high correlation
-    min_shifts = np.nanmin(
-        list(it.chain(*[s.reshape(-1, s.shape[-1]) for s in shifts])), 0)
-    max_shifts = np.nanmax(
-        list(it.chain(*[s.reshape(-1, s.shape[-1]) for s in shifts])), 0)
+    min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                            for s in shifts], 0)
+    assert np.all(min_shifts == 0)
+    max_shifts = np.nanmax([np.nanmax(s.reshape(-1, s.shape[-1]), 0)
+                            for s in shifts], 0)
     out_shape = list(dataset.frame_shape)
     if len(min_shifts) == 2:
         out_shape[1] += max_shifts[0] - min_shifts[0]
@@ -112,17 +108,22 @@ def _whole_frame_shifting(dataset, shifts):
     reference = np.zeros(out_shape)
     sum_squares = np.zeros_like(reference)
     count = np.zeros_like(reference)
-    for frame, shift in it.izip(it.chain(*dataset), it.chain(*shifts)):
+    for frame, shift in zip(it.chain.from_iterable(dataset),
+                            it.chain.from_iterable(shifts)):
         if shift.ndim == 1:  # single shift for the whole volume
+            if any(x is np.ma.masked for x in shift):
+                continue
             l = shift - min_shifts
             h = shift + frame.shape[:-1]
             reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame
             sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame ** 2
             count[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.isfinite(frame)
         else:  # plane-specific shifts
-            for plane, p_shifts, ref, ssq, cnt in it.izip(
+            for plane, p_shifts, ref, ssq, cnt in zip(
                     frame, shift, reference, sum_squares, count):
-                low = (p_shifts - min_shifts)  # TOOD: NaN considerations
+                if any(x is np.ma.masked for x in p_shifts):
+                    continue
+                low = p_shifts - min_shifts  # TOOD: NaN considerations
                 high = low + plane.shape[:-1]
                 ref[low[0]:high[0], low[1]:high[1]] += plane
                 ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
@@ -133,11 +134,10 @@ def _whole_frame_shifting(dataset, shifts):
         assert np.all(np.isnan(reference[np.equal(count, 0)]))
         variances = (sum_squares / count) - reference ** 2
         assert not np.any(variances < 0)
-    offset = - min_shifts
-    return reference, variances, offset
+    return reference, variances
 
 
-def _discrete_transition_prob(r, r0, transition_probs, n):
+def _discrete_transition_prob(r, log_transition_probs, n):
     """Calculate the transition probability between two discrete position
     states.
 
@@ -145,8 +145,6 @@ def _discrete_transition_prob(r, r0, transition_probs, n):
     ----------
     r : array
         The location being transitioned to.
-    r0 : array
-        The location being transitioned from.
     transition_probs : function
         The continuous transition probability function.
     n : int
@@ -157,13 +155,35 @@ def _discrete_transition_prob(r, r0, transition_probs, n):
     float
         The discrete transition probability between the two states.
     """
-    p = 0.
-    for x in (r[0] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-        for x0 in (r0[0] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-            for y in (r[1] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-                for y0 in (r0[1] + np.linspace(-0.5, 0.5, n + 2))[1:-1]:
-                    p += transition_probs(np.array([x, y]), np.array([x0, y0]))
-    return p / (n ** 4)
+    def _log_add(a, b):
+        """Add two log probabilities to get a new log probability.
+
+        Returns log(exp(a) + exp(b))
+
+        """
+        m = min(a, b)
+        M = max(a, b)
+        if M == -np.inf:
+            return -np.inf
+        return M + np.log(1. + np.exp(m-M))
+
+    logp = - np.inf
+    for x in np.linspace(-1, 1, n + 2)[1:-1]:
+        for y in np.linspace(-1, 1, n + 2)[1:-1]:
+            if len(r) == 2:
+                logp = _log_add(log_transition_probs(r + np.array([y, x])) +
+                                np.log(1 - abs(y)) + np.log(1 - abs(x)), logp)
+            else:
+                for z in np.linspace(-1, 1, n + 2)[1:-1]:
+                    new_logp = _log_add(
+                        log_transition_probs(r + np.array([z, y, x])) +
+                        np.log(1 - abs(z)) + np.log(1 - abs(y)) +
+                        np.log(1 - abs(x)), logp)
+                    if not np.isnan(new_logp):
+                        logp = new_logp
+                    else:
+                        raise Exception
+    return logp - len(r) * np.log(n)
 
 
 def _threshold_gradient(im):
@@ -297,7 +317,6 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=3, num_states_retained=50,
                  max_displacement=None, n_processes=None, verbose=True):
-
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -356,12 +375,11 @@ class _HiddenMarkov(MotionEstimationStrategy):
         if params.verbose:
             print 'Estimating model parameters.'
         shifts = self._estimate_shifts(dataset)
-        references, variances, offset = _whole_frame_shifting(dataset, shifts)
+        references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:
-            params.max_displacement = np.array(dataset.frame_shape[:3]) / 2
+            max_displacement = np.array(dataset.frame_shape[:3]) / 2
         else:
-            params.max_displacement = np.array(params.max_displacement)
-        assert np.all(offset == 0)
+            max_displacement = np.array(params.max_displacement)
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
@@ -372,17 +390,18 @@ class _HiddenMarkov(MotionEstimationStrategy):
             shifts = [np.concatenate([np.zeros(s.shape[:-1] + (1,), dtype=int),
                                       s], axis=-1) for s in shifts]
 
-        # TODO: detect unreasonable shifts before doing this calculation
-        min_shifts = np.nanmin(list(it.chain(*it.chain(*shifts))), 0)
-        max_shifts = np.nanmax(list(it.chain(*it.chain(*shifts))), 0)
+        min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                                for s in shifts], 0)
+        max_shifts = np.nanmax([np.nanmax(s.reshape(-1, s.shape[-1]), 0)
+                                for s in shifts], 0)
 
         # add a bit of extra room to move around
-        if params.max_displacement.size == 2:
-            params.max_displacement = np.hstack(([0], params.max_displacement))
-        extra_buffer = ((params.max_displacement - max_shifts + min_shifts) / 2
+        if max_displacement.size == 2:
+            max_displacement = np.hstack(([0], max_displacement))
+        extra_buffer = ((max_displacement - max_shifts + min_shifts) / 2
                         ).astype(int)
-        min_displacements = (min_shifts - extra_buffer)
-        max_displacements = (max_shifts + extra_buffer)
+        min_displacements = min_shifts - extra_buffer
+        max_displacements = max_shifts + extra_buffer
 
         displacements = self._neighbor_viterbi(
             dataset, references, gains, movement_model, min_displacements,
@@ -451,21 +470,11 @@ class MovementModel(object):
             displacements are estimated per volume, per plane, per row, etc.
 
         """
-        shifts = np.array(list(it.chain(
-            *[s.reshape(-1, s.shape[-1]) for s in shifts])))
+        # TODO: add mean value at boundaries to eliminate boundary effects
+        # between cycles
+        shifts = np.concatenate(shifts).reshape(-1, shifts[0].shape[-1])
         if not shifts.shape[1] in (2, 3):
             raise ValueError
-        # var_model = VAR(shifts)
-        # results = var_model.fit(1)  # fit VAR(1) modoel
-        # A = results.coefs[0]
-        # cov_matrix = results.sigma_u
-        # diffs = np.diff(shifts, axis=0)
-        # cov_matrix = np.cov(diffs[np.isfinite(diffs).all(axis=1)].T)
-        # # don't allow singular covariance matrix
-        # for i in range(len(cov_matrix)):
-        #     cov_matrix[i, i] = max(cov_matrix[i, i], 1. / len(shifts))
-        # assert det(cov_matrix) > 0
-
         mean_shift = np.nanmean(shifts, axis=0)
         assert len(mean_shift) == shifts.shape[1]
         centered_shifts = np.nan_to_num(shifts - mean_shift)
@@ -475,7 +484,7 @@ class MovementModel(object):
         past_past = np.dot(past.T, past)
         idx = 0
         D = shifts.shape[1]
-        n = D * (D+1) / 2
+        n = D * (D + 1) / 2
         y = np.zeros(n)
         M = np.zeros((n, n))
         for i in range(D):
@@ -549,14 +558,14 @@ class MovementModel(object):
 
         """
         cov_matrix = self.cov_matrix(dt)
-        log_transition_probs = lambda x, x0: -0.5 * (
+        log_transition_probs = lambda x: -0.5 * (
             np.log(2 * np.pi * det(cov_matrix)) +
-            np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)))
+            np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
         for disp in it.product(*([range(max_distance + 1)] * len(cov_matrix))):
-            log_transition_matrix[disp] = log_transition_probs(
-                np.array(disp), np.zeros(len(cov_matrix)))
+            log_transition_matrix[disp] = _discrete_transition_prob(
+                disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
         if log_transition_matrix.ndim is 2:
             log_transition_matrix = np.expand_dims(log_transition_matrix, 0)
@@ -575,7 +584,7 @@ class MovementModel(object):
         for i in range(len(initial_cov)):
             initial_cov[i, i] = max(initial_cov[i, i], 0.1)
 
-        def f(x):
+        def idist(x):
             if len(x) is 3 and len(initial_cov) is 2:
                 x = x[1:]
             return np.exp(
@@ -583,8 +592,8 @@ class MovementModel(object):
                               np.linalg.solve(initial_cov, x - self.mean_shift)
                               )
             ) / np.sqrt(2.0 * np.pi * det(initial_cov))
-        assert np.isfinite(f(self.mean_shift))
-        return f
+        assert np.isfinite(idist(self.mean_shift))
+        return idist
 
     def initial_probs(self, displacement_tbl, min_displacements,
                       max_displacements):
@@ -727,8 +736,10 @@ class HiddenMarkov3D(_HiddenMarkov):
 
     """
     def _estimate_shifts(self, dataset):
-        return sima.motion.frame_align.VolumeTranslation(
-            self._params.max_displacement).estimate(dataset)
+        shifts = sima.motion.frame_align.VolumeTranslation(
+            self._params.max_displacement, criterion=2.5).estimate(dataset)
+        assert all(np.all(s) >= 0 for s in shifts)
+        return shifts
 
 
 class NormalizedIterator(object):

@@ -223,10 +223,9 @@ class ImagingDataset(object):
                 pass
         sums = np.zeros(self.frame_shape)
         counts = np.zeros(self.frame_shape)
-        for sequence in self:
-            for frame in sequence:
-                sums += np.nan_to_num(frame)
-                counts[np.isfinite(frame)] += 1
+        for frame in it.chain.from_iterable(self):
+            sums += np.nan_to_num(frame)
+            counts[np.isfinite(frame)] += 1
         averages = sums / counts
         if self.savedir is not None:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
