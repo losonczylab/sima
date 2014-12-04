@@ -225,16 +225,26 @@ def _align_frame(
         corrected_frame_size)
     cdef np.ndarray[INT_TYPE_t, ndim=3] count = np.zeros(
         corrected_frame_size[:-1], dtype=int)
-    cdef int num_cols, p, i, j, x, y, c
+    cdef int num_cols, p, i, j, x, y, z, c, y_idx, x_idx
     num_cols = frame.shape[2]
+    if displacements.shape[2] == 2:
+        y_idx = 0
+        x_idx = 1
+    else:
+        y_idx = 1
+        x_idx = 2
     for p in range(frame.shape[0]):
         for i in range(frame.shape[1]):
-            y = i + displacements[p, i, 0]
+            if y_idx == 1:
+                z = p + displacements[p, i, 0]
+            else:
+                z = p
+            y = i + displacements[p, i, y_idx]
             for j in range(num_cols):
-                x = displacements[p, i, 1] + j
-                count[p, y, x] += 1
+                x = displacements[p, i, x_idx] + j
+                count[z, y, x] += 1
                 for c in range(frame.shape[3]):
-                    corrected_frame[p, y, x, c] += frame[p, i, j, c]
+                    corrected_frame[z, y, x, c] += frame[p, i, j, c]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         return (corrected_frame.T / count.T).T
