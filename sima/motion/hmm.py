@@ -317,6 +317,16 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=3, num_states_retained=50,
                  max_displacement=None, n_processes=None, verbose=True):
+        if isinstance(granularity, int):
+            granularity = (granularity, 1)
+        elif isinstance(granularity, str):
+            granularity = {'frame': (1, 1),
+                           'plane': (2, 1),
+                           'row': (3, 1),
+                           'column': (4, 1)}[granularity]
+        elif not isinstance(granularity, tuple):
+            raise TypeError(
+                'granularity must be of type str, int, or tuple of int')
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -335,7 +345,8 @@ class _HiddenMarkov(MotionEstimationStrategy):
             [min_displacements, max_displacements + 1],
             movement_model.log_transition_matrix(
                 max_distance=max_step,
-                dt=1./np.prod(references.shape[:(granularity-1)])))
+                dt=float(granularity[1])/np.prod(
+                    references.shape[:(granularity[0]-1)])))
         assert displacement_tbl.dtype == int
         tmp_states, log_p = movement_model.initial_probs(
             displacement_tbl, min_displacements, max_displacements)
@@ -351,8 +362,12 @@ class _HiddenMarkov(MotionEstimationStrategy):
                 it.repeat((transition_tbl, log_markov_tbl)), scaled_refs,
                 displacement_tbl, (tmp_states, log_p),
                 self._params.num_states_retained)
-            displacements.append(disp.reshape(
-                sequence.shape[:granularity] + (disp.shape[-1],)))
+            new_shape = sequence.shape[:(granularity[0]-1)] + \
+                (sequence.shape[granularity[0]-1] / granularity[1],) + \
+                (disp.shape[-1],)
+            displacements.append(np.repeat(disp.reshape(new_shape),
+                                           repeats=granularity[1],
+                                           axis=granularity[0]-1))
         return displacements
 
     def _estimate(self, dataset):
@@ -620,6 +635,8 @@ class PositionIterator(object):
     ----------
     shape : tuple of int
         (times, planes, rows, columns)
+    offset : tuple of int
+        (z, y, x) or (y, x)
 
     Examples
     --------
@@ -630,9 +647,14 @@ class PositionIterator(object):
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'plane')
     >>> positions = next(iter(pi))
+    >>> positions.shape
+    (32768, 3)
 
-    >>> pi = PositionIterator((100, 5, 128, 256), 'row', [10, 12])
+    Group two rows at a time
+    >>> pi = PositionIterator((100, 5, 128, 256), (3, 2), [10, 12])
     >>> positions = next(iter(pi))
+    >>> positions.shape
+    (512, 3)
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'column', [3, 10, 12])
     >>> positions = next(iter(pi))
@@ -640,28 +662,43 @@ class PositionIterator(object):
     """
 
     def __init__(self, shape, granularity, offset=None):
-        try:
-            self.granularity = int(granularity)
-        except ValueError:
-            self.granularity = {'frame': 1,
-                                'plane': 2,
-                                'row': 3,
-                                'column': 4}[granularity]
+        if isinstance(granularity, int):
+            self.granularity = (granularity, 1)
+        elif isinstance(granularity, str):
+            self.granularity = {'frame': (1, 1),
+                                'plane': (2, 1),
+                                'row': (3, 1),
+                                'column': (4, 1)}[granularity]
+        elif isinstance(granularity, tuple):
+            self.granularity = granularity
+        else:
+            raise TypeError('granularity must be of type str, int, or tuple '
+                            'of int')
         self.shape = shape
+        if self.shape[self.granularity[0] - 1] % self.granularity[1] is not 0:
+            raise ValueError('granularity[1] must divide the frame shape '
+                             'along dimension granularity[0]-1')
         if offset is None:
             self.offset = [0, 0, 0, 0]
         else:
             self.offset = ([0, 0, 0, 0] + list(offset))[-4:]
 
     def __iter__(self):
-        for base in it.product(*[range(o, x + o) for x, o in
-                                 zip(self.shape[:self.granularity],
-                                     self.offset[:self.granularity])]):
-            l = [[x] for x in base[1:]] + [
-                xrange(x) for x in self.shape[self.granularity:]]
-            yield np.concatenate(
-                [a.reshape(-1, 1) for a in np.meshgrid(*l)],
-                axis=1)
+        base_iter = it.product(*[range(o, x + o) for x, o in
+                                 zip(self.shape[:self.granularity[0]],
+                                     self.offset[:self.granularity[0]])])
+        for group in zip(*[base_iter]*self.granularity[1]):
+            positions = []
+            for base in group:
+                l = [[x] for x in base[1:]] + [
+                    xrange(o, x + o) for x, o in zip(
+                        self.shape[self.granularity[0]:],
+                        self.offset[self.granularity[0]:])]
+                positions.append(np.concatenate(
+                    [a.reshape(-1, 1) for a in np.meshgrid(*l)], axis=1))
+            assert len(positions)
+            assert len(positions[0])
+            yield np.concatenate(positions, axis=0)
 
 
 def _beam_search(imdata, positions, transitions, references, state_table,
@@ -754,6 +791,7 @@ class NormalizedIterator(object):
         The mean pixel intensities for each channel.
     pixel_variances : array
         The pixel intensity variance for each channel.
+    granularity : tuple of int
 
     Yields
     ------
@@ -792,23 +830,28 @@ class NormalizedIterator(object):
         self.gains = gains
         self.pixel_means = pixel_means
         self.pixel_variances = pixel_variances
-        try:
-            self.granularity = int(granularity)
-        except ValueError:
-            self.granularity = {'frame': 1,
-                                'plane': 2,
-                                'row': 3,
-                                'column': 4}[granularity]
+        if isinstance(granularity, int):
+            self.granularity = (granularity, 1)
+        elif isinstance(granularity, str):
+            self.granularity = {'frame': (1, 1),
+                                'plane': (2, 1),
+                                'row': (3, 1),
+                                'column': (4, 1)}[granularity]
+        elif isinstance(granularity, tuple):
+            self.granularity = granularity
+        else:
+            raise TypeError('granularity must be of type str, int, or tuple '
+                            'of int')
 
     def __iter__(self):
         means = self.pixel_means / self.gains
         variances = self.pixel_variances / self.gains ** 2
         for frame in self.sequence:
             frame = frame.reshape(
-                int(np.prod(frame.shape[:(self.granularity-1)])),
+                int(np.prod(frame.shape[:(self.granularity[0]-1)])),
                 -1, frame.shape[-1])
-            for chunk in frame:
-                im = chunk / self.gains
+            for chunk in zip(*[iter(frame)]*self.granularity[1]):
+                im = np.concatenate(chunk, axis=0) / self.gains
                 # replace NaN pixels with the mean value for the channel
                 for ch_idx, ch_mean in enumerate(means):
                     im_nans = np.isnan(im[..., ch_idx])
@@ -818,9 +861,6 @@ class NormalizedIterator(object):
                 # probability of observing the pixels (ignoring reference)
                 log_im_p = -(im - means) ** 2 / (2 * variances) \
                     - 0.5 * np.log(2. * np.pi * variances)
-                # inf_indices = np.logical_not(np.isfinite(log_im_fac))
-                # log_im_fac[inf_indices] = im[inf_indices] * (
-                #     np.log(im[inf_indices]) - 1)
                 assert(np.all(np.isfinite(log_im_fac)))
                 assert(np.all(np.isfinite(log_im_p)))
                 yield im, log_im_fac, log_im_p
