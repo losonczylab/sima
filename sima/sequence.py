@@ -359,16 +359,16 @@ class Sequence(object):
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
                 output_array[f_idx] = frame
-            for plane_idx, plane in enumerate(frame):
-                for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
-                    f = output_files[plane_idx][ch_idx]
-                    if fmt == 'TIFF16':
-                        f.write_page(channel.astype('uint16'))
-                    elif fmt == 'TIFF8':
-                        f.write_page(channel.astype('uint8'))
-                    else:
-                        raise ValueError('Unrecognized output format.')
-
+            else:
+                for plane_idx, plane in enumerate(frame):
+                    for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
+                        f = output_files[plane_idx][ch_idx]
+                        if fmt == 'TIFF16':
+                            f.write_page(channel.astype('uint16'))
+                        elif fmt == 'TIFF8':
+                            f.write_page(channel.astype('uint8'))
+                        else:
+                            raise ValueError('Unrecognized output format.')
         if 'TIFF' in fmt:
             for f in it.chain.from_iterable(output_files):
                 f.close()
