@@ -97,7 +97,7 @@ def _load_version0(path):
 
     def parse_sequence(sequence):
         channels = [parse_channel(c) for c in sequence]
-        return Sequence.join(channels)
+        return Sequence.join(*channels)
 
     with open(os.path.join(path, 'dataset.pkl'), 'rb') as f:
         unpickler = Unpickler(f)

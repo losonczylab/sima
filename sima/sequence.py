@@ -186,17 +186,17 @@ class Sequence(object):
         return _MaskedSequence(self, masks)
 
     @staticmethod
-    def join(sequences):
+    def join(*sequences):
         """Join together sequences representing different channels.
 
         Parameters
         ----------
-        sequences : list of Sequence
-            The sequences that are to be joined together.
+        sequences : sima.Sequence
+            Each argument is a Sequence representing a different channel.
 
         Returns
         -------
-        sequence : Sequence
+        joined_sequence : sima.Sequence
             A single sequence with multiple channels.
 
         Examples
@@ -206,7 +206,7 @@ class Sequence(object):
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
-        >>> joined = Sequence.join([seq, seq])
+        >>> joined = Sequence.join(seq, seq)
         >>> joined.shape[:4] == seq.shape[:4]
         True
         >>> joined.shape[4] == 2 * seq.shape[4]
