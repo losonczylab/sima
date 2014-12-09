@@ -39,7 +39,7 @@ Individual classes or functions can be imported from submodules.
 For example, we can import the iterable object for use with multi-page
 TIFF files with the following command:
 
-    >>> from sima.segment import PlaneSTICA
+    >>> from sima.motion import HiddenMarkov2D
 
 For more details on importing, consult the `Python documentation
 <https://docs.python.org/2.7/>`_.
@@ -84,15 +84,20 @@ Numpy arrays
 To begin with, we create some Numpy arrays containing random data.
 
     >>> import numpy as np
-    >>> array1 = np.random.rand(100, 128, 128, 2)
-    >>> array2 = np.random.rand(100, 128, 128, 2)
+    >>> cycle1_channel1 = np.random.rand(100, 128, 128)
+    >>> cycle1_channel2 = np.random.rand(100, 128, 128)
+    >>> cycle2_channel1 = np.random.rand(100, 128, 128)
+    >>> cycle2_channel2 = np.random.rand(100, 128, 128)
 
 Once we have the Numpy arrays containing the imaging data, we create the
 ImagingDataset object as follows.
 
-    >>> sequences = [
-    ...     sima.Sequence.create('ndarray', array1),
-    ...     sima.Sequence.create('ndarray', array2)]
+    >>> sequences = [sima.Sequence.join(
+    ...                  sima.Sequence.create('ndarray', cycle1_channel1), 
+    ...                  sima.Sequence.create('ndarray', cycle1_channel2)), 
+    ...              sima.Sequence.join(
+    ...                  sima.Sequence.create('ndarray', cycle2_channel1), 
+    ...                  sima.Sequence.create('ndarray', cycle2_channel2))]
     >>> dataset = sima.ImagingDataset(
     ...     sequences, 'example_np.sima', channel_names=['green', 'red'])
 
@@ -100,16 +105,16 @@ Multipage TIFF files
 ....................
 For simplicity, we consider the case of only a single cycle and channel.
 
-    >>> sequence = sima.Sequence.create('TIFF', 'example_Ch1.tif')
-    >>> dataset = sima.ImagingDataset([sequence], 'example_TIFF.sima')
+    >>> sequences = [sima.Sequence.create('TIFF', 'example_Ch1.tif')]
+    >>> dataset = sima.ImagingDataset(sequences, 'example_TIFF.sima')
 
 HDF5 files
 ..........
 The argument 'yxt' specifies that the first index of the HDF5 array corresponds
 to the row, the second to the column, and the third to the time.
 
-    >>> sequence = sima.create('HDF5', 'example.h5', 'yxt')
-    >>> dataset = sima.ImagingDataset([sequence], 'example_HDF5.sima')
+    >>> sequences = [sima.Sequence.create('HDF5', 'example.h5', 'yxt')]
+    >>> dataset = sima.ImagingDataset(sequences, 'example_HDF5.sima')
 
 
 Loading ImagingDataset objects
@@ -121,31 +126,47 @@ A dataset object can also be loaded from a saved path with the .sima extension.
 
 Motion correction 
 -----------------
+The SIMA package implements a variety of approaches for motion correction. To
+use one of these approaches, the user first creates an object encapsulating the
+approach and a choice of parameters. For example, an object encapsulating the
+approach of translating imaging planes in two dimensions with a maximum
+displacement of 15 rows and 30 columns can be created as follows:
+
+    >>> import sima.motion
+    >>> mc_approach = sima.motion.PlaneTranslation2D(max_displacement=[15, 30])
+
+Once this object encapsulating the approach has been created, its
+:func:`correct()` method can then be applied to create a corrected dataset from
+a list of sequences.
+
+    >>> sequences = [sima.Sequence.create('TIFF', 'example_Ch1.tif')]
+    >>> dataset = mc_approach.correct(sequences, 'example_translation2D.sima')
+
 In the following example, the SIMA package is used for motion correction based
-on a hidden Markov model (HMM). The :func:`sima.motion.hmm` function takes the
-same arguments as are used to initialize an imaging dataset object, as well as
-some additional optional arguments. In the example below, an optional argument
-is used to indicate that the maximum possible displacement is 20 rows and 30
-columns.
+on a hidden Markov model (HMM). The :class:`sima.motion.HiddenMarkov2D` class
+takes the initialize arguments to specify its parameters (e.g.\ an optional
+argument is used to indicate that the maximum possible displacement is 20 rows
+and 30 columns). The :func:`correct` method takes the same arguments as are
+used to initialize an imaging dataset object, as well as some additional
+optional arguments. 
 
-    >>> import sima.motion
-    >>> sequence = sima.Sequence.create('TIFF', 'example_Ch1.tif')
-    >>> dataset = sima.motion.HiddenMarkov2D(max_displacement=[20,30]).correct(
-    ...     [sequence], 'example_mc.sima')
+    >>> mc_approach = sima.motion.HiddenMarkov2D(
+    ...     granularity='row', max_displacement=[20, 30], verbose=False) 
+    >>> dataset = mc_approach.correct(sequences, 'example_mc.sima')
 
-When the signal is of interest is very sparse or highly dynamic, it is sometimes
-helpful to use a second static channel to estimate the displacements for motion
-correction. The example below is for the case where the first channel contains
-a dynamic GCaMP signal whose large variations would confuse the motion correction
-alogorithm, and the second channel contains a static tdTomato signal that provides
-a stable reference.
+When the signal is of interest is very sparse or highly dynamic, it is
+sometimes helpful to use a second static channel to estimate the displacements
+for motion correction. The example below is for the case where the first
+channel contains a dynamic GCaMP signal whose large variations would confuse
+the motion correction alogorithm, and the second channel contains a static
+tdTomato signal that provides a stable reference.
 
-    >>> import sima.motion
-    >>> sequence = sima.Sequence.join(
-    ...     [sima.Sequence.create('TIFF', 'example_Ch1.tif'),
-    ...      sima.Sequence.create('TIFF', 'example_Ch2.tif')])
-    >>> dataset = sima.motion.HiddenMarkov2D(max_displacement=[20,30]).correct(
-    ...     [sequence], 'example_mc2.sima', channel_names=['GCaMP', 'tdTomato'],
+    >>> sequences = [
+    ...     sima.Sequence.join(sima.Sequence.create('TIFF', 'example_Ch1.tif'), 
+    ...                        sima.Sequence.create('TIFF', 'example_Ch1.tif'))
+    ... ]
+    >>> dataset = mc_approach.correct(
+    ...     sequences, 'example_mc2.sima', channel_names=['GCaMP', 'tdTomato'],
     ...     correction_channels=['tdTomato'])
 
 When motion correction is invoked as above, only the tdTomato channel is used
@@ -156,19 +177,21 @@ Segmentation and ROIs
 
 Automated segmentation
 ......................
-An :class:`ImagingDataset` object can be automatically segmented with a call to
-its :func:`segment` method.  The arguments of the :func:`segment` method
-specify the segmentation approach to be used, an optional label for the
-resulting set of ROIs, and additional arguments specific to the particular
-segmentation approach.  In the example below, an imaging dataset object is
-segmented with the ``'ca1pc'`` method designed for segmenting CA1 pyramidal
-cells.
+The SIMA package implements a number of approaches for automated segmentation.
+To use one of the approaches, the first step is to create an object
+encapsulating the approach and a choice of parameters. For example, an object
+representing the approach of segmenting a single-plane dataset with
+spatiotemporal indpendent component analysis (STICA) can be created as follows:
+
+    >>> import sima.segment
+    >>> ca1pc_approach = sima.segment.PlaneCA1PC(num_pcs=5)
+
+Once the approch has been created, it can be passed as an argument to the
+:func:`segment` method of an An :class:`ImagingDataset`. The :func:`segment`
+method can also take an optional label argument for the resulting set of ROIs. 
 
     >>> dataset = sima.ImagingDataset.load('example.sima')
-    >>> rois = dataset.segment('ca1pc', 'auto_ROIs', num_pcs=5)
-    >>> dataset.ROIs.keys()  # view the labels of the existing ROILists
-    ['auto_ROIs']
-
+    >>> rois = dataset.segment(ca1pc_approach, 'auto_ROIs')
 
 Editing, creating, and registering ROIs with ROI Buddy
 ......................................................
@@ -274,12 +297,10 @@ can be used to view the results of motion correction, as shown in the following
 example.
 
     >>> import sima.motion
-    >>> from sima.sequence import MultiPageTIFF
-    >>> sequence = [[MultiPageTIFF('example_Ch1.tif')]]
-    >>> dataset = sima.motion.hmm(sequence, 'example_mc3.sima',
-    ...                           max_displacement=[20,30], verbose=False)
-    >>> dataset.export_averages(['exported_frames.tif'], fmt='TIFF16')
-    >>> dataset.export_frames([['exported_frames.tif']], fmt='TIFF16')
+    >>> sequences = [sima.Sequence.create('TIFF', 'example_Ch1.tif')]
+    >>> dataset = mc_approach.correct(sequences, 'example_mc3.sima')
+    >>> dataset.export_averages(['avgs.tif'], fmt='TIFF16')
+    >>> dataset.export_frames([[['frames.tif']]], fmt='TIFF16')
 
 The paths to which the exported data are saved are organized as a list with one
 filename per channel for the :func:`export_averages` method, or as a list of
@@ -289,7 +310,7 @@ however, the export format is specified to HDF5, then the filenames for
 :func:`export_frames` should be organized into a list with one filename per
 cycle, since both channels are combined into a single HDF5 file.
 
-    >>> dataset.export_frames('exported_frames.h5', fmt='HDF5')
+    >>> dataset.export_frames(['exported_frames.h5'], fmt='HDF5')
 
 Signal data
 ...........
