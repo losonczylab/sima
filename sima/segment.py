@@ -189,7 +189,8 @@ class DatasetIterable():
 
     def __init__(self, dataset, channel):
         self.dataset = dataset
-        self.channel = channel
+        self.channel = sima.misc.resolve_channels(
+            channel, dataset.channel_names)
         self.means = dataset.time_averages[..., self.channel].reshape(-1)
 
     def __iter__(self):
@@ -372,8 +373,10 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
                             (y + dy < shape[0]):
                         pairs.append(
                             np.reshape([y, x, y + dy, x + dx], (1, 4)))
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         return _offset_corrs(
-            dataset, np.concatenate(pairs, 0), self._params.channel,
+            dataset, np.concatenate(pairs, 0), channel,
             num_pcs=self._params.num_pcs, verbose=self._params.verbose)
 
     def _weight(self, r0, r1):
@@ -422,8 +425,10 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
 
     def _setup(self, dataset):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         processed_image = _processed_image_ca1pc(
-            dataset, self._params.channel, self._params.x_diameter,
+            dataset, channel, self._params.x_diameter,
             self._params.y_diameter)[0]
         time_avg = processed_image
         std = np.std(time_avg)
@@ -962,8 +967,10 @@ class CA1PCNucleus(PostProcessingStep):
         self._y_diameter = y_diameter
 
     def apply(self, rois, dataset):
+        channel = sima.misc.resolve_channels(self._channel,
+                                             dataset.channel_names)
         processed_im = _processed_image_ca1pc(
-            dataset, self._channel, self._x_diameter, self._y_diameter)[0]
+            dataset, channel, self._x_diameter, self._y_diameter)[0]
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
@@ -1217,15 +1224,17 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn >= 0.11 required')
 
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         if dataset.savedir is not None:
-            pca_path = os.path.join(
-                dataset.savedir, 'opca_' + str(self._params.channel) + '.npz')
+            pca_path = os.path.join(dataset.savedir,
+                                    'opca_' + str(channel) + '.npz')
         else:
             pca_path = None
 
         if dataset.savedir is not None:
-            ica_path = os.path.join(
-                dataset.savedir, 'ica_' + str(self._params.channel) + '.npz')
+            ica_path = os.path.join(dataset.savedir,
+                                    'ica_' + str(channel) + '.npz')
         else:
             ica_path = None
 
@@ -1234,8 +1243,7 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         if isinstance(self._params.components, int):
             self._params.components = range(self._params.components)
         _, space_pcs, time_pcs = _OPCA(
-            dataset, self._params.channel, self._params.components[-1] + 1,
-            path=pca_path)
+            dataset, channel, self._params.components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
             dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
         space_pcs = np.array(
