@@ -39,7 +39,7 @@ clip = ((0, 0), (20, 0))
 
 # Finally, we construct a MultiPageTIFF iterable using each of the filenames.
 sequences = [
-    sima.Sequence.join([sima.Sequence.create('TIFF', chan) for chan in cycle])
+    sima.Sequence.join(*[sima.Sequence.create('TIFF', chan) for chan in cycle])
     for cycle in tiff_filenames]
 
 ##############################################################################
@@ -62,7 +62,7 @@ dataset.export_averages(['workflow_data/tdTomato.tif',
 
 # Generate the output filenames with Python list comprehensions.
 output_filenames = [
-    [[channel.replace('.tif', '_corrected.tif')] for channel in cycle]
+    [[channel.replace('.tif', '_corrected.tif') for channel in cycle]]
     for cycle in tiff_filenames
 ]
 
