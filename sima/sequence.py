@@ -186,17 +186,17 @@ class Sequence(object):
         return _MaskedSequence(self, masks)
 
     @staticmethod
-    def join(sequences):
+    def join(*sequences):
         """Join together sequences representing different channels.
 
         Parameters
         ----------
-        sequences : list of Sequence
-            The sequences that are to be joined together.
+        sequences : sima.Sequence
+            Each argument is a Sequence representing a different channel.
 
         Returns
         -------
-        sequence : Sequence
+        joined_sequence : sima.Sequence
             A single sequence with multiple channels.
 
         Examples
@@ -206,7 +206,7 @@ class Sequence(object):
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
-        >>> joined = Sequence.join([seq, seq])
+        >>> joined = Sequence.join(seq, seq)
         >>> joined.shape[:4] == seq.shape[:4]
         True
         >>> joined.shape[4] == 2 * seq.shape[4]
@@ -359,16 +359,16 @@ class Sequence(object):
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
                 output_array[f_idx] = frame
-            for plane_idx, plane in enumerate(frame):
-                for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
-                    f = output_files[plane_idx][ch_idx]
-                    if fmt == 'TIFF16':
-                        f.write_page(channel.astype('uint16'))
-                    elif fmt == 'TIFF8':
-                        f.write_page(channel.astype('uint8'))
-                    else:
-                        raise ValueError('Unrecognized output format.')
-
+            else:
+                for plane_idx, plane in enumerate(frame):
+                    for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
+                        f = output_files[plane_idx][ch_idx]
+                        if fmt == 'TIFF16':
+                            f.write_page(channel.astype('uint16'))
+                        elif fmt == 'TIFF8':
+                            f.write_page(channel.astype('uint8'))
+                        else:
+                            raise ValueError('Unrecognized output format.')
         if 'TIFF' in fmt:
             for f in it.chain.from_iterable(output_files):
                 f.close()
