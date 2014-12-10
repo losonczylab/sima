@@ -327,17 +327,18 @@ class ImagingDataset(object):
 
         source_channel = source_dataset._resolve_channel(source_channel)
         target_channel = self._resolve_channel(target_channel)
-        source = source_dataset.time_averages[source_channel]
-        target = self.time_averages[target_channel]
+        source = source_dataset.time_averages[..., source_channel]
+        target = self.time_averages[..., target_channel]
 
-        transform = affine_transform(source, target)
+        transforms = [affine_transform(s, t) for s, t in
+                      it.izip(source, target)]  # zipping over planes
 
         src_rois = source_dataset.ROIs
         if source_label is None:
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
         transformed_ROIs = src_rois.transform(
-            transform, copy_properties=copy_properties)
+            transforms, copy_properties=copy_properties)
         self.add_ROIs(transformed_ROIs, label=target_label)
 
     def delete_ROIs(self, label):
