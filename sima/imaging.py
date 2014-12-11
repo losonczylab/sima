@@ -378,16 +378,20 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        filenames : list of str
-            The (.tif) filenames, one per channel, for saving the time
-            averages.
+        filenames : str or list of str
+            A single (.h5) output filename, or a list of (.tif) output
+            filenames with one per channel.
         fmt : {'TIFF8', 'TIFF16'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        if not len(filenames) == self.frame_shape[-1]:
+        if fmt == 'HDF5':
+            if not isinstance(filenames, str):
+                raise ValueError(
+                    'A single filename must be passed for HDF5 format.')
+        elif not len(filenames) == self.frame_shape[-1]:
             raise ValueError(
                 "The number of filenames must equal the number of channels.")
         for chan, filename in enumerate(filenames):

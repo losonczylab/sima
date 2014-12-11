@@ -189,7 +189,8 @@ class DatasetIterable():
 
     def __init__(self, dataset, channel):
         self.dataset = dataset
-        self.channel = channel
+        self.channel = sima.misc.resolve_channels(
+            channel, dataset.channel_names)
         self.means = dataset.time_averages[..., self.channel].reshape(-1)
 
     def __iter__(self):
@@ -372,8 +373,10 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
                             (y + dy < shape[0]):
                         pairs.append(
                             np.reshape([y, x, y + dy, x + dx], (1, 4)))
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         return _offset_corrs(
-            dataset, np.concatenate(pairs, 0), self._params.channel,
+            dataset, np.concatenate(pairs, 0), channel,
             num_pcs=self._params.num_pcs, verbose=self._params.verbose)
 
     def _weight(self, r0, r1):
@@ -422,8 +425,10 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
 
     def _setup(self, dataset):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         processed_image = _processed_image_ca1pc(
-            dataset, self._params.channel, self._params.x_diameter,
+            dataset, channel, self._params.x_diameter,
             self._params.y_diameter)[0]
         time_avg = processed_image
         std = np.std(time_avg)
@@ -527,17 +532,20 @@ class PlaneCA1PC(PlaneSegmentationStrategy):
     ----------
     channel : int, optional
         The channel whose signals will be used in the calculations.
+    num_pcs : int, optional
+        The number of principle components to be used in the calculations.
+        Default: 75.
     max_dist : tuple of int, optional
         Defaults to (2, 2).
     spatial_decay : tuple of int, optional
         Defaults to (2, 2).
     max_pen : float
-        Iterative cutting will continue as long as the cut cost is less than
-        max_pen.
+        Iterative cutting will continue as long as the cut cost is less
+        than max_pen.
     cut_min_size, cut_max_size : int
-        Regardless of the cut cost, iterative cutting will not be performed on
-        regions with fewer pixels than min_size and will always be performed
-        on regions larger than max_size.
+        Regardless of the cut cost, iterative cutting will not be
+        performed on regions with fewer pixels than min_size and will
+        always be performed on regions larger than max_size.
     circularity_threhold : float
         ROIs with circularity below threshold are discarded. Default: 0.5.
     min_roi_size : int, optional
@@ -959,8 +967,10 @@ class CA1PCNucleus(PostProcessingStep):
         self._y_diameter = y_diameter
 
     def apply(self, rois, dataset):
+        channel = sima.misc.resolve_channels(self._channel,
+                                             dataset.channel_names)
         processed_im = _processed_image_ca1pc(
-            dataset, self._channel, self._x_diameter, self._y_diameter)[0]
+            dataset, channel, self._x_diameter, self._y_diameter)[0]
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
@@ -1128,8 +1138,8 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         The index of the channel to be used. Default: 0
     mu : float, optional
         Weighting parameter for the trade off between spatial and temporal
-        information. Must be between 0 and 1. Low values give higher weight
-        to temporal information. Default: 0.01
+        information. Must be between 0 and 1. Low values give higher
+        weight to temporal information. Default: 0.01
     components : int or list, optional
         Number of principal components to use. If list is given, then use
         only the principcal componenets indexed by the list Default: 75
@@ -1140,17 +1150,18 @@ class PlaneSTICA(PlaneSegmentationStrategy):
     min_area : int, optional
         minimum ROI size in number of pixels
     x_smoothing : int, optional
-        number of itereations of static removial and gaussian blur to perform
-        on each stICA component. 0 provides no gaussian blur, larger values
-        produce stICA components with less static but the ROIs loose
-        defination. Default: 5
+        number of itereations of static removial and gaussian blur to
+        perform on each stICA component. 0 provides no gaussian blur,
+        larger values produce stICA components with less static but the
+        ROIs loose defination. Default: 5
     overlap_per : float, optional
-        percentage of an ROI that must be covered in order to combine the two
-        segments. Values outside of (0,1] will result in no removal of
+        percentage of an ROI that must be covered in order to combine the
+        two segments. Values outside of (0,1] will result in no removal of
         overlapping ROIs. Requires x_smoothing to be > 0. Default: 0
     smooth_rois : bool, optional
-        Set to True in order to translate the ROIs into polygons and execute
-        smoothing algorithm. Requires x_smoothing to be > 0. Default: True
+        Set to True in order to translate the ROIs into polygons and
+        execute smoothing algorithm. Requires x_smoothing to be > 0.
+        Default: True
     spatial_sep : bool, optional
         If True, the stICA components will be segmented spatially and
         non-contiguous points will be made into sparate ROIs. Requires
@@ -1160,16 +1171,16 @@ class PlaneSTICA(PlaneSegmentationStrategy):
 
     Notes
     -----
-    Spatiotemporal (stICA) [1]_ is a procedure which applys ICA to extracted
-    PCA components in a process that takes into consideration both the spatial
-    and temporal character of these components. This method has been used to
-    segment calcium imaging data [2]_, and can be used to segment cell bodies,
-    dendrites, and axons.
+    Spatiotemporal (stICA) [1]_ is a procedure which applys ICA to
+    extracted PCA components in a process that takes into consideration
+    both the spatial and temporal character of these components. This
+    method has been used to segment calcium imaging data [2]_, and can be
+    used to segment cell bodies, dendrites, and axons.
 
-    In order to implement spatio and temporal ICA, temporal components from PCA
-    are concatenated to the spatial ones.  The following spatiotemporal
-    variable :math:`y_i` and the resulting ICA components :math:`z_i` are
-    defined by:
+    In order to implement spatio and temporal ICA, temporal components
+    from PCA are concatenated to the spatial ones.  The following
+    spatiotemporal variable :math:`y_i` and the resulting ICA components
+    :math:`z_i` are defined by:
 
     .. math::
 
@@ -1181,26 +1192,28 @@ class PlaneSTICA(PlaneSegmentationStrategy):
     where :math:`U` corresponds to the spatio PCA component matrix with
     dimensions :math:`N_x`, pixels, by :math:`k` principal components and
     :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k`
-    temporal PCA component matrix. :math:`\\mu` is a weighting parameter to
-    balance the tradeoff between the spatio and temporal information with low
-    values of :math:`\\mu` giving higher weight to the signals temporal
-    components. ICA is performed on :math:`y_i` to extract the independent
-    components :math:`z_i`.
+    temporal PCA component matrix. :math:`\\mu` is a weighting parameter
+    to balance the tradeoff between the spatio and temporal information
+    with low values of :math:`\\mu` giving higher weight to the signals
+    temporal components. ICA is performed on :math:`y_i` to extract the
+    independent components :math:`z_i`.
 
     References
     ----------
     .. [1] Stone JV, Porrill J, Porter NR, Wilkinson ID.  Spatiotemporal
-       independent component analysis of event-related fMRI data using skewed
-       probability density functions. Neuroimage. 2002 Feb;15(2):407-21.
+       independent component analysis of event-related fMRI data using
+       skewed probability density functions. Neuroimage. 2002
+       Feb;15(2):407-21.
 
     .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
-       cellular signals from large-scale calcium imaging data.  Neuron. 2009
-       Sep 24;63(6):747-60.
+       cellular signals from large-scale calcium imaging data. Neuron.
+       2009 Sep 24;63(6):747-60.
     """
 
-    def __init__(self, channel=0, mu=0.01, components=75, static_threshold=0.5,
-                 min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
-                 spatial_sep=True, verbose=False):
+    def __init__(
+            self, channel=0, mu=0.01, components=75, static_threshold=0.5,
+            min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
+            spatial_sep=True, verbose=False):
         super(PlaneSTICA, self).__init__()
         d = locals()
         d.pop('self')
@@ -1211,15 +1224,17 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn >= 0.11 required')
 
+        channel = sima.misc.resolve_channels(self._params.channel,
+                                             dataset.channel_names)
         if dataset.savedir is not None:
-            pca_path = os.path.join(
-                dataset.savedir, 'opca_' + str(self._params.channel) + '.npz')
+            pca_path = os.path.join(dataset.savedir,
+                                    'opca_' + str(channel) + '.npz')
         else:
             pca_path = None
 
         if dataset.savedir is not None:
-            ica_path = os.path.join(
-                dataset.savedir, 'ica_' + str(self._params.channel) + '.npz')
+            ica_path = os.path.join(dataset.savedir,
+                                    'ica_' + str(channel) + '.npz')
         else:
             ica_path = None
 
@@ -1228,8 +1243,7 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         if isinstance(self._params.components, int):
             self._params.components = range(self._params.components)
         _, space_pcs, time_pcs = _OPCA(
-            dataset, self._params.channel, self._params.components[-1] + 1,
-            path=pca_path)
+            dataset, channel, self._params.components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
             dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
         space_pcs = np.array(
