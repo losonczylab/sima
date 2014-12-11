@@ -358,7 +358,8 @@ class ROIList(list):
         sima.ROI.ROIList
             Returns an ROIList consisting of the transformed ROI objects.
         """
-        assert len(transforms) == self[0].im_shape[0]
+        # This should still work if im_shape is None
+        # assert len(transforms) == self[0].im_shape[0]
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
