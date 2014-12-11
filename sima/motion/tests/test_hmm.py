@@ -68,21 +68,6 @@ def teardown():
     os.rmdir(tmp_dir)
 
 
-def test_descrete_transition_prob():
-    cov_matrix = np.array([[1.64473684e-03, -6.85307018e-05],
-                           [-6.85307018e-05, 2.71838450e-02]])
-    transition_probs = lambda x, x0: 1. / np.sqrt(
-        2 * np.pi * det(cov_matrix)) * np.exp(
-        -np.dot(x - x0, np.linalg.solve(cov_matrix, x - x0)) / 2.)
-
-    assert_almost_equal(hmm._discrete_transition_prob(
-        np.array([1., 1.]), np.array([0., 0.]), transition_probs, 8), 0)
-    assert_almost_equal(
-        hmm._discrete_transition_prob(
-            np.array([0., 0.]), np.array([0., 0.]), transition_probs, 8),
-        3.09625122)
-
-
 # def test_estimate_movement_model():
 #     shifts = [np.array([[[0, 0]],
 #                         [[0, 7]],
@@ -184,13 +169,12 @@ class Test_HiddenMarkov2D(object):
             assert_array_equal(shift, shift_)
 
     def test_whole_frame_shifting(self):
-        reference, variances, offset = hmm._whole_frame_shifting(
+        reference, variances = hmm._whole_frame_shifting(
             self.dataset, self.frame_shifts)
         ref_shape = np.array(self.dataset.frame_shape)
         ref_shape[1:3] += self.frame_shifts[0][0, 0]
         assert_array_equal(reference.shape, ref_shape)
         assert_equal(len(np.where(variances > 0)[0]), 0)
-        assert_array_equal(offset, [0, 0])
 
     @dec.knownfailureif(True)  # TODO: fix displacements.pkl so this passes
     def test_hmm(self):

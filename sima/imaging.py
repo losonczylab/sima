@@ -223,10 +223,9 @@ class ImagingDataset(object):
                 pass
         sums = np.zeros(self.frame_shape)
         counts = np.zeros(self.frame_shape)
-        for sequence in self:
-            for frame in sequence:
-                sums += np.nan_to_num(frame)
-                counts[np.isfinite(frame)] += 1
+        for frame in it.chain.from_iterable(self):
+            sums += np.nan_to_num(frame)
+            counts[np.isfinite(frame)] += 1
         averages = sums / counts
         if self.savedir is not None:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
@@ -328,17 +327,18 @@ class ImagingDataset(object):
 
         source_channel = source_dataset._resolve_channel(source_channel)
         target_channel = self._resolve_channel(target_channel)
-        source = source_dataset.time_averages[source_channel]
-        target = self.time_averages[target_channel]
+        source = source_dataset.time_averages[..., source_channel]
+        target = self.time_averages[..., target_channel]
 
-        transform = affine_transform(source, target)
+        transforms = [affine_transform(s, t) for s, t in
+                      it.izip(source, target)]  # zipping over planes
 
         src_rois = source_dataset.ROIs
         if source_label is None:
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
         transformed_ROIs = src_rois.transform(
-            transform, copy_properties=copy_properties)
+            transforms, copy_properties=copy_properties)
         self.add_ROIs(transformed_ROIs, label=target_label)
 
     def delete_ROIs(self, label):
@@ -378,16 +378,20 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        filenames : list of str
-            The (.tif) filenames, one per channel, for saving the time
-            averages.
+        filenames : str or list of str
+            A single (.h5) output filename, or a list of (.tif) output
+            filenames with one per channel.
         fmt : {'TIFF8', 'TIFF16'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        if not len(filenames) == self.frame_shape[-1]:
+        if fmt == 'HDF5':
+            if not isinstance(filenames, str):
+                raise ValueError(
+                    'A single filename must be passed for HDF5 format.')
+        elif not len(filenames) == self.frame_shape[-1]:
             raise ValueError(
                 "The number of filenames must equal the number of channels.")
         for chan, filename in enumerate(filenames):

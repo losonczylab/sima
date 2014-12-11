@@ -40,15 +40,10 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         Alignment method to be used.
     n_processes : (None, int)
         Number of pool processes to spawn to parallelize frame alignment
-    partitions : tuple of int, optional
-        The number of partitions in y and x respectively. The alignement
-        will be calculated separately on each partition and then the
-        results compared. Default: calculates an appropriate value based
-        on max_displacement and the frame shape.
     """
 
     def __init__(self, max_displacement=None, method='correlation',
-                 n_processes=None, partitions=None):
+                 n_processes=None):
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -109,6 +104,8 @@ def _frame_alignment_base(
     namespace.shifts = [
         np.zeros(seq.shape[:2] + (3,), dtype=int) for seq in dataset]
     namespace.correlations = [np.empty(seq.shape[:2]) for seq in dataset]
+    namespace.min_shift = np.zeros(3)
+    namespace.max_shift = np.zeros(3)
 
     lock = multiprocessing.Lock()
     pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
@@ -140,7 +137,7 @@ def _frame_alignment_base(
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
-        mean_shift = nanmean(list(it.chain(*it.chain(*shifts))), axis=0)
+        mean_shift = nanmean(np.concatenate(shifts), axis=0)
         # calculate alteration of shape (num_planes, dim)
         alteration = (mean_shift - mean_shift[0]).astype(int)
         for seq in shifts:
@@ -210,19 +207,16 @@ def _align_frame(inputs):
             with lock:
                 p_sums = namespace.pixel_sums[p]
                 p_counts = namespace.pixel_counts[p]
-                p_offset = namespace.offset
-                shifts = namespace.shifts
+                offset = namespace.offset
+                min_shift = namespace.min_shift
+                max_shift = namespace.max_shift
             with warnings.catch_warnings():  # ignore divide by 0
                 warnings.simplefilter("ignore")
                 reference = p_sums / p_counts
             if method == 'correlation':
                 if max_displacement is not None and np.all(
                         np.array(max_displacement) >= 0):
-                    min_shift = np.min(list(it.chain(*it.chain(*shifts))),
-                                       axis=0)
-                    max_shift = np.max(list(it.chain(*it.chain(*shifts))),
-                                       axis=0)
-                    displacement_bounds = p_offset + np.array(
+                    displacement_bounds = offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
                          np.maximum(min_shift + max_displacement, max_shift)
                          + 1])
@@ -231,10 +225,10 @@ def _align_frame(inputs):
                 shift = pyramid_align(np.expand_dims(reference, 0),
                                       np.expand_dims(plane, 0),
                                       bounds=displacement_bounds)
-                if displacement_bounds is not None:
+                if displacement_bounds is not None and shift is not None:
                     assert np.all(shift >= displacement_bounds[0])
                     assert np.all(shift <= displacement_bounds[1])
-                    assert np.all(abs(shift - p_offset) <= max_displacement)
+                    assert np.all(abs(shift - offset) <= max_displacement)
             elif method == 'ECC':
                 raise NotImplementedError
                 # cv2.findTransformECC(reference, plane)
@@ -242,7 +236,12 @@ def _align_frame(inputs):
                 raise ValueError('Unrecognized alignment method')
             with lock:
                 s = namespace.shifts
-                s[cycle_idx][frame_idx][p][:] = shift - p_offset
+                if shift is None:  # if no shift could be calculated
+                    try:
+                        shift = s[cycle_idx][frame_idx-1][p] + offset
+                    except IndexError:
+                        shift = s[cycle_idx][frame_idx][p] + offset
+                s[cycle_idx][frame_idx][p][:] = shift - offset
                 namespace.shifts = s
 
             with lock:
@@ -252,6 +251,8 @@ def _align_frame(inputs):
                         namespace.pixel_sums, namespace.pixel_counts,
                         namespace.offset, [p] + list(shift)[1:],
                         np.expand_dims(plane, 0))
+                namespace.min_shift = np.minimum(shift, min_shift)
+                namespace.max_shift = np.maximum(shift, max_shift)
 
 
 def _update_reference(sums, counts, offset, displacement, image):
@@ -262,22 +263,6 @@ def _update_reference(sums, counts, offset, displacement, image):
     sums, counts = _update_sums_and_counts(
         sums, counts, offset, displacement, image)
     return sums, counts, offset
-
-
-def _add_with_offset(array1, array2, offset):
-    """
-
-    >>> from sima.motion.frame_align import _add_with_offset
-    >>> import numpy as np
-    >>> a1 = np.zeros((4, 4))
-    >>> a2 = np.ones((1, 2))
-    >>> _add_with_offset(a1, a2, (1, 2))
-    >>> np.array_equal(a1[1:2, 2:4], a2)
-    True
-
-    """
-    slices = tuple(slice(o, o + e) for o, e in zip(offset, array2.shape))
-    array1[slices] += array2
 
 
 def _update_sums_and_counts(
@@ -302,8 +287,8 @@ def _update_sums_and_counts(
     offset = np.array(offset)
     shift = np.array(shift)
     disp = offset + shift
-    _add_with_offset(pixel_sums, np.nan_to_num(image), disp)
-    _add_with_offset(pixel_counts, np.isfinite(image), disp)
+    motion.add_with_offset(pixel_sums, np.nan_to_num(image), disp)
+    motion.add_with_offset(pixel_counts, np.isfinite(image), disp)
     assert pixel_sums.ndim == 4
     return pixel_sums, pixel_counts
 
@@ -338,9 +323,17 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [z,y,x]. By
         default, arbitrarily large displacements are allowed.
+    criterion : float, optional
+        The number of standard deviations below the mean correlation that
+        a frame's correlation can have following displacement for the
+        displacement to be considered valid. Invalid displacements will be
+        masked.
     """
 
-    def __init__(self, max_displacement=None):
+    def __init__(self, max_displacement=None, criterion=None):
+        if not (criterion is None or
+                isinstance(criterion, (int, long, float))):
+            raise ValueError('Criterion must be a number')
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -351,9 +344,11 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
         counts = np.zeros_like(reference)
         offset = np.zeros(3, dtype=int)
         displacements = []
+        correlations = []
         disp_range = np.array([[0, 0, 0], [0, 0, 0]])
         for sequence in dataset:
             seq_displacements = []
+            seq_correlations = []
             for frame in sequence:
                 if self._params.max_displacement is not None:
                     bounds = np.array([
@@ -365,20 +360,49 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
                             disp_range[1])]) + offset
                 else:
                     bounds = None
-                seq_displacements.append(
-                    pyramid_align(reference, frame, bounds=bounds) - offset)
-                disp_range[0] = np.minimum(disp_range[0],
-                                           seq_displacements[-1])
-                disp_range[1] = np.maximum(disp_range[1],
-                                           seq_displacements[-1])
+                displacement = pyramid_align(
+                    reference, frame, bounds=bounds) - offset
+                seq_displacements.append(displacement)
+                disp_range[0] = np.minimum(disp_range[0], displacement)
+                disp_range[1] = np.maximum(disp_range[1], displacement)
                 sums, counts, offset = _update_reference(
-                    sums, counts, offset, seq_displacements[-1], frame)
+                    sums, counts, offset, displacement, frame)
+                if self._params.criterion is not None:
+                    seq_correlations.append(
+                        shifted_corr(reference, frame, offset + displacement))
                 reference = sums / counts
             displacements.append(np.array(seq_displacements))
+            correlations.append(np.array(seq_correlations))
+        if self._params.criterion is not None:
+            threshold = np.concatenate(correlations).mean() - \
+                self._params.criterion * np.std(np.concatenate(correlations))
+            for seq_idx, seq_correlations in enumerate(correlations):
+                if np.any(seq_correlations < threshold):
+                    displacements[seq_idx] = np.ma.array(
+                        displacements[seq_idx],
+                        mask=np.outer(seq_correlations < threshold,
+                                      np.ones(3)))
+        assert np.all(
+            np.all(x is np.ma.masked for x in shift) or
+            not np.any(x is np.ma.masked for x in shift)
+            for shift in it.chain.from_iterable(displacements))
         return displacements
 
 
 def shifted_corr(reference, image, displacement):
+    """Calculate the correlation between the reference and the image shifted
+    by the given displacement.
+
+    Parameters
+    ----------
+    reference : np.ndarray
+    image : np.ndarray
+    displacement : np.ndarray
+
+    Returns
+    -------
+    correlation : float
+    """
     ref_cuts = np.maximum(0, displacement)
     ref = reference[ref_cuts[0]:, ref_cuts[1]:, ref_cuts[2]:]
     im_cuts = np.maximum(0, -displacement)
@@ -465,7 +489,8 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
                 if corr > best_corr:
                     best_corr = corr
                     best_displacement = displacement
-        assert best_displacement is not None
+        if best_displacement is None:
+            warnings.warn('Could not align all frames.')
         return best_displacement
     else:
         return base_alignment(reference, target, bounds)

@@ -16,7 +16,7 @@ current working directory.
 
 import sima
 import sima.motion
-from sima.iterables import MultiPageTIFF
+import sima.segment
 
 ##############################################################################
 #                                                                            #
@@ -38,9 +38,9 @@ print "TIFF filenames:\n", tiff_filenames
 clip = ((0, 0), (20, 0))
 
 # Finally, we construct a MultiPageTIFF iterable using each of the filenames.
-iterables = [
-    [MultiPageTIFF(chan, clip) for chan in cycle] for cycle in tiff_filenames
-]
+sequences = [
+    sima.Sequence.join(*[sima.Sequence.create('TIFF', chan) for chan in cycle])
+    for cycle in tiff_filenames]
 
 ##############################################################################
 #                                                                            #
@@ -50,10 +50,11 @@ iterables = [
 ##############################################################################
 
 dataset_path = 'workflow_data/dataset.sima'
-dataset = sima.motion.hmm(
-    iterables, dataset_path, ['tdTomato', 'GCaMP'], num_states_retained=30,
-    max_displacement=[20, 30], trim_criterion=0.95
-)
+correction_approach = sima.motion.HiddenMarkov2D(num_states_retained=30,
+                                                 max_displacement=[20, 30])
+dataset = correction_approach.correct(
+    sequences, dataset_path, channel_names=['tdTomato', 'GCaMP'],
+    trim_criterion=0.95)
 
 # Export the time averages for a manuscript figure.
 dataset.export_averages(['workflow_data/tdTomato.tif',
@@ -61,7 +62,7 @@ dataset.export_averages(['workflow_data/tdTomato.tif',
 
 # Generate the output filenames with Python list comprehensions.
 output_filenames = [
-    [channel.replace('.tif', '_corrected.tif') for channel in cycle]
+    [[channel.replace('.tif', '_corrected.tif') for channel in cycle]]
     for cycle in tiff_filenames
 ]
 
@@ -89,8 +90,7 @@ while True:
 
 # Segment the field of view into ROIs using the method for CA1 pyramidal cells
 # and parameters that were determined based on the imaging magnification.
-dataset.segment(
-    'ca1pc',
+segmentation_approach = sima.segment.PlaneCA1PC(
     channel='GCaMP',
     num_pcs=30,
     max_dist=(3, 6),
@@ -104,6 +104,7 @@ dataset.segment(
     min_roi_size=20,
     min_cut_size=40
 )
+dataset.segment(segmentation_approach, 'auto_ROIs')
 
 # At this point, one may wish to edit the automatically segmented ROIs using
 # the ROI Buddy GUI before performing signal extraction.
@@ -141,6 +142,6 @@ from matplotlib.pyplot import plot, show
 
 # plot the signal from an ROI object, with a different color for each cycle
 raw_signals = dataset.signals('GCaMP')['GCaMP_signals']['raw']
-for cycle in range(3):  # plot data from the first 3 cycles
-    plot(raw_signals[cycle][3])  # plot the data from ROI #3
+for sequence in range(3):  # plot data from the first 3 cycles
+    plot(raw_signals[sequence][3])  # plot the data from ROI #3
 show(block=True)
