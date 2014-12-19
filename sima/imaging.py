@@ -528,7 +528,7 @@ class ImagingDataset(object):
 
         if rois is None:
             rois = self.ROIs[most_recent_key(self.ROIs)]
-        if rois is None:
+        if rois is None or not len(rois):
             raise Exception('Cannot extract dataset with no ROIs.')
         if self.savedir:
             return save_extracted_signals(

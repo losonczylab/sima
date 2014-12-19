@@ -633,14 +633,16 @@ class _MotionCorrectedSequence(_WrapperSequence):
 
     displacements : array
         The _D displacement of each row in the image cycle.
-        Shape: (num_rows * num_frames, 2).
+        Shape: (num_frames, num_planes, num_rows, 2).
 
     This object has the same attributes and methods as the class it wraps."""
     # TODO: check clipping and output frame size
 
     def __init__(self, base, displacements, extent=None):
         super(_MotionCorrectedSequence, self).__init__(base)
-        self.displacements = displacements
+        if np.min(displacements) < 0:
+            raise ValueError("All displacements must be non-negative")
+        self.displacements = displacements.astype('int')
         if extent is None:
             max_disp = np.nanmax([np.nanmax(d.reshape(-1, d.shape[-1]), 0)
                                   for d in displacements], 0)
@@ -716,7 +718,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         return {
             '__class__': self.__class__,
             'base': self._base._todict(savedir),
-            'displacements': self.displacements,
+            'displacements': self.displacements.astype('int16'),
             'extent': self._frame_shape[:3],
         }
 
