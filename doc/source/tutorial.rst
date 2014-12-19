@@ -18,14 +18,7 @@ Like all Python packages, the SIMA package must be imported prior to use.
 Here we show a simple example of importing the SIMA package, which results
 in printing the docstring containing view basic information about the package.
 
-
     >>> import sima
-    SIMA: Python package for sequential image analysis.
-    Developed by Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson.
-    Copyright (C) 2014 The Trustees of Columbia University in the City of New York.
-    Licensed under the GNU GPL version 2 or later.
-    Documentation: http://www.losonczylab.org/sima
-    Version 1.0.0-dev
 
 In all future examples, we assume that the SIMA package has been
 imported as shown above.

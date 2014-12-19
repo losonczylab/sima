@@ -6,7 +6,6 @@ except ImportError:  # Python 3.x
     pass
 
 import numpy as np
-from numpy.linalg import det, svd
 from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
@@ -227,9 +226,10 @@ def _initial_distribution(decay, noise_cov, mean_shift):
     initial_cov[0, 0] = max(initial_cov[0, 0], 0.1)
     initial_cov[1, 1] = max(initial_cov[1, 1], 0.1)
 
-    return lambda x: 1.0 / np.sqrt(2.0 * np.pi * det(initial_cov)) * np.exp(
-        -np.dot(x - mean_shift, np.linalg.solve(initial_cov, x - mean_shift)
-                ) / 2.0)
+    return lambda x: np.exp(
+        -0.5 * np.dot(
+            x - mean_shift, np.linalg.solve(initial_cov, x - mean_shift))
+        ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
 
 
 def _lookup_tables(position_bounds, log_markov_matrix):
@@ -315,15 +315,15 @@ class Struct:
 
 class _HiddenMarkov(MotionEstimationStrategy):
 
-    def __init__(self, granularity=3, num_states_retained=50,
+    def __init__(self, granularity=2, num_states_retained=50,
                  max_displacement=None, n_processes=None, verbose=True):
         if isinstance(granularity, int):
             granularity = (granularity, 1)
         elif isinstance(granularity, str):
-            granularity = {'frame': (1, 1),
-                           'plane': (2, 1),
-                           'row': (3, 1),
-                           'column': (4, 1)}[granularity]
+            granularity = {'frame': (0, 1),
+                           'plane': (1, 1),
+                           'row': (2, 1),
+                           'column': (3, 1)}[granularity]
         elif not isinstance(granularity, tuple):
             raise TypeError(
                 'granularity must be of type str, int, or tuple of int')
@@ -346,7 +346,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
             movement_model.log_transition_matrix(
                 max_distance=max_step,
                 dt=float(granularity[1])/np.prod(
-                    references.shape[:(granularity[0]-1)])))
+                    references.shape[:granularity[0]])))
         assert displacement_tbl.dtype == int
         tmp_states, log_p = movement_model.initial_probs(
             displacement_tbl, min_displacements, max_displacements)
@@ -362,12 +362,12 @@ class _HiddenMarkov(MotionEstimationStrategy):
                 it.repeat((transition_tbl, log_markov_tbl)), scaled_refs,
                 displacement_tbl, (tmp_states, log_p),
                 self._params.num_states_retained)
-            new_shape = sequence.shape[:(granularity[0]-1)] + \
-                (sequence.shape[granularity[0]-1] / granularity[1],) + \
+            new_shape = sequence.shape[:granularity[0]] + \
+                (sequence.shape[granularity[0]] / granularity[1],) + \
                 (disp.shape[-1],)
             displacements.append(np.repeat(disp.reshape(new_shape),
                                            repeats=granularity[1],
-                                           axis=granularity[0]-1))
+                                           axis=granularity[0]))
         return displacements
 
     def _estimate(self, dataset):
@@ -502,8 +502,8 @@ class MovementModel(object):
         n = D * (D + 1) / 2
         y = np.zeros(n)
         M = np.zeros((n, n))
-        for i in range(D):
-            for j in range(i + 1):
+        for i in range(D):  # loop over the dimensions of motion
+            for j in range(i + 1):  # loop over all pairs of dimension
                 y[idx] = past_future[i, j] + past_future[j, i]
                 idx_2 = 0
                 for k in range(D):
@@ -518,7 +518,7 @@ class MovementModel(object):
                             M[idx, idx_2] += past_past[i, k]
                         idx_2 += 1
                 idx += 1
-        coefficients = np.linalg.solve(M, y)
+        coefficients = np.dot(np.linalg.pinv(M), y)
         if D == 2:
             A = np.array([[coefficients[0], coefficients[1]],
                           [coefficients[1], coefficients[2]]])
@@ -527,7 +527,11 @@ class MovementModel(object):
                           [coefficients[1], coefficients[2], coefficients[4]],
                           [coefficients[3], coefficients[4], coefficients[5]]])
         cov_matrix = np.cov(future.T - np.dot(A, past.T))
-        U, s, _ = svd(A)  # NOTE: U == V for positive definite A
+        # make cov_matrix non-singular
+        Uc, sc, Vc = np.linalg.svd(A)
+        sc = np.maximum(sc, 1. / len(shifts))
+        cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Vc))
+        U, s, _ = np.linalg.svd(A)  # NOTE: U == V for positive definite A
         assert np.max(s) < 1
         return cls(cov_matrix, U, s, mean_shift)
 
@@ -574,7 +578,7 @@ class MovementModel(object):
         """
         cov_matrix = self.cov_matrix(dt)
         log_transition_probs = lambda x: -0.5 * (
-            np.log(2 * np.pi * det(cov_matrix)) +
+            np.log(2 * np.pi * np.linalg.det(cov_matrix)) +
             np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
@@ -606,7 +610,7 @@ class MovementModel(object):
                 -0.5 * np.dot(x - self.mean_shift,
                               np.linalg.solve(initial_cov, x - self.mean_shift)
                               )
-            ) / np.sqrt(2.0 * np.pi * det(initial_cov))
+            ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
         assert np.isfinite(idist(self.mean_shift))
         return idist
 
@@ -651,7 +655,7 @@ class PositionIterator(object):
     (32768, 3)
 
     Group two rows at a time
-    >>> pi = PositionIterator((100, 5, 128, 256), (3, 2), [10, 12])
+    >>> pi = PositionIterator((100, 5, 128, 256), (2, 2), [10, 12])
     >>> positions = next(iter(pi))
     >>> positions.shape
     (512, 3)
@@ -665,19 +669,19 @@ class PositionIterator(object):
         if isinstance(granularity, int):
             self.granularity = (granularity, 1)
         elif isinstance(granularity, str):
-            self.granularity = {'frame': (1, 1),
-                                'plane': (2, 1),
-                                'row': (3, 1),
-                                'column': (4, 1)}[granularity]
+            self.granularity = {'frame': (0, 1),
+                                'plane': (1, 1),
+                                'row': (2, 1),
+                                'column': (3, 1)}[granularity]
         elif isinstance(granularity, tuple):
             self.granularity = granularity
         else:
             raise TypeError('granularity must be of type str, int, or tuple '
                             'of int')
         self.shape = shape
-        if self.shape[self.granularity[0] - 1] % self.granularity[1] is not 0:
+        if self.shape[self.granularity[0]] % self.granularity[1] is not 0:
             raise ValueError('granularity[1] must divide the frame shape '
-                             'along dimension granularity[0]-1')
+                             'along dimension granularity[0]')
         if offset is None:
             self.offset = [0, 0, 0, 0]
         else:
@@ -685,15 +689,15 @@ class PositionIterator(object):
 
     def __iter__(self):
         base_iter = it.product(*[range(o, x + o) for x, o in
-                                 zip(self.shape[:self.granularity[0]],
-                                     self.offset[:self.granularity[0]])])
+                                 zip(self.shape[:(self.granularity[0]+1)],
+                                     self.offset[:(self.granularity[0]+1)])])
         for group in zip(*[base_iter]*self.granularity[1]):
             positions = []
             for base in group:
                 l = [[x] for x in base[1:]] + [
                     xrange(o, x + o) for x, o in zip(
-                        self.shape[self.granularity[0]:],
-                        self.offset[self.granularity[0]:])]
+                        self.shape[(self.granularity[0]+1):],
+                        self.offset[(self.granularity[0]+1):])]
                 positions.append(np.concatenate(
                     [a.reshape(-1, 1) for a in np.meshgrid(*l)], axis=1))
             assert len(positions)
@@ -833,10 +837,10 @@ class NormalizedIterator(object):
         if isinstance(granularity, int):
             self.granularity = (granularity, 1)
         elif isinstance(granularity, str):
-            self.granularity = {'frame': (1, 1),
-                                'plane': (2, 1),
-                                'row': (3, 1),
-                                'column': (4, 1)}[granularity]
+            self.granularity = {'frame': (0, 1),
+                                'plane': (1, 1),
+                                'row': (2, 1),
+                                'column': (3, 1)}[granularity]
         elif isinstance(granularity, tuple):
             self.granularity = granularity
         else:
@@ -848,7 +852,7 @@ class NormalizedIterator(object):
         variances = self.pixel_variances / self.gains ** 2
         for frame in self.sequence:
             frame = frame.reshape(
-                int(np.prod(frame.shape[:(self.granularity[0]-1)])),
+                int(np.prod(frame.shape[:self.granularity[0]])),
                 -1, frame.shape[-1])
             for chunk in zip(*[iter(frame)]*self.granularity[1]):
                 im = np.concatenate(chunk, axis=0) / self.gains
