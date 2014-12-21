@@ -812,7 +812,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                         rois[i] = ROI(mask=new_shape.astype('bool'),
                                       im_shape=rois[i].mask.shape)
                         rois[j] = None
-    return [roi for roi in rois if roi is not None]
+    return ROIList(roi for roi in rois if roi is not None)
 
 
 def _smooth_roi(roi, radius=3):
@@ -1057,7 +1057,7 @@ def stica(dataset, channel=0, mu=0.01, components=75,
         print 'removing overlapping ROIs...'
         rois = _remove_overlapping(rois, percent_overlap=overlap_per)
     else:
-        rois = [ROI(st_components[:, :, i]) for i in
-                xrange(st_components.shape[2])]
+        rois = ROIList(ROI(st_components[:, :, i]) for i in
+                       xrange(st_components.shape[2]))
 
     return rois

@@ -17,6 +17,7 @@ Testing
 * Clay Lacefield
 * Matthew Lovett-Barron
 * Matthew J. Davis
+* Thomas Hainmüller
 
 
 External code

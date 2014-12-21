@@ -657,7 +657,7 @@ class ImagingDataset(object):
             rois = segment.normcut(self, **kwargs)
         elif method is 'ca1pc':
             rois = segment.ca1pc(self, **kwargs)
-        elif method is 'ca1pc':
+        elif method is 'stica':
             rois = segment.stica(self, **kwargs)
         else:
             raise ValueError('Unrecognized segmentation method.')
