@@ -167,7 +167,8 @@ def read_roi(roi_obj):
         return {'polygons': coords}
     elif roi_type == 1:
         # Rectangle
-        coords = [[left, top, z], [right, top, z], [right, bottom, z], [left, bottom, z]]
+        coords = [[left, top, z], [right, top, z], [right, bottom, z],
+                  [left, bottom, z]]
         coords = np.array(coords).astype('float')
         return {'polygons': coords}
     elif roi_type == 2:
