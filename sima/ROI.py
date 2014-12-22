@@ -531,7 +531,8 @@ def mask2poly(mask, threshold=0.5):
             m = np.array(m.astype('byte').todense())
 
         if (m != 0).sum() == 0:
-            raise Exception('Empty mask cannot be converted to polygons.')
+            # If the plane is empty, just skip it
+            continue
 
         # Add an empty row and column around the mask to make sure edge masks
         # are correctly determined
@@ -573,9 +574,11 @@ def _reformat_polygons(polygons):
     MultiPolygon
 
     """
-    if isinstance(polygons, MultiPolygon):
-        polygons = polygons
-    if isinstance(polygons, Polygon):
+
+    if len(polygons) == 0:
+        # Just return an empty MultiPolygon
+        return MultiPolygon([])
+    elif isinstance(polygons, Polygon):
         polygons = [polygons]
     elif isinstance(polygons[0], Polygon):
         # polygons is already a list of polygons
