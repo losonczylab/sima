@@ -20,7 +20,7 @@ def remove_empty_ROIs(rois, im_shape):
     num_removed = 0
     for roi in reversed(list(rois)):
         roi.im_shape = im_shape
-        if roi.mask.nnz == 0:
+        if all([mask.nnz == 0 for mask in roi.mask]):
             rois.remove(roi)
             num_removed += 1
     if num_removed:
@@ -59,7 +59,7 @@ if __name__ == '__main__':
             rois = sima.ROI.ROIList.load(zip_path, fmt='ImageJ')
             print('Loaded {} ROIs from {}'.format(len(rois), zip_path))
             remove_empty_ROIs(
-                rois, im_shape=(dataset.num_rows, dataset.num_columns))
+                rois, im_shape=dataset.frame_shape[:-1])
             sima.misc.copy_label_to_id(rois)
 
             if not args.no_action:

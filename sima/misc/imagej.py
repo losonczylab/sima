@@ -104,18 +104,19 @@ def read_roi(roi_obj):
         v = np.int32(_get32())
         return v.view(np.float32)
 
-    def _getcoords():
+    def _getcoords(z=0):
         """Get the next coordinate of an roi polygon"""
         if options & sub_pixel_resolution:
             getc = _getfloat
-            points = np.empty((n_coordinates, 2), dtype=np.float32)
+            points = np.empty((n_coordinates, 3), dtype=np.float32)
         else:
             getc = _get16
-            points = np.empty((n_coordinates, 2), dtype=np.int16)
+            points = np.empty((n_coordinates, 3), dtype=np.int16)
         points[:, 0] = [getc() for _ in xrange(n_coordinates)]
         points[:, 1] = [getc() for _ in xrange(n_coordinates)]
         points[:, 0] += left
         points[:, 1] += top
+        points[:, 2] = z
         return points
 
     magic = roi_obj.read(4)
@@ -154,17 +155,20 @@ def read_roi(roi_obj):
     _get8()  # arrow style
     _get8()  # arrow head size
     _get16()  # rectangle arc size
-    _get32()  # position
+    z = _get32()  # position
+    if z > 0:
+        z -= 1  # Multi-plane images start indexing at 1 instead of 0
     _get32()  # header 2 offset
 
     if roi_type == 0:
         # Polygon
-        coords = _getcoords()
+        coords = _getcoords(z)
         coords = coords.astype('float')
         return {'polygons': coords}
     elif roi_type == 1:
         # Rectangle
-        coords = [[left, top], [right, top], [right, bottom], [left, bottom]]
+        coords = [[left, top, z], [right, top, z], [right, bottom, z],
+                  [left, bottom, z]]
         coords = np.array(coords).astype('float')
         return {'polygons': coords}
     elif roi_type == 2:
@@ -175,19 +179,19 @@ def read_roi(roi_obj):
         # 0.5 moves the mid point to the center of the pixel
         x_mid = (right + left) / 2.0 - 0.5
         y_mid = (top + bottom) / 2.0 - 0.5
-        mask = np.zeros((bottom, right), dtype=bool)
+        mask = np.zeros((z + 1, bottom, right), dtype=bool)
         for y, x in product(np.arange(top, bottom), np.arange(left, right)):
-            mask[y, x] = ((x - x_mid) ** 2 / (width / 2.0) ** 2 +
-                          (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
+            mask[z, y, x] = ((x - x_mid) ** 2 / (width / 2.0) ** 2 +
+                             (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
         return {'mask': mask}
     elif roi_type == 7:
         # Freehand
-        coords = _getcoords()
+        coords = _getcoords(z)
         coords = coords.astype('float')
         return {'polygons': coords}
     else:
         try:
-            coords = _getcoords()
+            coords = _getcoords(z)
             coords = coords.astype('float')
             return {'polygons': coords}
         except:
