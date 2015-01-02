@@ -218,7 +218,13 @@ class ImagingDataset(object):
             try:
                 with open(join(self.savedir, 'time_averages.pkl'),
                           'rb') as f:
-                    return pickle.load(f)
+                    time_averages = pickle.load(f)
+                # Older versions of SIMA saved time_averages as a list
+                # of arrays instead of a single 4D (zyxc) array.
+                # Make sure this is a numpy array and if not just re-calculate
+                # the time averages.
+                if isinstance(time_averages, np.ndarray):
+                    return time_averages
             except IOError:
                 pass
         sums = np.zeros(self.frame_shape)
@@ -227,7 +233,7 @@ class ImagingDataset(object):
             sums += np.nan_to_num(frame)
             counts[np.isfinite(frame)] += 1
         averages = sums / counts
-        if self.savedir is not None:
+        if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
         return averages
