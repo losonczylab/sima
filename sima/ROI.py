@@ -340,26 +340,29 @@ class ROIList(list):
         else:
             raise ValueError('Unrecognized file format.')
 
-    def transform(self, transforms, copy_properties=True):
+    def transform(self, transforms, im_shape=None, copy_properties=True):
         """Apply 2x3 affine transformations to the ROIs
 
         Parameters
         ----------
         transforms : list of 2x3 Numpy arrays
             The affine transformations to be applied to the ROIs.  Length of
-            list should equal the number of planes (im_shape[0])
+            list should equal the number of planes (im_shape[0]).
+
+        im_shape : 3-element tuple, optional
+            The (zyx) shape of the target image. If None, must be set before
+            any ROI can be converted to a mask.
 
         copy_properties : bool, optional
-            Copy the label, id, tags, and im_shape properties from the source
-            ROIs to the transformed ROIs
+            Copy the label, id, and tags properties from the source
+            ROIs to the transformed ROIs.
 
         Returns
         -------
         sima.ROI.ROIList
             Returns an ROIList consisting of the transformed ROI objects.
+
         """
-        # This should still work if im_shape is None
-        # assert len(transforms) == self[0].im_shape[0]
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
@@ -371,12 +374,12 @@ class ROIList(list):
                 transformed_coords = [np.hstack((coords, z)) for coords in
                                       transformed_coords]
                 transformed_polygons.append(transformed_coords)
-            transformed_roi = ROI(polygons=transformed_polygons)
+            transformed_roi = ROI(
+                polygons=transformed_polygons, im_shape=im_shape)
             if copy_properties:
                 transformed_roi.label = roi.label
                 transformed_roi.id = roi.id
                 transformed_roi.tags = roi.tags
-                transformed_roi.im_shape = roi.im_shape
             transformed_rois.append(transformed_roi)
         return ROIList(rois=transformed_rois)
 

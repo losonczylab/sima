@@ -329,6 +329,7 @@ class ImagingDataset(object):
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
+
         """
 
         source_channel = source_dataset._resolve_channel(source_channel)
@@ -344,7 +345,8 @@ class ImagingDataset(object):
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
         transformed_ROIs = src_rois.transform(
-            transforms, copy_properties=copy_properties)
+            transforms, im_shape=self.frame_shape[:3],
+            copy_properties=copy_properties)
         self.add_ROIs(transformed_ROIs, label=target_label)
 
     def delete_ROIs(self, label):
