@@ -1591,7 +1591,7 @@ class UI_tSeries(QListWidgetItem):
                 self.base_images[key] = _processed_image_ca1pc(
                     self.dataset, channel_idx=channel_idx, x_diameter=14,
                     y_diameter=7)
-            data = self.base_images[key]
+            data = self.base_images[key][plane_idx]
         else:
             data = self.base_images[channel_name][plane_idx]
 
