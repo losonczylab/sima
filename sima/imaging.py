@@ -218,7 +218,13 @@ class ImagingDataset(object):
             try:
                 with open(join(self.savedir, 'time_averages.pkl'),
                           'rb') as f:
-                    return pickle.load(f)
+                    time_averages = pickle.load(f)
+                # Older versions of SIMA saved time_averages as a list
+                # of arrays instead of a single 4D (zyxc) array.
+                # Make sure this is a numpy array and if not just re-calculate
+                # the time averages.
+                if isinstance(time_averages, np.ndarray):
+                    return time_averages
             except IOError:
                 pass
         sums = np.zeros(self.frame_shape)
@@ -227,7 +233,7 @@ class ImagingDataset(object):
             sums += np.nan_to_num(frame)
             counts[np.isfinite(frame)] += 1
         averages = sums / counts
-        if self.savedir is not None:
+        if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
         return averages
@@ -323,6 +329,7 @@ class ImagingDataset(object):
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
+
         """
 
         source_channel = source_dataset._resolve_channel(source_channel)
@@ -338,7 +345,8 @@ class ImagingDataset(object):
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
         transformed_ROIs = src_rois.transform(
-            transforms, copy_properties=copy_properties)
+            transforms, im_shape=self.frame_shape[:3],
+            copy_properties=copy_properties)
         self.add_ROIs(transformed_ROIs, label=target_label)
 
     def delete_ROIs(self, label):
