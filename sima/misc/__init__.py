@@ -128,6 +128,7 @@ def affine_transform(source, target):
         to8bit(source[slice_]),
         to8bit(target[slice_]), True)
 
+    # TODO: return a skimage.AffineTransform object
     if transform is None:
         raise TransformError('Cannot calculate affine transformation from' +
                              'source to target')

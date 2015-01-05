@@ -363,6 +363,8 @@ class ROIList(list):
             Returns an ROIList consisting of the transformed ROI objects.
 
         """
+        # TODO: keep this for if you pass in a list of ndarrays, but default to
+        # skimage.Transform
         transformed_rois = []
         for roi in self:
             transformed_polygons = []

@@ -53,10 +53,11 @@ def debug_trace():
     set_trace()
 
 
+#TODO: import from sima.misc
 class TransformError(Exception):
     pass
 
-
+#TODO: delete
 def transform_array(source, M, final_shape=None):
     """Performs an affine warp transform on an array
 
@@ -1559,6 +1560,7 @@ class UI_tSeries(QListWidgetItem):
 
         # self.transforms is a dictionary of affine transformations.
         # Keys are other UI_tSeries objects
+        #TODO: skimage.Transform objects
         self.transforms = {}
 
         self.initialize_base_images()
@@ -1596,6 +1598,7 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
+            #TODO: use skiamge.warp
             data = transform_array(
                 data, self.transform(self)[self.active_plane],
                 final_shape=self.transform_shape[::-1])
@@ -1648,6 +1651,7 @@ class UI_tSeries(QListWidgetItem):
                     polygon.set_points(polygon.coords[0][:, :2])
             else:
                 transform = self.transform(target_tSeries)
+                # TODO: call roiList.transform instead
                 for polygon in self.roi_list:
                     z = int(polygon.coords[0][0, 2])
                     orig_verts = polygon.coords[0][:, :2]
@@ -1679,6 +1683,7 @@ class UI_tSeries(QListWidgetItem):
             ref_active_channel = self.dataset.channel_names.index(
                 self.active_channel)
 
+
             self.transforms[target_tSeries] = []
             for plane in xrange(self.num_planes):
                 target = _processed_image_ca1pc(
@@ -1688,6 +1693,7 @@ class UI_tSeries(QListWidgetItem):
                     self.dataset, channel_idx=ref_active_channel,
                     x_diameter=14, y_diameter=7)[plane]
 
+                #TODO: replace with sima.misc...
                 slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
                                for i in range(2))
 
@@ -1696,6 +1702,7 @@ class UI_tSeries(QListWidgetItem):
                     sima.misc.to8bit(target[slice_]), True)
                 if transform is None:
                     raise TransformError()
+                #TODO: replace all but this, still need to shift them
                 transform[:, 2] += tuple(target_tSeries.shape[::-1])
                 self.transforms[target_tSeries].append(transform)
         #index the result by plane

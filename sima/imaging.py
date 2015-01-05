@@ -326,6 +326,17 @@ class ImagingDataset(object):
         target_label : string, optional
             The label to assign the transformed ROIList
 
+        method : string, optional
+            'affine', 'polynomial'
+
+        **kwargs : optional
+            order
+
+        anchor_label : string, optional
+            If None, use automatic dataset registration.
+            Otherwise, the label of the ROIList that contains a single ROI
+            with vertices defining anchor points common to both datasets.
+
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
@@ -337,6 +348,7 @@ class ImagingDataset(object):
         source = source_dataset.time_averages[..., source_channel]
         target = self.time_averages[..., target_channel]
 
+        #TODO: case on method
         transforms = [affine_transform(s, t) for s, t in
                       it.izip(source, target)]  # zipping over planes
 
@@ -344,6 +356,7 @@ class ImagingDataset(object):
         if source_label is None:
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
+        #TODO: pass in method
         transformed_ROIs = src_rois.transform(
             transforms, im_shape=self.frame_shape[:3],
             copy_properties=copy_properties)
