@@ -974,7 +974,9 @@ class CA1PCNucleus(PostProcessingStep):
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
-            roi_indices = np.nonzero(roi.mask[0])[0]
+            roi_indices = np.nonzero(roi.mask[0])
+            roi_indices = np.ravel_multi_index(roi_indices, shape)
+
             # pixel values in the cut
             vals = processed_im.flat[roi_indices]
 
