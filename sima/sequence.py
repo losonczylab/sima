@@ -31,12 +31,14 @@
 
 
 import itertools as it
+import glob
 import warnings
 import collections
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
 from abc import ABCMeta, abstractmethod
+
 import numpy as np
 
 try:
@@ -456,6 +458,44 @@ class _IndexableSequence(Sequence):
     # def _get_frame(self, t):
     #     """Return frame with index t."""
     #     pass
+
+
+class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexible
+    """
+
+    Parameters
+    ----------
+    paths : list of list of str
+        The string paths[i][j] is a unix style expression for the the
+        filenames for plane i and channel j. See glob for details.
+    """
+    def __init__(self, paths):
+        self._paths = np.array(
+            [[glob(channel) if isinstance(channel, str) else channel
+              for channel in plane] for plane in paths]
+        ).reshape(-1, len(paths), len(paths[0]))  # frames X planes X channels
+
+    def _get_frame(self, t):
+
+        def arange_channels(plane):
+            if libtiff_available:
+                unpack = lambda p: TIFF.open(p, 'r').iterpages()
+            else:
+                unpack = lambda p: (im.asarray(colormapped=False)
+                                    for im in TiffFile(p).pages)
+            return np.concatenate([np.concatenate(
+                [np.expand_dims(a, 2) for a in unpack(path)],
+                axis=2).astype(float) for path in plane], axis=2)
+
+        return np.concatenate(
+            [np.expand_dims(arange_channels(plane), 0)
+             for plane in self._paths[t]], 0)
+
+    # TODO: Efficient slicing mechanism
+    # def __getitem__(self, indices):
+
+    def _todict(self, savedir=None):
+        return {'__class__': self.__class__, 'paths': self._paths}
 
 
 class _Sequence_ndarray(_IndexableSequence):
