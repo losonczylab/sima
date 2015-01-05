@@ -15,6 +15,10 @@ else:
     cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 
 
+class TransformError(Exception):
+    pass
+
+
 def lazyprop(fn):
     """Like property, but only computes on first call."""
     attr_name = '_lazy_' + fn.__name__
@@ -117,9 +121,6 @@ def affine_transform(source, target):
     """
     if not cv2_available:
         raise ImportError('OpenCV >= 2.4.8 required')
-
-    class TransformError(Exception):
-        pass
 
     slice_ = tuple(slice(0, min(source.shape[i], target.shape[i]))
                    for i in range(2))
