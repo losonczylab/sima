@@ -218,6 +218,7 @@ class Test_HiddenMarkov2D(object):
             [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
         assert_(all(np.all(np.isfinite(seq.displacements))
                     for seq in corrected))
+        assert_(np.prod(corrected.frame_shape) > 0)
 
     @dec.knownfailureif(True)
     def test_hmm_missing_row(self):

@@ -14,6 +14,9 @@ resulting publications:
 Research using SIMA
 -------------------
 
+  Feinberg EH, Meister M. Orientation columns in the mouse superior colliculus.
+  Nature. 2014 Dec 17. doi:10.1038/nature14103.
+
   Miller JE, Ayzenshtat I, Carrillo-Reid L, Yuste R.
   Visual stimuli recruit intrinsically generated cortical ensembles.
   Proc Natl Acad Sci U S A. 2014 Sep 8. pii: 201406077. 

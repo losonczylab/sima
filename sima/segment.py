@@ -836,7 +836,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                         rois[i] = ROI(mask=new_shape.astype('bool'),
                                       im_shape=rois[i].mask.shape)
                         rois[j] = None
-    return [roi for roi in rois if roi is not None]
+    return ROIList(roi for roi in rois if roi is not None)
 
 
 class PostProcessingStep(object):
@@ -1222,7 +1222,6 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         self._params = Struct(**d)
 
     def _segment(self, dataset):
-
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn >= 0.11 required')
 
