@@ -836,7 +836,7 @@ def _remove_overlapping(rois, percent_overlap=0.9):
                         rois[i] = ROI(mask=new_shape.astype('bool'),
                                       im_shape=rois[i].mask.shape)
                         rois[j] = None
-    return [roi for roi in rois if roi is not None]
+    return ROIList(roi for roi in rois if roi is not None)
 
 
 class PostProcessingStep(object):
@@ -974,7 +974,9 @@ class CA1PCNucleus(PostProcessingStep):
         shape = processed_im.shape[:2]
         ROIs = ROIList([])
         for roi in rois:
-            roi_indices = np.nonzero(roi.mask[0])[0]
+            roi_indices = np.nonzero(roi.mask[0])
+            roi_indices = np.ravel_multi_index(roi_indices, shape)
+
             # pixel values in the cut
             vals = processed_im.flat[roi_indices]
 
@@ -1220,7 +1222,6 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         self._params = Struct(**d)
 
     def _segment(self, dataset):
-
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn >= 0.11 required')
 

@@ -66,6 +66,7 @@ Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
 `guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
 the `source file <http://losonczylab.org/ROI_Buddy_Source.zip>`__.
 
+
 User Interface
 ==============
 File Menu
