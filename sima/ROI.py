@@ -363,16 +363,18 @@ class ROIList(list):
             Returns an ROIList consisting of the transformed ROI objects.
 
         """
-        # TODO: keep this for if you pass in a list of ndarrays, but default to
-        # skimage.Transform
+
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
             for coords in roi.coords:
                 z = coords[0][2]  # assuming all coords share a z-coordinate
-                transformed_coords = [np.dot(transforms[int(z)],
-                                             np.hstack([vert[:2], 1]))
-                                      for vert in coords]
+                if isinstance(transforms[0], np.ndarray):
+                    transformed_coords = [np.dot(transforms[int(z)],
+                                                 np.hstack([vert[:2], 1]))
+                                          for vert in coords]
+                else:
+                    transformed_coords = transforms[int(z)](coords[:, :2])
                 transformed_coords = [np.hstack((coords, z)) for coords in
                                       transformed_coords]
                 transformed_polygons.append(transformed_coords)

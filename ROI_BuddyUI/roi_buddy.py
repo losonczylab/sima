@@ -12,6 +12,7 @@ from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
 from scipy.stats import mode
 from shapely.geometry import MultiPolygon, Polygon
+from skimage import transform as tf
 import itertools as it
 from random import shuffle
 
@@ -22,6 +23,7 @@ import sima
 from sima.imaging import ImagingDataset
 from sima.ROI import ROIList, ROI, mask2poly, poly2mask
 from sima.segment import _processed_image_ca1pc
+from sima.misc import TransformError
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -51,32 +53,6 @@ def debug_trace():
     from PyQt4.QtCore import pyqtRemoveInputHook
     pyqtRemoveInputHook()
     set_trace()
-
-
-#TODO: import from sima.misc
-class TransformError(Exception):
-    pass
-
-#TODO: delete
-def transform_array(source, M, final_shape=None):
-    """Performs an affine warp transform on an array
-
-    Parameters
-    ----------
-    source : array
-        Original array to transform
-    M : 2x3 array
-        Affine transform array
-    final_shape : optional, 2-element tuple
-        Final shape of the output array, make sure it is large enough to
-        contain the transformed source array.
-
-    """
-    if not final_shape:
-        final_shape = source.shape[::-1]
-    return cv2.warpAffine(
-        source, M, final_shape, borderMode=cv2.BORDER_CONSTANT, borderValue=0
-    )
 
 
 def jaccard_index(roi1, roi2):
@@ -1504,16 +1480,37 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         if not ok:
             return
 
+        if auto_manual == 'Auto':
+            anchor_label = None
+        else:
+            if '_REGISTRATION_ANCHORS' not in source_dataset.roi_sets or \
+                    '_REGISTRATION_ANCHORS' not in self.roi_sets:
+                QMessageBox.warning(
+                    self, 'Transform Error',
+                    'Need to save _REGISTRATION_ANCHORS ROIList',
+                    QMessageBox.Ok)
+                return
+            anchor_label = '_REGISTRATION_ANCHORS'
+
+        if reg_method == 'polynomial':
+            method_kwargs = {'order': poly_order}
+        else:
+            method_kwargs = {}
+
         try:
             active_tSeries.dataset.import_transformed_ROIs(
                 source_dataset=source_dataset.dataset,
+                method=reg_method,
                 source_channel=source_channel,
                 target_channel=target_channel,
                 source_label=source_label,
                 target_label=target_label,
-                copy_properties=copy_properties)
-        except:
-            #TODO: IMPORT AND ACCEPT TRANSFORM ERROR
+                anchor_label=anchor_label,
+                copy_properties=copy_properties,
+                method_kwargs=method_kwargs)
+        except TransformError:
+            QMessageBox.warning(self, 'Transform Error',
+                                'Transformation failed', QMessageBox.Ok)
             return
         else:
             self.remove_rois(active_tSeries.roi_list)
@@ -1599,10 +1596,12 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
-            #TODO: use skiamge.warp
-            data = transform_array(
-                data, self.transform(self)[self.active_plane],
-                final_shape=self.transform_shape[::-1])
+            #TODO: use skimage.warp
+            trans = tf.AffineTransform(
+                translation=target_tSeries.shape[::-1])
+            data = tf.warp(
+                data, trans, output_shape=self.transform_shape,
+                mode='constant', cval=0)
 
         self.parent.base_im = make.image(data=data, title='Base image',
                                          colormap='gray',
@@ -1652,12 +1651,10 @@ class UI_tSeries(QListWidgetItem):
                     polygon.set_points(polygon.coords[0][:, :2])
             else:
                 transform = self.transform(target_tSeries)
-                # TODO: call roiList.transform instead
                 for polygon in self.roi_list:
                     z = int(polygon.coords[0][0, 2])
                     orig_verts = polygon.coords[0][:, :2]
-                    new_verts = [np.dot(transform[z], np.hstack([vert, 1]))
-                                 for vert in orig_verts]
+                    new_verts = transform[z](orig_verts)
                     polygon.set_points(new_verts)
 
     def transform(self, target_tSeries):
@@ -1677,36 +1674,25 @@ class UI_tSeries(QListWidgetItem):
 
         if target_tSeries not in self.transforms:
 
+            ref_active_channel = self.dataset.channel_names.index(
+                self.active_channel)
+
             target_active_channel = \
                 target_tSeries.dataset.channel_names.index(
                     target_tSeries.active_channel)
 
-            ref_active_channel = self.dataset.channel_names.index(
-                self.active_channel)
-
-
             self.transforms[target_tSeries] = []
             for plane in xrange(self.num_planes):
-                target = _processed_image_ca1pc(
-                    target_tSeries.dataset, channel_idx=target_active_channel,
-                    x_diameter=14, y_diameter=7)[plane]
-                ref = _processed_image_ca1pc(
-                    self.dataset, channel_idx=ref_active_channel,
-                    x_diameter=14, y_diameter=7)[plane]
+                ref = self.dataset.time_averages[
+                    plane, :, :, ref_active_channel]
+                target = target_tSeries.dataset.time_averages[
+                    plane, :, :, target_active_channel]
 
-                #TODO: replace with sima.misc...
-                slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
-                               for i in range(2))
-
-                transform = cv2.estimateRigidTransform(
-                    sima.misc.to8bit(ref[slice_]),
-                    sima.misc.to8bit(target[slice_]), True)
-                if transform is None:
-                    raise TransformError()
-                #TODO: replace all but this, still need to shift them
+                transform = estimate_array_transform(ref, target)
+                #translate into same space
                 transform[:, 2] += tuple(target_tSeries.shape[::-1])
                 self.transforms[target_tSeries].append(transform)
-        #index the result by plane
+        # index the result by plane
         return self.transforms[target_tSeries]
 
     def initialize_rois(self):
@@ -2074,8 +2060,8 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.auto_manual.addItems([QString('Auto'), QString('Manual')])
         self.auto_manual.setCurrentIndex(0)
 
-        self.registrationMethod.addItems([QString('Affine'),
-                                          QString('Polynomial')])
+        self.registrationMethod.addItems([QString('affine'),
+                                          QString('polynomial')])
         self.registrationMethod.setCurrentIndex(1)
 
         self.polynomialOrder.setText(QString('2'))

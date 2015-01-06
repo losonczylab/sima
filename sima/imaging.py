@@ -20,7 +20,8 @@ else:
 
 import sima
 import sima.misc
-from sima.misc import mkdir_p, most_recent_key, affine_transform
+from sima.misc import mkdir_p, most_recent_key, estimate_array_transform, \
+    estimate_coordinate_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
 with warnings.catch_warnings():
@@ -297,7 +298,7 @@ class ImagingDataset(object):
         ROIs.save(join(self.savedir, 'rois.pkl'), label)
 
     def import_transformed_ROIs(
-            self, source_dataset, method='affine',source_channel=0,
+            self, source_dataset, method='affine', source_channel=0,
             target_channel=0, source_label=None, target_label=None,
             anchor_label=None, copy_properties=True, **method_kwargs):
         """Calculate a transformation that maps the source ImagingDataset onto
@@ -350,15 +351,45 @@ class ImagingDataset(object):
         source = source_dataset.time_averages[..., source_channel]
         target = self.time_averages[..., target_channel]
 
-        #TODO: case on method
-        transforms = [affine_transform(s, t) for s, t in
-                      it.izip(source, target)]  # zipping over planes
+        if anchor_label is None:
+            try:
+                transforms = [estimate_array_transform(s, t, method=method)
+                              for s, t in it.izip(source, target)]
+            except ValueError:
+                print 'Auto transform not implemented for this method'
+                return
+        else:
+            #Assume one ROI per plane
+            assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
+            transforms = []
+            for plane_idx in xrange(self.frame_shape[0]):
+                for roi in self.ROIs[anchor_label]:
+                    if roi.coords[0, 2] == plane_idx:
+                        src_coords = roi.coords[0]
+                    else:
+                        pass
+                for roi in source_dataset.ROIs[anchor_label]:
+                    if roi.coords[0, 2] == plane_idx:
+                        trg_coords = roi.coords[0]
+                assert len(src_coords) == len(trg_coords)
+
+                mean_dists = []
+                for shift in range(len(src_coords)):
+                    points1 = src_coords
+                    points2 = np.rollaxis(trg_coords, axis=1, start=shift)
+                    mean_dists.append(
+                        np.sum([np.sqrt(np.sum((p1 - p2) ** 2))
+                                for p1, p2 in zip(points1, points2)]))
+                trg_coords = np.rollaxis(
+                    trg_coords, axis=1, start=np.argmin(mean_dists))
+                transforms.append(estimate_coordinate_transform(
+                    src_coords, trg_coords, method, **method_kwargs))
 
         src_rois = source_dataset.ROIs
         if source_label is None:
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
-        #TODO: pass in method
+
         transformed_ROIs = src_rois.transform(
             transforms, im_shape=self.frame_shape[:3],
             copy_properties=copy_properties)
