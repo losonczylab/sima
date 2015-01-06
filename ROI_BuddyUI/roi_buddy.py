@@ -1540,7 +1540,8 @@ class UI_tSeries(QListWidgetItem):
 
         self.num_planes = self.dataset.frame_shape[0]
         self.shape = self.dataset.frame_shape[1:3]
-        self.transform_shape = tuple(3 * np.array(self.shape))
+
+        self.transform_shape = tuple([int(3 * x) for x in self.shape])
         self.active_channel = self.dataset.channel_names[0]
         self.active_plane = 0
 
@@ -1569,7 +1570,8 @@ class UI_tSeries(QListWidgetItem):
             self.base_images[channel_name] = []
         for plane in self.dataset.time_averages:
             for ch_idx, ch_name in enumerate(self.dataset.channel_names):
-                self.base_images[ch_name].append(plane[:, :, ch_idx])
+                self.base_images[ch_name].append(
+                    plane[:, :, ch_idx] / np.amax(plane[:, :, ch_idx]))
 
     def show(self):
         try:
@@ -1595,12 +1597,11 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
-            #TODO: use skimage.warp
             trans = tf.AffineTransform(
-                translation=target_tSeries.shape[::-1])
-            data = tf.warp(
-                data, trans, output_shape=self.transform_shape,
-                mode='constant', cval=0)
+                translation=tuple([-1 * x for x in self.shape[::-1]]))
+
+            data = tf.warp(data, trans, output_shape=self.transform_shape,
+                           mode='constant', cval=0)
 
         self.parent.base_im = make.image(data=data, title='Base image',
                                          colormap='gray',
@@ -1689,7 +1690,9 @@ class UI_tSeries(QListWidgetItem):
 
                 transform = estimate_array_transform(ref, target)
                 #translate into same space
-                transform[:, 2] += tuple(target_tSeries.shape[::-1])
+                transform += tf.AffineTransform(
+                    translation=target_tSeries.shape[::-1])
+
                 self.transforms[target_tSeries].append(transform)
         # index the result by plane
         return self.transforms[target_tSeries]
