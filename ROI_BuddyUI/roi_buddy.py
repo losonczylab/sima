@@ -1497,7 +1497,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 self.save([self.tSeries_list.currentItem()])
 
         source_dataset, source_channel, target_channel, source_label, \
-            target_label, copy_properties, ok = \
+            target_label, copy_properties, auto_manual, reg_method, \
+            poly_order, ok = \
             ImportROIsWidget.getParams(self)
 
         if not ok:
@@ -2070,6 +2071,15 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.sourceDataset.currentIndexChanged.connect(
             self.initialize_source_options)
 
+        self.auto_manual.addItems([QString('Auto'), QString('Manual')])
+        self.auto_manual.setCurrentIndex(0)
+
+        self.registrationMethod.addItems([QString('Affine'),
+                                          QString('Polynomial')])
+        self.registrationMethod.setCurrentIndex(1)
+
+        self.polynomialOrder.setText(QString('2'))
+
         self.acceptButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
         self.sourceDataset.setCurrentIndex(0)
@@ -2102,6 +2112,12 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         target_label = str(dialog.targetLabel.text())
         copy_properties = dialog.copyRoiProperties.isChecked()
 
+        auto_manual = str(dialog.auto_manual.itemText(
+            dialog.auto_manual.currentIndex()))
+        reg_method = str(dialog.registrationMethod.itemText(
+            dialog.registrationMethod.currentIndex()))
+        poly_order = int(dialog.polynomialOrder.text())
+
         return \
             source_dataset, \
             source_channel, \
@@ -2109,6 +2125,9 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
             source_label, \
             target_label, \
             copy_properties, \
+            auto_manual, \
+            reg_method, \
+            poly_order, \
             result == QDialog.Accepted
 
 
