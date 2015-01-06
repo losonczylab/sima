@@ -6,7 +6,6 @@ path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from os.path import join, dirname, isdir
 
 import numpy as np
-import cv2
 from datetime import datetime
 from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
@@ -23,7 +22,7 @@ import sima
 from sima.imaging import ImagingDataset
 from sima.ROI import ROIList, ROI, mask2poly, poly2mask
 from sima.segment import _processed_image_ca1pc
-from sima.misc import TransformError
+from sima.misc import TransformError, estimate_array_transform
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
