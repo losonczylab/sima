@@ -296,12 +296,13 @@ class ImagingDataset(object):
             raise Exception('Cannot add ROIs unless savedir is set.')
         ROIs.save(join(self.savedir, 'rois.pkl'), label)
 
-    def import_transformed_ROIs(self, source_dataset, source_channel=0,
-                                target_channel=0, source_label=None,
-                                target_label=None, copy_properties=True):
-        """Calculate an affine transformation that maps the source
-        ImagingDataset onto this ImagingDataset, tranform the source ROIs
-        by this mapping, and then import them into this ImagingDataset.
+    def import_transformed_ROIs(
+            self, source_dataset, method='affine',source_channel=0,
+            target_channel=0, source_label=None, target_label=None,
+            anchor_label=None, copy_properties=True, **method_kwargs):
+        """Calculate a transformation that maps the source ImagingDataset onto
+        this ImagingDataset, transforms the source ROIs by this mapping,
+        and then imports them into this ImagingDataset.
 
         Parameters
         ----------
@@ -309,6 +310,9 @@ class ImagingDataset(object):
             The ImagingDataset object from which ROIs are to be imported.  This
             dataset must be roughly of the same field-of-view as self in order
             to calculate an affine transformation.
+
+        method : string, optional
+            Method to use for transform calculation.
 
         source_channel : string or int, optional
             The channel of the source image from which to calculate an affine
@@ -326,12 +330,6 @@ class ImagingDataset(object):
         target_label : string, optional
             The label to assign the transformed ROIList
 
-        method : string, optional
-            'affine', 'polynomial'
-
-        **kwargs : optional
-            order
-
         anchor_label : string, optional
             If None, use automatic dataset registration.
             Otherwise, the label of the ROIList that contains a single ROI
@@ -340,6 +338,10 @@ class ImagingDataset(object):
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
+
+        **method_kwargs : optional
+            Additional arguments can be passed in specific to the particular
+            method. For example, 'order' for a polynomial transform estimation.
 
         """
 

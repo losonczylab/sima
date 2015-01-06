@@ -345,7 +345,7 @@ class ROIList(list):
 
         Parameters
         ----------
-        transforms : list of 2x3 Numpy arrays
+        transforms : list of GeometryTransforms or 2x3 Numpy arrays
             The affine transformations to be applied to the ROIs.  Length of
             list should equal the number of planes (im_shape[0]).
 
