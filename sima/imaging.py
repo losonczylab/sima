@@ -364,24 +364,24 @@ class ImagingDataset(object):
             transforms = []
             for plane_idx in xrange(self.frame_shape[0]):
                 for roi in self.ROIs[anchor_label]:
-                    if roi.coords[0, 2] == plane_idx:
-                        src_coords = roi.coords[0]
+                    if roi.coords[0][0, 2] == plane_idx:
+                        trg_coords = roi.coords[0][:, :2]
                     else:
                         pass
                 for roi in source_dataset.ROIs[anchor_label]:
-                    if roi.coords[0, 2] == plane_idx:
-                        trg_coords = roi.coords[0]
+                    if roi.coords[0][0, 2] == plane_idx:
+                        src_coords = roi.coords[0][:, :2]
                 assert len(src_coords) == len(trg_coords)
 
                 mean_dists = []
                 for shift in range(len(src_coords)):
                     points1 = src_coords
-                    points2 = np.rollaxis(trg_coords, axis=1, start=shift)
+                    points2 = np.roll(trg_coords, shift, axis=0)
                     mean_dists.append(
                         np.sum([np.sqrt(np.sum((p1 - p2) ** 2))
                                 for p1, p2 in zip(points1, points2)]))
-                trg_coords = np.rollaxis(
-                    trg_coords, axis=1, start=np.argmin(mean_dists))
+                trg_coords = np.roll(
+                    trg_coords, np.argmin(mean_dists), axis=0)
                 transforms.append(estimate_coordinate_transform(
                     src_coords, trg_coords, method, **method_kwargs))
 

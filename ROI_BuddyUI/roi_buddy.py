@@ -1483,7 +1483,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             anchor_label = None
         else:
             if '_REGISTRATION_ANCHORS' not in source_dataset.roi_sets or \
-                    '_REGISTRATION_ANCHORS' not in self.roi_sets:
+                    '_REGISTRATION_ANCHORS' not in active_tSeries.roi_sets:
                 QMessageBox.warning(
                     self, 'Transform Error',
                     'Need to save _REGISTRATION_ANCHORS ROIList',
@@ -1491,12 +1491,12 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 return
             anchor_label = '_REGISTRATION_ANCHORS'
 
-        if reg_method == 'polynomial':
-            method_kwargs = {'order': poly_order}
-        else:
-            method_kwargs = {}
-
         try:
+            if reg_method == 'polynomial':
+                method_args = {'order': poly_order}
+            else:
+                method_args = {}
+
             active_tSeries.dataset.import_transformed_ROIs(
                 source_dataset=source_dataset.dataset,
                 method=reg_method,
@@ -1506,7 +1506,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 target_label=target_label,
                 anchor_label=anchor_label,
                 copy_properties=copy_properties,
-                method_kwargs=method_kwargs)
+                **method_args)
         except TransformError:
             QMessageBox.warning(self, 'Transform Error',
                                 'Transformation failed', QMessageBox.Ok)
@@ -1688,7 +1688,8 @@ class UI_tSeries(QListWidgetItem):
                 target = target_tSeries.dataset.time_averages[
                     plane, :, :, target_active_channel]
 
-                transform = estimate_array_transform(ref, target)
+                transform = estimate_array_transform(
+                    ref, target, method='affine')
                 #translate into same space
                 transform += tf.AffineTransform(
                     translation=target_tSeries.shape[::-1])
@@ -2063,7 +2064,10 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.auto_manual.setCurrentIndex(0)
 
         self.registrationMethod.addItems([QString('affine'),
-                                          QString('polynomial')])
+                                          QString('polynomial'),
+                                          QString('piecewise-affine'),
+                                          QString('projective'),
+                                          QString('similarity')])
         self.registrationMethod.setCurrentIndex(1)
 
         self.polynomialOrder.setText(QString('2'))
