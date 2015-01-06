@@ -30,7 +30,7 @@ from PyQt4.QtGui import *
 from guidata import qthelpers
 from guiqwt.plot import ImageDialog
 from guiqwt.tools import FreeFormTool, InteractiveTool, \
-    RectangleTool, RectangularShapeTool
+    RectangleTool, RectangularShapeTool, SelectTool
 from guiqwt.builder import make
 from guiqwt.shapes import PolygonShape, EllipseShape
 from guiqwt.events import setup_standard_tool_filter, PanHandler
@@ -201,6 +201,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.toggle_button_state(False)
 
         self.toggle_button_state(True)
+
+        self.disable_drawing_tools()
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -418,10 +420,33 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             viewer.toolbar.removeAction(viewer.toolbar.actions()[i])
 
         self.plot = viewer.get_plot()
-        self.selection_tool = viewer.tools[2]
-        self.freeform_tool = viewer.tools[-3]
+        for tool in viewer.tools:
+            if type(tool) == FreeFormTool:
+                self.freeform_tool = tool
+            elif type(tool) == SelectTool:
+                self.selection_tool = tool
+            elif type(tool) == RectangleTool:
+                self.rectangle_tool = tool
+            elif type(tool) == EllipseTool:
+                self.ellipse_tool = tool
 
         return viewer
+
+    def enable_drawing_tools(self):
+        self.freeform_tool.deactivate()
+        self.freeform_tool.action.setEnabled(True)
+        self.rectangle_tool.deactivate()
+        self.rectangle_tool.action.setEnabled(True)
+        self.ellipse_tool.deactivate()
+        self.ellipse_tool.action.setEnabled(True)
+
+    def disable_drawing_tools(self):
+        self.freeform_tool.deactivate()
+        self.freeform_tool.action.setEnabled(False)
+        self.rectangle_tool.deactivate()
+        self.rectangle_tool.action.setEnabled(False)
+        self.ellipse_tool.deactivate()
+        self.ellipse_tool.action.setEnabled(False)
 
     def initialize_roi_manager(self):
 
@@ -566,8 +591,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.add_tags_action.setEnabled(False)
             self.clear_tags_action.setEnabled(False)
             self.edit_tags_action.setEnabled(False)
-            self.freeform_tool.deactivate()
-            self.freeform_tool.action.setEnabled(False)
+            self.disable_drawing_tools()
             self.active_rois_combobox.setEnabled(False)
             self.show_all_checkbox.setEnabled(True)
             self.register_rois_button.setEnabled(True)
@@ -589,8 +613,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             y_lims = self.plot.get_axis_limits(0)
             x_lims = self.plot.get_axis_limits(2)
 
-            self.freeform_tool.action.setEnabled(True)
-            self.freeform_tool.deactivate()
+            self.enable_drawing_tools()
             self.edit_label_action.setEnabled(True)
             self.add_tags_action.setEnabled(True)
             self.clear_tags_action.setEnabled(True)
@@ -731,7 +754,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.initialize_roi_set_list(active_tSeries)
             active_tSeries.initialize_rois()
             self.hide_rois(show_in_list=False)
-            self.freeform_tool.action.setEnabled(True)
+            self.enable_drawing_tools()
             self.plot.replot()
 
     def delete_roi_set(self):
@@ -758,8 +781,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.initialize_roi_set_list(active_tSeries)
 
             if len(active_tSeries.roi_sets) == 0:
-                self.freeform_tool.deactivate()
-                self.freeform_tool.action.setEnabled(False)
+                self.disable_drawing_tools()
             else:
                 self.toggle_rois()
 
@@ -807,11 +829,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.plot.replot()
 
         if len(current.roi_sets) == 0:
-            self.freeform_tool.action.setEnabled(False)
-            self.freeform_tool.deactivate()
+            self.disable_drawing_tools()
         else:
-            self.freeform_tool.action.setEnabled(True)
-            self.freeform_tool.deactivate()
+            self.enable_drawing_tools()
 
     def toggle_rois(self):
 
