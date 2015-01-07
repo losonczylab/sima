@@ -10,6 +10,7 @@ from datetime import datetime
 from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
 from scipy.stats import mode
+from scipy.sparse import lil_matrix
 from shapely.geometry import MultiPolygon, Polygon
 from skimage import transform as tf
 import itertools as it
@@ -22,7 +23,8 @@ import sima
 from sima.imaging import ImagingDataset
 from sima.ROI import ROIList, ROI, mask2poly, poly2mask
 from sima.segment import _processed_image_ca1pc
-from sima.misc import TransformError, estimate_array_transform
+from sima.misc import TransformError, estimate_array_transform, \
+    estimate_coordinate_transform
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -1702,19 +1704,72 @@ class UI_tSeries(QListWidgetItem):
                     target_tSeries.active_channel)
 
             self.transforms[target_tSeries] = []
-            for plane in xrange(self.num_planes):
-                ref = self.dataset.time_averages[
-                    plane, :, :, ref_active_channel]
-                target = target_tSeries.dataset.time_averages[
-                    plane, :, :, target_active_channel]
 
-                transform = estimate_array_transform(
-                    ref, target, method='affine')
-                #translate into same space
-                transform += tf.AffineTransform(
-                    translation=target_tSeries.shape[::-1])
+            if '_REGISTRATION_ANCHORS' in self.dataset.ROIs and \
+                    '_REGISTRATION_ANCHORS' in target_tSeries.dataset.ROIs:
 
-                self.transforms[target_tSeries].append(transform)
+                ANCHORS = '_REGISTRATION_ANCHORS'
+
+                assert len(
+                    self.dataset.ROIs[ANCHORS]) == \
+                    self.dataset.frame_shape[0]
+                assert len(
+                    target_tSeries.dataset.ROIs[ANCHORS]) == \
+                    target_tSeries.dataset.frame_shape[0]
+                for plane in xrange(self.num_planes):
+                    for roi in target_tSeries.dataset.ROIs[ANCHORS]:
+                        if roi.coords[0][0, 2] == plane:
+                            trg_coords = roi.coords[0][:, :2]
+                        else:
+                            pass
+                    for roi in self.dataset.ROIs[ANCHORS]:
+                        if roi.coords[0][0, 2] == plane:
+                            src_coords = roi.coords[0][:, :2]
+                    assert len(src_coords) == len(trg_coords)
+
+                    mean_dists = []
+                    for shift in range(len(src_coords)):
+                        points1 = src_coords
+                        points2 = np.roll(trg_coords, shift, axis=0)
+                        mean_dists.append(
+                            np.sum([np.sqrt(np.sum((p1 - p2) ** 2))
+                                    for p1, p2 in zip(points1, points2)]))
+                    trg_coords = np.roll(
+                        trg_coords, np.argmin(mean_dists), axis=0)
+                    src_coords = np.vstack(
+                        (src_coords, [[0, 0], [0,
+                                      self.dataset.frame_shape[1]],
+                                      [self.dataset.frame_shape[2], 0],
+                                      [self.dataset.frame_shape[2],
+                                       self.dataset.frame_shape[1]]]))
+                    trg_coords = np.vstack(
+                        (trg_coords,
+                         [[0, 0], [0, target_tSeries.dataset.frame_shape[1]],
+                          [target_tSeries.dataset.frame_shape[2], 0],
+                          [target_tSeries.dataset.frame_shape[2],
+                           target_tSeries.dataset.frame_shape[1]]]))
+
+                    transform = estimate_coordinate_transform(
+                        src_coords, trg_coords, 'piecewise-affine')
+                    translation = tf.AffineTransform(
+                        translation=target_tSeries.shape[::-1])
+                    #translate into same space
+                    for tri in range(len(transform.affines)):
+                        transform.affines[tri] += translation
+                    self.transforms[target_tSeries].append(transform)
+            else:
+                for plane in xrange(self.num_planes):
+                    ref = self.dataset.time_averages[
+                        plane, :, :, ref_active_channel]
+                    target = target_tSeries.dataset.time_averages[
+                        plane, :, :, target_active_channel]
+
+                    transform = estimate_array_transform(
+                        ref, target, method='affine')
+                    #translate into same space
+                    transform += tf.AffineTransform(
+                        translation=target_tSeries.shape[::-1])
+                    self.transforms[target_tSeries].append(transform)
         # index the result by plane
         return self.transforms[target_tSeries]
 
