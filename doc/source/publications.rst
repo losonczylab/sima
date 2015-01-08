@@ -17,9 +17,9 @@ Research using SIMA
   Feinberg EH, Meister M. Orientation columns in the mouse superior colliculus.
   Nature. 2014 Dec 17. doi:10.1038/nature14103.
 
-  Miller JE, Ayzenshtat I, Carrillo-Reid L, Yuste R.
-  Visual stimuli recruit intrinsically generated cortical ensembles.
-  Proc Natl Acad Sci U S A. 2014 Sep 8. pii: 201406077. 
+  Miller JE, Ayzenshtat I, Carrillo-Reid L, Yuste R.  Visual stimuli recruit
+  intrinsically generated cortical ensembles.  Proc Natl Acad Sci U S A. 2014
+  Sep 23;111(38):E4053-61. doi: 10.1073/pnas.1406077111. 
   
   Lee SH, Marchionni I, Bezaire M, Varga C, Danielson N, Lovett-Barron M,
   Losonczy A, Soltesz I.  Parvalbumin-positive basket cells differentiate among
