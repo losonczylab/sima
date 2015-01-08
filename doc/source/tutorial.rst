@@ -25,7 +25,7 @@ in printing the docstring containing view basic information about the package.
     Copyright (C) 2014 The Trustees of Columbia University in the City of New York.
     Licensed under the GNU GPL version 2 or later.
     Documentation: http://www.losonczylab.org/sima
-    Version 0.3.1
+    Version 0.3.2
 
 In all future examples, we assume that the SIMA package has been
 imported as shown above.
