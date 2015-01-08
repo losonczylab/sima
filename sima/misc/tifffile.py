@@ -331,7 +331,7 @@ class TiffFileWriter(object):
             addtag('x_resolution', '2I', 1, rational(resolution[0]))
             addtag('y_resolution', '2I', 1, rational(resolution[1]))
             addtag('resolution_unit', 'H', 1, 2)
-        addtag('rows_per_strip', 'I', 1, 1)
+        addtag('rows_per_strip', 'I', 1, shape[0])
 
         # use one strip per plane
         strip_byte_counts = (page.size * page.dtype.itemsize, ) * 1
