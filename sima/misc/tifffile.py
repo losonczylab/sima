@@ -168,7 +168,7 @@ class TiffFileWriter(object):
     def __init__(self, filename):
         self.fh = open(filename, 'wb')
         self.pageindex = 0
-
+    
     def _first_write(self, page, photometric=None, planarconfig=None,
                      resolution=None, description=None, software='tifffile.py',
                      byteorder=None, bigtiff=False, compress=0, extratags=()):
@@ -331,7 +331,7 @@ class TiffFileWriter(object):
             addtag('x_resolution', '2I', 1, rational(resolution[0]))
             addtag('y_resolution', '2I', 1, rational(resolution[1]))
             addtag('resolution_unit', 'H', 1, 2)
-        addtag('rows_per_strip', 'I', 1, 1)
+        addtag('rows_per_strip', 'I', 1,shape[0])
 
         # use one strip per plane
         strip_byte_counts = (page.size * page.dtype.itemsize, ) * 1
@@ -3539,7 +3539,6 @@ CZ_LSM_SCAN_INFO_ATTRIBUTES = {
     0x12000006: "activation_time",
     0x12000007: "activation_number",
 }
-
 # Map TIFF tag code to attribute name, default value, type, count, validator
 TIFF_TAGS = {
     254: ('new_subfile_type', 0, 4, 1, TIFF_SUBFILE_TYPES()),
@@ -4024,6 +4023,7 @@ def main(argv=None):
 
 
 TIFFfile = TiffFile  # backwards compatibility
+
 
 if sys.version_info[0] > 2:
     basestring = str, bytes
