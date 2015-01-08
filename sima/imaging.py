@@ -44,6 +44,7 @@ class ImagingDataset(object):
     >>> dataset = sima.ImagingDataset.load(example_data())
 
     Datasets can be iterated over as follows:
+
     >>> for cycle in dataset:
     ...     for frame in cycle:
     ...         for channel in frame:
@@ -72,14 +73,6 @@ class ImagingDataset(object):
         that are always within the field of view are retained. This
         argument only has effect if the ImagingDataset object is
         initialized with displacements.
-
-    Notes
-    -----
-    Keys for metadata:
-        'acquisition period' :\n
-        'plane order' :\n
-        'plane times' :\n
-        'plane heights' :\n
 
     Attributes
     ----------
