@@ -56,7 +56,7 @@ def debug_trace():
     set_trace()
 
 
-def jaccard_index(roi1, roi2):
+def jaccard_index(roi1, roi2, im_size):
     """Calculates the Jaccard index of two rois.
     Defined as the ratio of the size of the intersection to the size of the
     union of the two ROIs in pixels.
@@ -64,6 +64,7 @@ def jaccard_index(roi1, roi2):
     Parameters
     ----------
     roi1, roi2 : shapely.geometry.Polygon
+    im_size : The size of the image on which the ROIs were
 
     """
     union = 0
@@ -84,7 +85,7 @@ def jaccard_index(roi1, roi2):
             if not p1.is_valid:
                 mask2poly(poly2mask(
                     [np.array(p.exterior.coords).tolist() for p in p1],
-                    im_size=self.base_im.data.shape))
+                    im_size=im_size))
 
             co_planar_polys2 = []
             for p in roi2_polys:
@@ -1394,7 +1395,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     for roi2 in roi_polygons[tSeries2]:
                         if intersects(roi1, roi2):
                             condensed_distance_matrix.append(
-                                jaccard_index(roi1, roi2))
+                                jaccard_index(
+                                    roi1, roi2,
+                                    active_tSeries.dataset.frame_shape[2:4]))
                         else:
                             condensed_distance_matrix.append(0)
 
