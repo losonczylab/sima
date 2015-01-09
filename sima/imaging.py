@@ -384,18 +384,21 @@ class ImagingDataset(object):
                     trg_coords, np.argmin(mean_dists), axis=0)
 
                 if method == 'piecewise-affine':
-                    src_coords = np.vstack(
-                        (src_coords, [[0, 0], [0,
-                                      source_dataset.frame_shape[1]],
-                                      [source_dataset.frame_shape[2], 0],
-                                      [source_dataset.frame_shape[2],
-                                       source_dataset.frame_shape[1]]]))
-                    trg_coords = np.vstack(
-                        (trg_coords, [[0, 0], [0,
-                                      self.frame_shape[1]],
-                                      [self.frame_shape[2], 0],
-                                      [self.frame_shape[2],
-                                       self.frame_shape[1]]]))
+
+                    whole_frame_transform = estimate_coordinate_transform(
+                        src_coords, trg_coords, 'affine')
+
+                    src_additional_coords = [
+                        [0, 0],
+                        [0, source_dataset.frame_shape[1]],
+                        [source_dataset.frame_shape[2], 0],
+                        [source_dataset.frame_shape[2],
+                         source_dataset.frame_shape[1]]]
+                    trg_additional_coords = whole_frame_transform(
+                        src_additional_coords)
+
+                    src_coords = np.vstack((src_coords, src_additional_coords))
+                    trg_coords = np.vstack((trg_coords, trg_additional_coords))
 
                 transforms.append(estimate_coordinate_transform(
                     src_coords, trg_coords, method, **method_kwargs))

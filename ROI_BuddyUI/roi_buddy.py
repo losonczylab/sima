@@ -56,7 +56,7 @@ def debug_trace():
     set_trace()
 
 
-def jaccard_index(roi1, roi2, im_size):
+def jaccard_index(roi1, roi2):
     """Calculates the Jaccard index of two rois.
     Defined as the ratio of the size of the intersection to the size of the
     union of the two ROIs in pixels.
@@ -64,7 +64,6 @@ def jaccard_index(roi1, roi2, im_size):
     Parameters
     ----------
     roi1, roi2 : shapely.geometry.Polygon
-    im_size : The size of the image on which the ROIs were
 
     """
     union = 0
@@ -82,20 +81,12 @@ def jaccard_index(roi1, roi2, im_size):
                 if np.array(other_poly.exterior.coords)[0, 2] == z:
                     co_planar_polys1.append(other_poly)
             p1 = MultiPolygon(co_planar_polys1)
-            if not p1.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p1],
-                    im_size=im_size))
 
             co_planar_polys2 = []
             for p in roi2_polys:
                 if np.array(p.exterior.coords)[0, 2] == z:
                     co_planar_polys2.append(p)
             p2 = MultiPolygon(co_planar_polys2)
-            if not p2.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p2],
-                    im_size=self.base_im.data.shape))
 
             union += p1.union(p2).area
             intersection += p1.intersection(p2).area
@@ -106,18 +97,14 @@ def jaccard_index(roi1, roi2, im_size):
                 roi2_polys.remove(p)
 
     while(len(roi2_polys)):
-        for extra in roi2_polys:
-            z = np.array(remaining_polygon.exterior.coords)[0, 2]
+        for extra_polygon in roi2_polys:
+            z = np.array(extra_polygon.exterior.coords)[0, 2]
 
             co_planar_polys = [extra_polygon]
-            for other_poly in [p for p in roi2_polys if p is not extra]:
+            for other_poly in [p for p in roi2_polys if p is not extra_polygon]:
                 if np.array(other_poly.exterior.coords)[0, 2] == z:
                     co_planar_polys.append(other_poly)
             p0 = MultiPolygon(co_planar_polys)
-            if not p.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p0],
-                    im_size=self.base_im.data.shape))
 
             union += p.area
 
@@ -1384,7 +1371,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         # Polygon might be comprised of Polygons with different z-coordinates)
         for tSeries in tSeries_list:
             for roi_idx, roi in enumerate(roi_polygons[tSeries]):
-                roi_polygons[tSeries][roi_idx] = MultiPolygon(roi)
+                multi_poly = MultiPolygon(roi)
+                if not multi_poly.is_valid:
+                    multi_poly = mask2poly(
+                        poly2mask(multi_poly, active_tSeries.transform_shape))
+                roi_polygons[tSeries][roi_idx] = multi_poly
 
         condensed_distance_matrix = []
         for setIdx, tSeries in enumerate(tSeries_list):
@@ -1395,9 +1386,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                     for roi2 in roi_polygons[tSeries2]:
                         if intersects(roi1, roi2):
                             condensed_distance_matrix.append(
-                                jaccard_index(
-                                    roi1, roi2,
-                                    active_tSeries.dataset.frame_shape[2:4]))
+                                jaccard_index(roi1, roi2))
                         else:
                             condensed_distance_matrix.append(0)
 
