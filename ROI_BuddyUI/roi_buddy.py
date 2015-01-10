@@ -88,7 +88,10 @@ def jaccard_index(roi1, roi2):
                     co_planar_polys2.append(p)
             p2 = MultiPolygon(co_planar_polys2)
 
-            union += p1.union(p2).area
+            try:
+                union += p1.union(p2).area
+            except:
+                debug_trace()
             intersection += p1.intersection(p2).area
 
             for p in co_planar_polys1[::-1]:
