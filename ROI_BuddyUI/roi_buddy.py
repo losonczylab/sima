@@ -6,12 +6,12 @@ path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 from os.path import join, dirname, isdir
 
 import numpy as np
-import cv2
 from datetime import datetime
 from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
 from scipy.stats import mode
 from shapely.geometry import MultiPolygon, Polygon
+from skimage import transform as tf
 import itertools as it
 from random import shuffle
 
@@ -22,6 +22,8 @@ import sima
 from sima.imaging import ImagingDataset
 from sima.ROI import ROIList, ROI, mask2poly, poly2mask
 from sima.segment import _processed_image_ca1pc
+from sima.misc import TransformError, estimate_array_transform, \
+    estimate_coordinate_transform
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -29,7 +31,7 @@ from PyQt4.QtGui import *
 from guidata import qthelpers
 from guiqwt.plot import ImageDialog
 from guiqwt.tools import FreeFormTool, InteractiveTool, \
-    RectangleTool, RectangularShapeTool
+    RectangleTool, RectangularShapeTool, SelectTool
 from guiqwt.builder import make
 from guiqwt.shapes import PolygonShape, EllipseShape
 from guiqwt.events import setup_standard_tool_filter, PanHandler
@@ -51,31 +53,6 @@ def debug_trace():
     from PyQt4.QtCore import pyqtRemoveInputHook
     pyqtRemoveInputHook()
     set_trace()
-
-
-class TransformError(Exception):
-    pass
-
-
-def transform_array(source, M, final_shape=None):
-    """Performs an affine warp transform on an array
-
-    Parameters
-    ----------
-    source : array
-        Original array to transform
-    M : 2x3 array
-        Affine transform array
-    final_shape : optional, 2-element tuple
-        Final shape of the output array, make sure it is large enough to
-        contain the transformed source array.
-
-    """
-    if not final_shape:
-        final_shape = source.shape[::-1]
-    return cv2.warpAffine(
-        source, M, final_shape, borderMode=cv2.BORDER_CONSTANT, borderValue=0
-    )
 
 
 def jaccard_index(roi1, roi2):
@@ -103,20 +80,12 @@ def jaccard_index(roi1, roi2):
                 if np.array(other_poly.exterior.coords)[0, 2] == z:
                     co_planar_polys1.append(other_poly)
             p1 = MultiPolygon(co_planar_polys1)
-            if not p1.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p1],
-                    im_size=self.base_im.data.shape))
 
             co_planar_polys2 = []
             for p in roi2_polys:
                 if np.array(p.exterior.coords)[0, 2] == z:
                     co_planar_polys2.append(p)
             p2 = MultiPolygon(co_planar_polys2)
-            if not p2.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p2],
-                    im_size=self.base_im.data.shape))
 
             union += p1.union(p2).area
             intersection += p1.intersection(p2).area
@@ -127,20 +96,17 @@ def jaccard_index(roi1, roi2):
                 roi2_polys.remove(p)
 
     while(len(roi2_polys)):
-        for extra in roi2_polys:
-            z = np.array(remaining_polygon.exterior.coords)[0, 2]
+        for extra_polygon in roi2_polys:
+            z = np.array(extra_polygon.exterior.coords)[0, 2]
 
             co_planar_polys = [extra_polygon]
-            for other_poly in [p for p in roi2_polys if p is not extra]:
+            for other_poly in [
+                    p for p in roi2_polys if p is not extra_polygon]:
                 if np.array(other_poly.exterior.coords)[0, 2] == z:
                     co_planar_polys.append(other_poly)
             p0 = MultiPolygon(co_planar_polys)
-            if not p.is_valid:
-                mask2poly(poly2mask(
-                    [np.array(p.exterior.coords).tolist() for p in p0],
-                    im_size=self.base_im.data.shape))
 
-            union += p.area
+            union += p0.area
 
             for p in co_planar_polys[::-1]:
                 roi2_polys.remove(p)
@@ -225,6 +191,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.toggle_button_state(False)
 
         self.toggle_button_state(True)
+
+        self.disable_drawing_tools()
 
     def viewer_keyPressEvent(self, event):
         """Esc button filter -- prevent application from crashing"""
@@ -442,10 +410,33 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             viewer.toolbar.removeAction(viewer.toolbar.actions()[i])
 
         self.plot = viewer.get_plot()
-        self.selection_tool = viewer.tools[2]
-        self.freeform_tool = viewer.tools[-3]
+        for tool in viewer.tools:
+            if type(tool) == FreeFormTool:
+                self.freeform_tool = tool
+            elif type(tool) == SelectTool:
+                self.selection_tool = tool
+            elif type(tool) == RectangleTool:
+                self.rectangle_tool = tool
+            elif type(tool) == EllipseTool:
+                self.ellipse_tool = tool
 
         return viewer
+
+    def enable_drawing_tools(self):
+        self.freeform_tool.deactivate()
+        self.freeform_tool.action.setEnabled(True)
+        self.rectangle_tool.deactivate()
+        self.rectangle_tool.action.setEnabled(True)
+        self.ellipse_tool.deactivate()
+        self.ellipse_tool.action.setEnabled(True)
+
+    def disable_drawing_tools(self):
+        self.freeform_tool.deactivate()
+        self.freeform_tool.action.setEnabled(False)
+        self.rectangle_tool.deactivate()
+        self.rectangle_tool.action.setEnabled(False)
+        self.ellipse_tool.deactivate()
+        self.ellipse_tool.action.setEnabled(False)
 
     def initialize_roi_manager(self):
 
@@ -590,8 +581,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.add_tags_action.setEnabled(False)
             self.clear_tags_action.setEnabled(False)
             self.edit_tags_action.setEnabled(False)
-            self.freeform_tool.deactivate()
-            self.freeform_tool.action.setEnabled(False)
+            self.disable_drawing_tools()
             self.active_rois_combobox.setEnabled(False)
             self.show_all_checkbox.setEnabled(True)
             self.register_rois_button.setEnabled(True)
@@ -613,8 +603,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             y_lims = self.plot.get_axis_limits(0)
             x_lims = self.plot.get_axis_limits(2)
 
-            self.freeform_tool.action.setEnabled(True)
-            self.freeform_tool.deactivate()
+            self.enable_drawing_tools()
             self.edit_label_action.setEnabled(True)
             self.add_tags_action.setEnabled(True)
             self.clear_tags_action.setEnabled(True)
@@ -755,7 +744,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.initialize_roi_set_list(active_tSeries)
             active_tSeries.initialize_rois()
             self.hide_rois(show_in_list=False)
-            self.freeform_tool.action.setEnabled(True)
+            self.enable_drawing_tools()
             self.plot.replot()
 
     def delete_roi_set(self):
@@ -782,8 +771,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             self.initialize_roi_set_list(active_tSeries)
 
             if len(active_tSeries.roi_sets) == 0:
-                self.freeform_tool.deactivate()
-                self.freeform_tool.action.setEnabled(False)
+                self.disable_drawing_tools()
             else:
                 self.toggle_rois()
 
@@ -831,11 +819,9 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.plot.replot()
 
         if len(current.roi_sets) == 0:
-            self.freeform_tool.action.setEnabled(False)
-            self.freeform_tool.deactivate()
+            self.disable_drawing_tools()
         else:
-            self.freeform_tool.action.setEnabled(True)
-            self.freeform_tool.deactivate()
+            self.enable_drawing_tools()
 
     def toggle_rois(self):
 
@@ -1366,7 +1352,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 name = roi.label
                 if name is None or name not in roi_names[tSeries]:
                     rois[tSeries].append([roi])
-                    points = roi.get_points()
+                    points = np.round(roi.get_points(), 1)
                     z = np.empty((len(points), 1))
                     z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries].append(
@@ -1375,7 +1361,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 else:
                     idx = roi_names[tSeries].index(name)
                     rois[tSeries][idx].append(roi)
-                    points = roi.get_points()
+                    points = np.round(roi.get_points(), 1)
                     z = np.empty((len(points), 1))
                     z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries][idx].append(
@@ -1385,7 +1371,11 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         # Polygon might be comprised of Polygons with different z-coordinates)
         for tSeries in tSeries_list:
             for roi_idx, roi in enumerate(roi_polygons[tSeries]):
-                roi_polygons[tSeries][roi_idx] = MultiPolygon(roi)
+                multi_poly = MultiPolygon(roi)
+                if not multi_poly.is_valid:
+                    multi_poly = mask2poly(
+                        poly2mask(multi_poly, active_tSeries.transform_shape))
+                roi_polygons[tSeries][roi_idx] = multi_poly
 
         condensed_distance_matrix = []
         for setIdx, tSeries in enumerate(tSeries_list):
@@ -1496,22 +1486,44 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 self.save([self.tSeries_list.currentItem()])
 
         source_dataset, source_channel, target_channel, source_label, \
-            target_label, copy_properties, ok = \
+            target_label, copy_properties, auto_manual, reg_method, \
+            poly_order, ok = \
             ImportROIsWidget.getParams(self)
 
         if not ok:
             return
 
+        if auto_manual == 'Auto':
+            anchor_label = None
+        else:
+            if '_REGISTRATION_ANCHORS' not in source_dataset.roi_sets or \
+                    '_REGISTRATION_ANCHORS' not in active_tSeries.roi_sets:
+                QMessageBox.warning(
+                    self, 'Transform Error',
+                    'Need to save _REGISTRATION_ANCHORS ROIList',
+                    QMessageBox.Ok)
+                return
+            anchor_label = '_REGISTRATION_ANCHORS'
+
         try:
+            if reg_method == 'polynomial':
+                method_args = {'order': poly_order}
+            else:
+                method_args = {}
+
             active_tSeries.dataset.import_transformed_ROIs(
                 source_dataset=source_dataset.dataset,
+                method=reg_method,
                 source_channel=source_channel,
                 target_channel=target_channel,
                 source_label=source_label,
                 target_label=target_label,
-                copy_properties=copy_properties)
-        except:
-            #TODO: IMPORT AND ACCEPT TRANSFORM ERROR
+                anchor_label=anchor_label,
+                copy_properties=copy_properties,
+                **method_args)
+        except TransformError:
+            QMessageBox.warning(self, 'Transform Error',
+                                'Transformation failed', QMessageBox.Ok)
             return
         else:
             self.remove_rois(active_tSeries.roi_list)
@@ -1542,7 +1554,8 @@ class UI_tSeries(QListWidgetItem):
 
         self.num_planes = self.dataset.frame_shape[0]
         self.shape = self.dataset.frame_shape[1:3]
-        self.transform_shape = tuple(3 * np.array(self.shape))
+
+        self.transform_shape = tuple([int(3 * x) for x in self.shape])
         self.active_channel = self.dataset.channel_names[0]
         self.active_plane = 0
 
@@ -1559,6 +1572,7 @@ class UI_tSeries(QListWidgetItem):
 
         # self.transforms is a dictionary of affine transformations.
         # Keys are other UI_tSeries objects
+        #TODO: skimage.Transform objects
         self.transforms = {}
 
         self.initialize_base_images()
@@ -1570,7 +1584,8 @@ class UI_tSeries(QListWidgetItem):
             self.base_images[channel_name] = []
         for plane in self.dataset.time_averages:
             for ch_idx, ch_name in enumerate(self.dataset.channel_names):
-                self.base_images[ch_name].append(plane[:, :, ch_idx])
+                self.base_images[ch_name].append(
+                    plane[:, :, ch_idx] / np.amax(plane[:, :, ch_idx]))
 
     def show(self):
         try:
@@ -1596,9 +1611,11 @@ class UI_tSeries(QListWidgetItem):
             data = self.base_images[channel_name][plane_idx]
 
         if self.parent.mode == 'align':
-            data = transform_array(
-                data, self.transform(self)[self.active_plane],
-                final_shape=self.transform_shape[::-1])
+            trans = tf.AffineTransform(
+                translation=tuple([-1 * x for x in self.shape[::-1]]))
+
+            data = tf.warp(data, trans, output_shape=self.transform_shape,
+                           mode='constant', cval=0)
 
         self.parent.base_im = make.image(data=data, title='Base image',
                                          colormap='gray',
@@ -1651,8 +1668,7 @@ class UI_tSeries(QListWidgetItem):
                 for polygon in self.roi_list:
                     z = int(polygon.coords[0][0, 2])
                     orig_verts = polygon.coords[0][:, :2]
-                    new_verts = [np.dot(transform[z], np.hstack([vert, 1]))
-                                 for vert in orig_verts]
+                    new_verts = transform[z](orig_verts)
                     polygon.set_points(new_verts)
 
     def transform(self, target_tSeries):
@@ -1672,33 +1688,81 @@ class UI_tSeries(QListWidgetItem):
 
         if target_tSeries not in self.transforms:
 
+            ref_active_channel = self.dataset.channel_names.index(
+                self.active_channel)
+
             target_active_channel = \
                 target_tSeries.dataset.channel_names.index(
                     target_tSeries.active_channel)
 
-            ref_active_channel = self.dataset.channel_names.index(
-                self.active_channel)
-
             self.transforms[target_tSeries] = []
-            for plane in xrange(self.num_planes):
-                target = _processed_image_ca1pc(
-                    target_tSeries.dataset, channel_idx=target_active_channel,
-                    x_diameter=14, y_diameter=7)[plane]
-                ref = _processed_image_ca1pc(
-                    self.dataset, channel_idx=ref_active_channel,
-                    x_diameter=14, y_diameter=7)[plane]
 
-                slice_ = tuple(slice(0, min(self.shape[i], target.shape[i]))
-                               for i in range(2))
+            if '_REGISTRATION_ANCHORS' in self.dataset.ROIs and \
+                    '_REGISTRATION_ANCHORS' in target_tSeries.dataset.ROIs:
 
-                transform = cv2.estimateRigidTransform(
-                    sima.misc.to8bit(ref[slice_]),
-                    sima.misc.to8bit(target[slice_]), True)
-                if transform is None:
-                    raise TransformError()
-                transform[:, 2] += tuple(target_tSeries.shape[::-1])
-                self.transforms[target_tSeries].append(transform)
-        #index the result by plane
+                ANCHORS = '_REGISTRATION_ANCHORS'
+
+                assert len(
+                    self.dataset.ROIs[ANCHORS]) == \
+                    self.dataset.frame_shape[0]
+                assert len(
+                    target_tSeries.dataset.ROIs[ANCHORS]) == \
+                    target_tSeries.dataset.frame_shape[0]
+                for plane in xrange(self.num_planes):
+                    for roi in target_tSeries.dataset.ROIs[ANCHORS]:
+                        if roi.coords[0][0, 2] == plane:
+                            trg_coords = roi.coords[0][:, :2]
+                        else:
+                            pass
+                    for roi in self.dataset.ROIs[ANCHORS]:
+                        if roi.coords[0][0, 2] == plane:
+                            src_coords = roi.coords[0][:, :2]
+                    assert len(src_coords) == len(trg_coords)
+
+                    mean_dists = []
+                    for shift in range(len(src_coords)):
+                        points1 = src_coords
+                        points2 = np.roll(trg_coords, shift, axis=0)
+                        mean_dists.append(
+                            np.sum([np.sqrt(np.sum((p1 - p2) ** 2))
+                                    for p1, p2 in zip(points1, points2)]))
+                    trg_coords = np.roll(
+                        trg_coords, np.argmin(mean_dists), axis=0)
+                    src_coords = np.vstack(
+                        (src_coords, [[0, 0], [0,
+                                      self.dataset.frame_shape[1]],
+                                      [self.dataset.frame_shape[2], 0],
+                                      [self.dataset.frame_shape[2],
+                                       self.dataset.frame_shape[1]]]))
+                    trg_coords = np.vstack(
+                        (trg_coords,
+                         [[0, 0], [0, target_tSeries.dataset.frame_shape[1]],
+                          [target_tSeries.dataset.frame_shape[2], 0],
+                          [target_tSeries.dataset.frame_shape[2],
+                           target_tSeries.dataset.frame_shape[1]]]))
+
+                    transform = estimate_coordinate_transform(
+                        src_coords, trg_coords, 'piecewise-affine')
+                    translation = tf.AffineTransform(
+                        translation=target_tSeries.shape[::-1])
+                    #translate into same space
+                    for tri in range(len(transform.affines)):
+                        transform.affines[tri] += translation
+                    self.transforms[target_tSeries].append(transform)
+            else:
+                for plane in xrange(self.num_planes):
+                    ref = self.dataset.time_averages[
+                        plane, :, :, ref_active_channel]
+                    target = target_tSeries.dataset.time_averages[
+                        plane, :, :, target_active_channel]
+
+                    transform = estimate_array_transform(
+                        ref, target, method='affine')
+                    #translate into same space
+                    transform += tf.AffineTransform(
+                        translation=target_tSeries.shape[::-1])
+                    self.transforms[target_tSeries].append(transform)
+        # index the result by plane
         return self.transforms[target_tSeries]
 
     def initialize_rois(self):
@@ -2063,6 +2127,18 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         self.sourceDataset.currentIndexChanged.connect(
             self.initialize_source_options)
 
+        self.auto_manual.addItems([QString('Auto'), QString('Manual')])
+        self.auto_manual.setCurrentIndex(0)
+
+        self.registrationMethod.addItems([QString('affine'),
+                                          QString('polynomial'),
+                                          QString('piecewise-affine'),
+                                          QString('projective'),
+                                          QString('similarity')])
+        self.registrationMethod.setCurrentIndex(1)
+
+        self.polynomialOrder.setText(QString('2'))
+
         self.acceptButton.clicked.connect(self.accept)
         self.cancelButton.clicked.connect(self.reject)
         self.sourceDataset.setCurrentIndex(0)
@@ -2095,6 +2171,12 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
         target_label = str(dialog.targetLabel.text())
         copy_properties = dialog.copyRoiProperties.isChecked()
 
+        auto_manual = str(dialog.auto_manual.itemText(
+            dialog.auto_manual.currentIndex()))
+        reg_method = str(dialog.registrationMethod.itemText(
+            dialog.registrationMethod.currentIndex()))
+        poly_order = int(dialog.polynomialOrder.text())
+
         return \
             source_dataset, \
             source_channel, \
@@ -2102,6 +2184,9 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
             source_label, \
             target_label, \
             copy_properties, \
+            auto_manual, \
+            reg_method, \
+            poly_order, \
             result == QDialog.Accepted
 
 

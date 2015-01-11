@@ -3,6 +3,7 @@ import itertools as it
 import errno
 from distutils.version import LooseVersion
 
+import numpy as np
 try:
     from bottleneck import nanmax
 except ImportError:
@@ -13,6 +14,7 @@ except ImportError:
     cv2_available = False
 else:
     cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
+from skimage import transform as tf
 
 
 class TransformError(Exception):
@@ -100,8 +102,9 @@ def pairwise(iterable):
     return it.izip(a, b)
 
 
-def affine_transform(source, target):
-    """Calculates an affine transformation from source to target
+# was affine_trnasform
+def estimate_array_transform(source, target, method='affine'):
+    """Calculates an affine transformation from source array to target array
 
     Parameters
     ----------
@@ -109,30 +112,71 @@ def affine_transform(source, target):
         The image to transform
     target : array
         The image used as the template for the transformation
+    method : string, optional
+        Method to use for transform estimation.
 
     Returns
     -------
-    transform : array
-        A 2x3 array of the affine transformation from source to target
+    transform : skimage.transform._geometric.GeometricTransform
+        An skimage transform object.
 
     See Also
     --------
     cv2.estimateRigidTransform
+    skimage.transform
+
     """
-    if not cv2_available:
-        raise ImportError('OpenCV >= 2.4.8 required')
 
-    slice_ = tuple(slice(0, min(source.shape[i], target.shape[i]))
-                   for i in range(2))
-    transform = cv2.estimateRigidTransform(
-        to8bit(source[slice_]),
-        to8bit(target[slice_]), True)
+    if method == 'affine':
+        if not cv2_available:
+            raise ImportError('OpenCV >= 2.4.8 required')
 
-    if transform is None:
-        raise TransformError('Cannot calculate affine transformation from' +
-                             'source to target')
+        slice_ = tuple(slice(0, min(source.shape[i], target.shape[i]))
+                       for i in range(2))
+        transform = cv2.estimateRigidTransform(
+            to8bit(source[slice_]),
+            to8bit(target[slice_]), True)
+
+        if transform is None:
+            raise TransformError('Cannot calculate affine transformation ' +
+                                 'from source to target')
+        else:
+            # TODO: make sure the order is correct
+            transform_matrix = np.vstack((transform, [0, 0, 1]))
+            return tf.AffineTransform(matrix=transform_matrix)
     else:
-        return transform
+        raise ValueError('Unrecognized transform method: {}'.format(method))
+
+
+def estimate_coordinate_transform(source, target, method, **method_kwargs):
+    """Calculates a transformation from a source list of coordinates to a
+    target list of coordinates.
+
+    Parameters
+    ----------
+    source : Nx2 array
+        (x, y) coordinate pairs from source image.
+    target : Nx2 array
+        (x, y) coordinate pairs from target image. Must be same shape as
+        'source'.
+    method : string, optional
+        Method to use for transform estimation.
+    **method_kwargs : optional
+        Additional arguments can be passed in specific to the particular
+        method. For example, 'order' for a polynomial transform estimation.
+
+    Returns
+    -------
+    transform : skimage.transform._geometric.GeometricTransform
+        An skimage transform object.
+
+    See Also
+    --------
+    skimage.transform.estimate_transform
+
+    """
+
+    return tf.estimate_transform(method, source, target, **method_kwargs)
 
 
 def example_tiff():

@@ -16,6 +16,7 @@ includes methods for saving, sorting, and sub-grouping.
 from scipy.sparse import lil_matrix, issparse
 import numpy as np
 import cPickle as pickle
+import itertools as it
 from itertools import product
 from datetime import datetime
 from warnings import warn
@@ -303,7 +304,7 @@ class ROIList(list):
         self.timestamp = timestamp
 
     @classmethod
-    def load(cls, path, label=None, fmt='pkl'):
+    def load(cls, path, label=None, fmt='pkl', reassign_label=False):
         """Initialize an ROIList from either a saved pickle file or an
         Imagej ROI zip file.
 
@@ -317,6 +318,8 @@ class ROIList(list):
             recently saved ROIList will be selected.
         fmt : {'pkl', 'ImageJ'}
             The file format being imported.
+        reassign_label: boolean
+            If true, assign ascending integer strings as labels
 
         Returns
         -------
@@ -334,18 +337,22 @@ class ROIList(list):
             except KeyError:
                 raise Exception(
                     'No ROIs with were saved with the given label.')
-            return cls(**rois)
+            roi_list = cls(**rois)
         elif fmt == 'ImageJ':
-            return cls(rois=sima.misc.imagej.read_imagej_roi_zip(path))
+            roi_list = cls(rois=sima.misc.imagej.read_imagej_roi_zip(path))
         else:
             raise ValueError('Unrecognized file format.')
+        if reassign_label:
+            for idx, roi in it.izip(it.count(), roi_list):
+                roi.label = str(idx)
+        return roi_list
 
     def transform(self, transforms, im_shape=None, copy_properties=True):
         """Apply 2x3 affine transformations to the ROIs
 
         Parameters
         ----------
-        transforms : list of 2x3 Numpy arrays
+        transforms : list of GeometryTransforms or 2x3 Numpy arrays
             The affine transformations to be applied to the ROIs.  Length of
             list should equal the number of planes (im_shape[0]).
 
@@ -363,14 +370,18 @@ class ROIList(list):
             Returns an ROIList consisting of the transformed ROI objects.
 
         """
+
         transformed_rois = []
         for roi in self:
             transformed_polygons = []
             for coords in roi.coords:
                 z = coords[0][2]  # assuming all coords share a z-coordinate
-                transformed_coords = [np.dot(transforms[int(z)],
-                                             np.hstack([vert[:2], 1]))
-                                      for vert in coords]
+                if isinstance(transforms[0], np.ndarray):
+                    transformed_coords = [np.dot(transforms[int(z)],
+                                                 np.hstack([vert[:2], 1]))
+                                          for vert in coords]
+                else:
+                    transformed_coords = transforms[int(z)](coords[:, :2])
                 transformed_coords = [np.hstack((coords, z)) for coords in
                                       transformed_coords]
                 transformed_polygons.append(transformed_coords)

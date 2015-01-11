@@ -20,7 +20,8 @@ else:
 
 import sima
 import sima.misc
-from sima.misc import mkdir_p, most_recent_key, affine_transform
+from sima.misc import mkdir_p, most_recent_key, estimate_array_transform, \
+    estimate_coordinate_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
 with warnings.catch_warnings():
@@ -296,12 +297,13 @@ class ImagingDataset(object):
             raise Exception('Cannot add ROIs unless savedir is set.')
         ROIs.save(join(self.savedir, 'rois.pkl'), label)
 
-    def import_transformed_ROIs(self, source_dataset, source_channel=0,
-                                target_channel=0, source_label=None,
-                                target_label=None, copy_properties=True):
-        """Calculate an affine transformation that maps the source
-        ImagingDataset onto this ImagingDataset, tranform the source ROIs
-        by this mapping, and then import them into this ImagingDataset.
+    def import_transformed_ROIs(
+            self, source_dataset, method='affine', source_channel=0,
+            target_channel=0, source_label=None, target_label=None,
+            anchor_label=None, copy_properties=True, **method_kwargs):
+        """Calculate a transformation that maps the source ImagingDataset onto
+        this ImagingDataset, transforms the source ROIs by this mapping,
+        and then imports them into this ImagingDataset.
 
         Parameters
         ----------
@@ -309,6 +311,9 @@ class ImagingDataset(object):
             The ImagingDataset object from which ROIs are to be imported.  This
             dataset must be roughly of the same field-of-view as self in order
             to calculate an affine transformation.
+
+        method : string, optional
+            Method to use for transform calculation.
 
         source_channel : string or int, optional
             The channel of the source image from which to calculate an affine
@@ -326,9 +331,18 @@ class ImagingDataset(object):
         target_label : string, optional
             The label to assign the transformed ROIList
 
+        anchor_label : string, optional
+            If None, use automatic dataset registration.
+            Otherwise, the label of the ROIList that contains a single ROI
+            with vertices defining anchor points common to both datasets.
+
         copy_properties : bool, optional
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
+
+        **method_kwargs : optional
+            Additional arguments can be passed in specific to the particular
+            method. For example, 'order' for a polynomial transform estimation.
 
         """
 
@@ -337,13 +351,63 @@ class ImagingDataset(object):
         source = source_dataset.time_averages[..., source_channel]
         target = self.time_averages[..., target_channel]
 
-        transforms = [affine_transform(s, t) for s, t in
-                      it.izip(source, target)]  # zipping over planes
+        if anchor_label is None:
+            try:
+                transforms = [estimate_array_transform(s, t, method=method)
+                              for s, t in it.izip(source, target)]
+            except ValueError:
+                print 'Auto transform not implemented for this method'
+                return
+        else:
+            # Assume one ROI per plane
+            assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
+            transforms = []
+            for plane_idx in xrange(self.frame_shape[0]):
+                for roi in self.ROIs[anchor_label]:
+                    if roi.coords[0][0, 2] == plane_idx:
+                        trg_coords = roi.coords[0][:, :2]
+                    else:
+                        pass
+                for roi in source_dataset.ROIs[anchor_label]:
+                    if roi.coords[0][0, 2] == plane_idx:
+                        src_coords = roi.coords[0][:, :2]
+                assert len(src_coords) == len(trg_coords)
+
+                mean_dists = []
+                for shift in range(len(src_coords)):
+                    points1 = src_coords
+                    points2 = np.roll(trg_coords, shift, axis=0)
+                    mean_dists.append(
+                        np.sum([np.sqrt(np.sum((p1 - p2) ** 2))
+                                for p1, p2 in zip(points1, points2)]))
+                trg_coords = np.roll(
+                    trg_coords, np.argmin(mean_dists), axis=0)
+
+                if method == 'piecewise-affine':
+
+                    whole_frame_transform = estimate_coordinate_transform(
+                        src_coords, trg_coords, 'affine')
+
+                    src_additional_coords = [
+                        [0, 0],
+                        [0, source_dataset.frame_shape[1]],
+                        [source_dataset.frame_shape[2], 0],
+                        [source_dataset.frame_shape[2],
+                         source_dataset.frame_shape[1]]]
+                    trg_additional_coords = whole_frame_transform(
+                        src_additional_coords)
+
+                    src_coords = np.vstack((src_coords, src_additional_coords))
+                    trg_coords = np.vstack((trg_coords, trg_additional_coords))
+
+                transforms.append(estimate_coordinate_transform(
+                    src_coords, trg_coords, method, **method_kwargs))
 
         src_rois = source_dataset.ROIs
         if source_label is None:
             source_label = most_recent_key(src_rois)
         src_rois = src_rois[source_label]
+
         transformed_ROIs = src_rois.transform(
             transforms, im_shape=self.frame_shape[:3],
             copy_properties=copy_properties)
