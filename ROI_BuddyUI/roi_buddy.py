@@ -10,7 +10,6 @@ from datetime import datetime
 from scipy.spatial import ConvexHull
 from scipy.cluster.hierarchy import average, fcluster
 from scipy.stats import mode
-from scipy.sparse import lil_matrix
 from shapely.geometry import MultiPolygon, Polygon
 from skimage import transform as tf
 import itertools as it
@@ -88,10 +87,7 @@ def jaccard_index(roi1, roi2):
                     co_planar_polys2.append(p)
             p2 = MultiPolygon(co_planar_polys2)
 
-            try:
-                union += p1.union(p2).area
-            except:
-                debug_trace()
+            union += p1.union(p2).area
             intersection += p1.intersection(p2).area
 
             for p in co_planar_polys1[::-1]:
@@ -104,12 +100,13 @@ def jaccard_index(roi1, roi2):
             z = np.array(extra_polygon.exterior.coords)[0, 2]
 
             co_planar_polys = [extra_polygon]
-            for other_poly in [p for p in roi2_polys if p is not extra_polygon]:
+            for other_poly in [
+                    p for p in roi2_polys if p is not extra_polygon]:
                 if np.array(other_poly.exterior.coords)[0, 2] == z:
                     co_planar_polys.append(other_poly)
             p0 = MultiPolygon(co_planar_polys)
 
-            union += p.area
+            union += p0.area
 
             for p in co_planar_polys[::-1]:
                 roi2_polys.remove(p)
@@ -1355,7 +1352,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 name = roi.label
                 if name is None or name not in roi_names[tSeries]:
                     rois[tSeries].append([roi])
-                    points = roi.get_points()
+                    points = np.round(roi.get_points(), 1)
                     z = np.empty((len(points), 1))
                     z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries].append(
@@ -1364,7 +1361,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
                 else:
                     idx = roi_names[tSeries].index(name)
                     rois[tSeries][idx].append(roi)
-                    points = roi.get_points()
+                    points = np.round(roi.get_points(), 1)
                     z = np.empty((len(points), 1))
                     z.fill(roi.coords[0][0, 2])
                     roi_polygons[tSeries][idx].append(
