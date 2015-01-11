@@ -81,7 +81,7 @@ class TestROIList(object):
         roi = ROI.ROI(
             polygons=[[0, 0], [0, 2], [2, 2], [2, 0]],
             im_shape=(3, 3))
-        transforms = [[[1, 0, 0], [0, 1, 0]]]  # one per plane
+        transforms = [np.array([[1, 0, 0], [0, 1, 0]])]  # one per plane
 
         roi_list = ROI.ROIList([roi])
         assert_equal(
