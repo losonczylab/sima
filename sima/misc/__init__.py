@@ -183,6 +183,11 @@ def example_tiff():
     return os.path.join(os.path.dirname(__file__), "../tests/data/example.tif")
 
 
+def example_tiffs():
+    return os.path.join(os.path.dirname(__file__),
+                        "../tests/data/example-tiffs/*.tif")
+
+
 def example_data():
     return os.path.join(
         os.path.dirname(__file__), "../tests/data/example.sima")

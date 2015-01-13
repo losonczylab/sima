@@ -130,6 +130,7 @@ setup(
                  'tests/data/example.tif',
                  'tests/data/example.h5',
                  'tests/data/imageJ_ROIs.zip',
+                 'tests/data/example-tiffs/*.tif',
                  ]
     },
     #

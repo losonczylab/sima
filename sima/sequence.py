@@ -223,7 +223,7 @@ class Sequence(object):
 
         Parameters
         ----------
-        fmt : {'HDF5', 'TIFF', 'ndarray'}
+        fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray'}
             The format of the data used to create the Sequence.
         *args, **kwargs
             Additional arguments depending on the data format.
@@ -291,6 +291,20 @@ class Sequence(object):
         such that they retain the same relative position.
 
 
+        **TIFFs**
+
+        paths : list of list of str
+            The string paths[i][j] is a unix style expression for the the
+            filenames for plane i and channel j. See glob for details.
+
+        Warning
+        -------
+        Moving the TIFF files may make this Sequence unusable
+        when the ImagingDataset is reloaded. The TIFF files can
+        only be moved if the ImagingDataset path is also moved
+        such that they retain the same relative position.
+
+
         **ndarray**
 
         array : numpy.ndarray
@@ -302,6 +316,8 @@ class Sequence(object):
             return _Sequence_HDF5(*args, **kwargs)
         elif fmt == 'TIFF':
             return _Sequence_TIFF_Interleaved(*args, **kwargs)
+        elif fmt == 'TIFFs':
+            return _Sequence_TIFFs(*args, **kwargs)
         elif fmt == 'ndarray':
             return _Sequence_ndarray(*args, **kwargs)
         else:
@@ -470,16 +486,23 @@ class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexible
         filenames for plane i and channel j. See glob for details.
     """
     def __init__(self, paths):
+        if not isinstance(paths, list):
+            raise ValueError('paths must be a list of list of str')
+            if not all(isinstance(p, list) for p in paths):
+                raise ValueError('paths must be a list of list of str')
         self._paths = np.array(
             [[glob.glob(channel) if isinstance(channel, str) else channel
               for channel in plane] for plane in paths]
         ).reshape(-1, len(paths), len(paths[0]))  # frames X planes X channels
 
+    def __len__(self):
+        return len(self._paths)
+
     def _get_frame(self, t):
 
         def arange_channels(plane):
             if libtiff_available:
-                unpack = lambda p: TIFF.open(p, 'r').iterpages()
+                unpack = lambda p: TIFF.open(p, 'r').iter_images()
             else:
                 unpack = lambda p: (im.asarray(colormapped=False)
                                     for im in TiffFile(p).pages)

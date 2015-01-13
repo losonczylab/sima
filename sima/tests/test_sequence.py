@@ -16,10 +16,8 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
-from sima import extract
-import os
-import tempfile
-import numpy as np
+import sima
+from sima.misc import example_tiffs
 
 
 def setup():
@@ -30,8 +28,16 @@ def teardown():
     return
 
 
-def test_extract_rois():
-    return
+class TestSequence(object):
+
+    def test_create_TIFFs(self):
+        seq = sima.Sequence.create(
+            'TIFFs', [[example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()]])
+        assert_equal(seq.shape, (3, 4, 173, 173, 2))
+
 
 if __name__ == "__main__":
     run_module_suite()
