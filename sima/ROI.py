@@ -316,8 +316,8 @@ class ROIList(list):
         Parameters
         ----------
         path : string
-            Path to either a pickled ROIList, an ImageJ ROI zip file, or the 
-            path to the direcotry containing the 'IC filter' .mat files for 
+            Path to either a pickled ROIList, an ImageJ ROI zip file, or the
+            path to the direcotry containing the 'IC filter' .mat files for
             inscopix/mosaic data.
         label : str, optional
             The label for selecting the ROIList if multiple ROILists
