@@ -316,12 +316,14 @@ class ROIList(list):
         Parameters
         ----------
         path : string
-            Path to either a pickled ROIList or an ImageJ ROI zip file.
+            Path to either a pickled ROIList, an ImageJ ROI zip file, or the 
+            path to the direcotry containing the 'IC filter' .mat files for 
+            inscopix/mosaic data.
         label : str, optional
             The label for selecting the ROIList if multiple ROILists
             have been saved in the same file. By default, the most
             recently saved ROIList will be selected.
-        fmt : {'pkl', 'ImageJ'}
+        fmt : {'pkl', 'ImageJ', 'inscopix'}
             The file format being imported.
         reassign_label: boolean
             If true, assign ascending integer strings as labels
