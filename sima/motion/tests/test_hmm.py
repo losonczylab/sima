@@ -220,7 +220,6 @@ class Test_HiddenMarkov2D(object):
                     for seq in corrected))
         assert_(np.prod(corrected.frame_shape) > 0)
 
-    @dec.knownfailureif(True)
     def test_hmm_missing_row(self):
         global tmp_dir
         frames = Sequence.create('TIFF', example_tiff())
@@ -228,11 +227,11 @@ class Test_HiddenMarkov2D(object):
         mask[:, 20, :] = True
         masked_seq = frames.mask([(None, mask, None)])
         corrected = self.hm2d.correct(
-            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+            [masked_seq],
+            os.path.join(tmp_dir, 'test_hmm_missing_row.sima'))
         assert_(
             all(np.all(np.isfinite(seq.displacements)) for seq in corrected))
 
-    @dec.knownfailureif(True)
     def test_hmm_missing_column(self):
         global tmp_dir
         frames = Sequence.create('TIFF', example_tiff())
@@ -240,7 +239,8 @@ class Test_HiddenMarkov2D(object):
         mask[:, :, 30] = True
         masked_seq = frames.mask([(None, mask, None)])
         corrected = self.hm2d.correct(
-            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+            [masked_seq],
+            os.path.join(tmp_dir, 'test_hmm_missing_column.sima'))
         assert_(all(np.all(np.isfinite(seq.displacements))
                     for seq in corrected))
 

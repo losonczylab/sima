@@ -95,6 +95,7 @@ commands in the Terminal to complete the XCode installation and license agreemen
 Next, download and install MacPorts. Then run the following command in terminal to
 install SIMA and its dependencies::
 
+    $ sudo port selfupdate
     $ sudo port install python27 py27-numpy py27-scipy py27-matplotlib py27-shapely py27-pip py27-h5py opencv +python27
     $ sudo port select --set python python27
     $ sudo port select --set pip pip27

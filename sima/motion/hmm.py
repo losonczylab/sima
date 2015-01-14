@@ -54,12 +54,6 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
             if t > min_frames and np.all(
                     np.sqrt(var_est / counts) / mean_est < tolerance):
                 break
-            # im = np.concatenate(
-            #     [np.expand_dims(x, 0) for x in plane],
-            #     axis=0).astype(float)  # NOTE: integers overflow
-            # sums += im.sum(axis=0).sum(axis=0)
-            # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
-            # cnt += np.prod(im.shape[0] * im.shape[1])
             sums += np.nan_to_num(nansum(nansum(plane, axis=0), axis=0))
             sum_squares += np.nan_to_num(
                 nansum(nansum(plane ** 2, axis=0), axis=0))
@@ -317,16 +311,17 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=2, num_states_retained=50,
                  max_displacement=None, n_processes=None, verbose=True):
-        if isinstance(granularity, int):
+        if isinstance(granularity, int) or isinstance(granularity, str):
             granularity = (granularity, 1)
-        elif isinstance(granularity, str):
-            granularity = {'frame': (0, 1),
-                           'plane': (1, 1),
-                           'row': (2, 1),
-                           'column': (3, 1)}[granularity]
         elif not isinstance(granularity, tuple):
             raise TypeError(
-                'granularity must be of type str, int, or tuple of int')
+                'granularity must be of type str, int, or tuple')
+        if isinstance(granularity[0], str):
+            granularity = ({'frame': 0,
+                            'plane': 1,
+                            'row': 2,
+                            'column': 3}[granularity[0]], granularity[1])
+
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -469,6 +464,7 @@ class MovementModel(object):
     def __init__(self, cov_matrix, U, s, mean_shift):
         if not np.all(np.isfinite(cov_matrix)):
             raise ValueError
+        assert np.linalg.det(cov_matrix) > 0
         self._cov_matrix = cov_matrix
         self._U = U
         self._s = s
@@ -528,9 +524,10 @@ class MovementModel(object):
                           [coefficients[3], coefficients[4], coefficients[5]]])
         cov_matrix = np.cov(future.T - np.dot(A, past.T))
         # make cov_matrix non-singular
-        Uc, sc, Vc = np.linalg.svd(A)
+        Uc, sc, _ = np.linalg.svd(cov_matrix)  # NOTE: U == V
         sc = np.maximum(sc, 1. / len(shifts))
-        cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Vc))
+        cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Uc))
+        assert np.linalg.det(cov_matrix) > 0
         U, s, _ = np.linalg.svd(A)  # NOTE: U == V for positive definite A
         assert np.max(s) < 1
         return cls(cov_matrix, U, s, mean_shift)
@@ -577,6 +574,7 @@ class MovementModel(object):
 
         """
         cov_matrix = self.cov_matrix(dt)
+        assert np.linalg.det(cov_matrix) > 0
         log_transition_probs = lambda x: -0.5 * (
             np.log(2 * np.pi * np.linalg.det(cov_matrix)) +
             np.dot(x, np.linalg.solve(cov_matrix, x)))
