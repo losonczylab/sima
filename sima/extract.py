@@ -106,10 +106,10 @@ def _roi_extract(inputs):
         return final_values
 
     n_rois = constants['A'].shape[1]
-    masked_pixels = constants['masked_pixels']
+    masked_frame = frame[constants['masked_pixels']]
 
     # Determine which pixels and ROIs were imaged this frame
-    imaged_pixels = np.isfinite(frame[masked_pixels])
+    imaged_pixels = np.isfinite(masked_frame)
 
     # If there is overlapping pixels between the ROIs calculate the full
     # pseudoinverse of A, if not use a shortcut
@@ -136,10 +136,11 @@ def _roi_extract(inputs):
         imaged_masks.data **= 2
         scale_factor = orig_masks.sum(axis=1) / imaged_masks.sum(axis=1)
         scale_factor = np.array(scale_factor).flatten()
-        weights = diags(scale_factor, 0) * imaged_masks
+        weights = diags(scale_factor, 0) \
+            * constants['mask_stack'][imaged_rois][:, imaged_pixels]
 
     # Extract signals
-    values = weights * frame[masked_pixels][imaged_pixels, np.newaxis]
+    values = weights * masked_frame[imaged_pixels, np.newaxis]
     weights_sums = weights.sum(axis=1)
     result = values + weights_sums
 
@@ -150,7 +151,7 @@ def _roi_extract(inputs):
         return (frame_idx, result, None)
 
     # Same as 'values' but with the demixed frame data
-    demixed_frame = frame[masked_pixels] + constants['demixer']
+    demixed_frame = masked_frame + constants['demixer']
     demixed_values = weights * demixed_frame[imaged_pixels, np.newaxis]
     demixed_result = demixed_values + weights_sums
 
@@ -312,15 +313,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     num_planes, num_rows, num_columns, num_channels = dataset.frame_shape
 
     for roi in rois:
-        roi.im_shape = (num_rows, num_columns)
+        roi.im_shape = (num_planes, num_rows, num_columns)
     masks = [hstack([mask.reshape((1, num_rows * num_columns))
              for mask in roi.mask]) for roi in rois]
-
-    # If mask is boolean convert to float and normalize values such that
-    # the sum of the weights in each ROI is 1
-    for mask_idx, mask in it.izip(it.count(), masks):
-        if mask.dtype == bool:
-            masks[mask_idx] = mask.astype('float') / mask.nnz
 
     # Find overlapping pixels
     overlap = _identify_overlapping_pixels(masks)
@@ -328,6 +323,12 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     # Remove pixels that overlap between ROIs
     if remove_overlap:
         masks = _remove_pixels(masks, overlap)
+
+    # If mask is boolean convert to float and normalize values such that
+    # the sum of the weights in each ROI is 1
+    for mask_idx, mask in it.izip(it.count(), masks):
+        if mask.dtype == bool:
+            masks[mask_idx] = mask.astype('float') / mask.nnz
 
     # Identify non-empty ROIs
     original_n_rois = len(masks)
@@ -391,12 +392,23 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         # This will farm out signal extraction across 'n_pools' CPUs
         # The actual extraction is in _roi_extract, it's a separate
         # top-level function due to Pool constraints.
+        if n_pools > 1:
+            map_generator = pool.imap_unordered(_roi_extract, it.izip(
+                _data_chunker(
+                    iter(sequence), dataset.time_averages, signal_channel),
+                it.count(), it.repeat(constants)), chunksize=chunksize)
+        else:
+            map_generator = it.imap(_roi_extract, it.izip(
+                _data_chunker(
+                    iter(sequence), dataset.time_averages, signal_channel),
+                it.count(), it.repeat(constants)))
 
-        for frame_idx, raw_result, demix_result in pool.imap_unordered(
-                _roi_extract, it.izip(
-                    _data_chunker(
-                        iter(sequence), dataset.time_averages, signal_channel),
-                    it.count(), it.repeat(constants)), chunksize=chunksize):
+        # Loop over generator and extract signals
+        while True:
+            try:
+                frame_idx, raw_result, demix_result = next(map_generator)
+            except StopIteration:
+                break
 
             signal[:, frame_idx] = np.array(raw_result).flatten()
             if demixer is not None:
