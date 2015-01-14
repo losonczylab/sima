@@ -471,7 +471,7 @@ class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexible
     """
     def __init__(self, paths):
         self._paths = np.array(
-            [[glob(channel) if isinstance(channel, str) else channel
+            [[glob.glob(channel) if isinstance(channel, str) else channel
               for channel in plane] for plane in paths]
         ).reshape(-1, len(paths), len(paths[0]))  # frames X planes X channels
 
@@ -939,9 +939,14 @@ def _resolve_paths(d, savedir):
                         normcase(abspath(normpath(p2))))
     paths = set()
     try:
-        paths.add(abspath(join(savedir, d.pop('_relpath'))))
+        rel_path = d.pop('_relpath')
     except KeyError:
         pass
+    else:
+        paths.add(abspath(join(savedir, rel_path)))
+        # Windows to Unix conversion
+        paths.add(abspath(join(savedir, rel_path.replace('\\', '/'))))
+
     try:
         paths.add(d.pop('_abspath'))
     except KeyError:
