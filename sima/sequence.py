@@ -547,19 +547,18 @@ class _Sequence_HDF5(_IndexableSequence):
         if not h5py_available:
             raise ImportError('h5py >= 2.3.1 required')
         self._path = abspath(path)
-        _file = h5py.File(path, 'r')
+        self._file = h5py.File(path, 'r')
         if group is None:
             group = '/'
-        self._group = group
-        _group = _file[self._group]
+        self._group = self._file[group]
         if key is None:
-            if len(_group.keys()) != 1:
+            if len(self._group.keys()) != 1:
                 raise ValueError(
                     'key must be provided to resolve ambiguity.')
-            key = _group.keys()[0]
+            key = self._group.keys()[0]
         self._key = key
-        _dataset = _group[key]
-        if len(dim_order) != len(_dataset.shape):
+        self._dataset = self._group[key]
+        if len(dim_order) != len(self._dataset.shape):
             raise ValueError(
                 'dim_order must have same length as the number of ' +
                 'dimensions in the HDF5 dataset.')
@@ -569,24 +568,16 @@ class _Sequence_HDF5(_IndexableSequence):
         self._X_DIM = dim_order.find('x')
         self._C_DIM = dim_order.find('c')
         self._dim_order = dim_order
-        _file.close()
 
     def __len__(self):
-        _file = h5py.File(self._path, 'r')
-        _dataset = _file[self._group][self._key]
-        l = _dataset.shape[self._T_DIM]
-        _file.close()
-        return l
+        return self._dataset.shape[self._T_DIM]
         # indices = self._time_slice.indices(self._dataset.shape[self._T_DIM])
         # return (indices[1] - indices[0] + indices[2] - 1) // indices[2]
 
     def _get_frame(self, t):
         """Get the frame at time t, but not clipped"""
         slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
-        _file = h5py.File(self._path, 'r')
-        _dataset = _file[self._group][self._key]
-        frame = _dataset[slices]
-        _file.close()
+        frame = self._dataset[slices]
         swapper = [None for _ in range(frame.ndim)]
         for i, v in [(self._Z_DIM, 0), (self._Y_DIM, 1),
                      (self._X_DIM, 2), (self._C_DIM, 3)]:
@@ -609,7 +600,7 @@ class _Sequence_HDF5(_IndexableSequence):
     def _todict(self, savedir=None):
         d = {'__class__': self.__class__,
              'dim_order': self._dim_order,
-             'group': self._group,
+             'group': self._group.name,
              'key': self._key}
         if savedir is None:
             d.update({'path': abspath(self._path)})
