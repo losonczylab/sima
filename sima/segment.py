@@ -89,7 +89,11 @@ class PlaneSegmentationStrategy(SegmentationStrategy):
         if dataset.frame_shape[0] is not 1:
             raise ValueError('This segmentation strategy requires a '
                              'dataset with exactly one plane.')
-        return self._segment(dataset)
+        return self._segment_plane(dataset)
+
+    @abc.abstractmethod
+    def _segment_plane(self, dataset):
+        pass
 
 
 class PlaneWiseSegmentationStrategy(SegmentationStrategy):
@@ -516,7 +520,7 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
                 ROIs.append(ROI(mask=mask))
         return ROIs
 
-    def _segment(self, dataset):
+    def _segment_plane(self, dataset):
         params = self._params
         affinity = params.affinity_method.calculate(dataset)
         shape = dataset.frame_shape[1:3]
@@ -595,7 +599,7 @@ class PlaneCA1PC(PlaneSegmentationStrategy):
         self._normcut_method.append(ROISizeFilter(min_roi_size))
         self._normcut_method.append(CircularityFilter(circularity_threhold))
 
-    def _segment(self, dataset):
+    def _segment_plane(self, dataset):
         return self._normcut_method.segment(dataset)
 
 
@@ -1221,7 +1225,7 @@ class PlaneSTICA(PlaneSegmentationStrategy):
         d.pop('self')
         self._params = Struct(**d)
 
-    def _segment(self, dataset):
+    def _segment_plane(self, dataset):
         if not SKLEARN_AVAILABLE:
             raise ImportError('scikit-learn >= 0.11 required')
 
