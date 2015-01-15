@@ -6,24 +6,12 @@ import cPickle as pickle
 import itertools as it
 from multiprocessing import Pool, cpu_count
 
-import pandas as pd
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
 
 # import multiprocessing.util as util
 # util.log_to_stderr(util.SUBDEBUG)
-
-
-class ExtractedSignals(pd.DataFrame):
-    def __init__(self, signals, timestamp=None, mean_frame=None, overlap=True,
-                 raw=None):
-        pd.DataFrame.__init__(self, signals)
-
-        self.timestamp = str(timestamp)
-        self.mean_frame = mean_frame
-        self.overlap = bool(overlap)
-        self.raw = raw
 
 
 def _demixing_matrix(dataset):
