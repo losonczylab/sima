@@ -571,7 +571,6 @@ class _Sequence_HDF5(_IndexableSequence):
 
     def __del__(self):
         self._file.close()
-        super(_Sequence_HDF5, self).__del__()
 
     def __len__(self):
         return self._dataset.shape[self._T_DIM]
