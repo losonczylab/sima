@@ -631,7 +631,7 @@ class ImagingDataset(object):
         Parameters
         ----------
         method : sima.segment.SegmentationStrategy
-            The method for segmentation. Defaults to normcut.
+            The method for segmentation.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
         planes : list of int

@@ -413,11 +413,13 @@ class _Sequence_TIFF_Interleaved(Sequence):
     such that they retain the same relative position.
 
     """
-    def __init__(self, path, num_planes=1, num_channels=1, len_=None):
+    def __init__(self, path, num_planes=1, num_channels=1, len_=None,
+                 suppress=True):
         self._num_planes = num_planes
         self._num_channels = num_channels
         self._path = abspath(path)
         self._len = len_
+        self._suppress = suppress
         if not libtiff_available:
             self.stack = TiffFile(self._path)
 
@@ -434,9 +436,23 @@ class _Sequence_TIFF_Interleaved(Sequence):
 
     def _iter_pages(self):
         if libtiff_available:
-            tiff = TIFF.open(self._path, 'r')
-            for frame in tiff.iter_images():
-                yield frame.astype(float)
+            if self._suppress:
+                with sima.misc.suppress_stdout_stderr():
+                    tiff = TIFF.open(self._path, 'r')
+            else:
+                tiff = TIFF.open(self._path, 'r')
+            if self._suppress:
+                frame_iter = tiff.iter_images()
+                while True:
+                    try:
+                        with sima.misc.suppress_stdout_stderr():
+                            frame = next(frame_iter)
+                    except StopIteration:
+                        break
+                    yield frame.astype(float)
+            else:
+                for frame in tiff.iter_images():
+                    yield frame.astype(float)
         else:
             for frame in self.stack.pages:
                 yield frame.asarray(colormapped=False)
@@ -476,7 +492,7 @@ class _IndexableSequence(Sequence):
     #     pass
 
 
-class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexible
+class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexable
     """
 
     Parameters
