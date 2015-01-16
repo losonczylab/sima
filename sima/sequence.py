@@ -30,6 +30,7 @@
 # common data formats.
 
 
+from builtins import input  # Python 3
 import itertools as it
 import glob
 import warnings
@@ -969,12 +970,31 @@ def _resolve_paths(d, savedir):
     except KeyError:
         pass
     if len(paths):
-        paths = filter(isfile, paths)
-        if not len(paths):
-            raise Exception('Files have been moved. Cannot locate data.')
-        if len(paths) > 1:
-            testfile = paths.pop()
-            if not all(path_compare(testfile, p) for p in paths):
-                raise Exception('Files have been moved. The path '
-                                'cannot be unambiguously resolved.')
-        d['path'] = paths.pop()
+        valid_paths = filter(isfile, paths)
+        if not len(valid_paths):
+            error_msg = (
+                'Data could not be found in either of the following '
+                'locations:\n%s'
+                'Type a new path to the data and press ENTER: ') % \
+                ''.join('  ' + p + '\n' for p in paths)
+        elif len(valid_paths) > 1:
+            testfile = list(valid_paths)[0]
+            if all(path_compare(testfile, p) for p in valid_paths):
+                valid_paths = set().add(testfile)
+            else:
+                error_msg = (
+                    'Data has been moved, and the file path could not be '
+                    'unambiguously determined from the options below:\n'
+                    '%s'
+                    'Enter the selected path and press ENTER: ') % \
+                    ''.join('  ' + p + '\n' for p in paths)
+        if len(valid_paths) is not 1:
+            while True:
+                input_path = input(error_msg)
+                if isfile(input_path):
+                    valid_paths = [input_path]
+                    break
+                else:
+                    error_msg = ('Invalid path. Type a new path to the data'
+                                 'and press ENTER: ')
+        d['path'] = valid_paths.pop()
