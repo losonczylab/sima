@@ -209,7 +209,6 @@ class Test_HiddenMarkov2D(object):
             ((diffs - diffs.mean(axis=2).mean(axis=1).mean(axis=0)) > 1).mean()
             <= 0.001)
 
-    @dec.knownfailureif(True)
     def test_hmm_missing_frame(self):
         global tmp_dir
         frames = Sequence.create('TIFF', example_tiff())

@@ -479,6 +479,8 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
         disp = pyramid_align(pyr_down_3d(reference, axes),
                              pyr_down_3d(target, axes),
                              min_shape, max_levels - 1, new_bounds)
+        if disp is None:
+            return disp
         best_corr = -np.inf
         best_displacement = None
         for adjustment in it.product(

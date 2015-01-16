@@ -108,8 +108,9 @@ def _whole_frame_shifting(dataset, shifts):
                 continue
             l = shift - min_shifts
             h = shift + frame.shape[:-1]
-            reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame
-            sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame ** 2
+            reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(frame)
+            sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(
+                frame ** 2)
             count[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.isfinite(frame)
         else:  # plane-specific shifts
             for plane, p_shifts, ref, ssq, cnt in zip(
@@ -118,8 +119,9 @@ def _whole_frame_shifting(dataset, shifts):
                     continue
                 low = p_shifts - min_shifts  # TOOD: NaN considerations
                 high = low + plane.shape[:-1]
-                ref[low[0]:high[0], low[1]:high[1]] += plane
-                ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
+                ref[low[0]:high[0], low[1]:high[1]] += np.nan_to_num(plane)
+                ssq[low[0]:high[0], low[1]:high[1]] += np.nan_to_num(
+                    plane ** 2)
                 cnt[low[0]:high[0], low[1]:high[1]] += np.isfinite(plane)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
