@@ -51,20 +51,13 @@ except ImportError:
     def samefile(file1, file2):
         return stat(file1) == stat(file2)
 
-try:
-    from libtiff import TIFF
-    libtiff_available = True
-except ImportError:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from sima.misc.tifffile import TiffFile
-    libtiff_available = False
+from PIL import Image
 try:
     import h5py
 except ImportError:
     h5py_available = False
 else:
-    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.2.1')
 
 import sima.misc
 from sima.motion._motion import _align_frame
@@ -414,15 +407,11 @@ class _Sequence_TIFF_Interleaved(Sequence):
     such that they retain the same relative position.
 
     """
-    def __init__(self, path, num_planes=1, num_channels=1, len_=None,
-                 suppress=True):
+    def __init__(self, path, num_planes=1, num_channels=1, len_=None):
         self._num_planes = num_planes
         self._num_channels = num_channels
         self._path = abspath(path)
         self._len = len_
-        self._suppress = suppress
-        if not libtiff_available:
-            self.stack = TiffFile(self._path)
 
     def __iter__(self):
         base_iter = self._iter_pages()
@@ -436,29 +425,17 @@ class _Sequence_TIFF_Interleaved(Sequence):
                  for _ in range(self._num_planes)], 0)
 
     def _iter_pages(self):
-        if libtiff_available:
-            if self._suppress:
-                with sima.misc.suppress_stdout_stderr():
-                    tiff = TIFF.open(self._path, 'r')
+        idx = 0
+        images = Image.open(self._path, 'r')
+        while True:
+            try:
+                images.seek(idx)
+            except EOFError:
+                break
             else:
-                tiff = TIFF.open(self._path, 'r')
-            if self._suppress:
-                frame_iter = tiff.iter_images()
-                while True:
-                    try:
-                        with sima.misc.suppress_stdout_stderr():
-                            frame = next(frame_iter)
-                    except StopIteration:
-                        break
-                    yield frame.astype(float)
-            else:
-                for frame in tiff.iter_images():
-                    yield frame.astype(float)
-        else:
-            for frame in self.stack.pages:
-                yield frame.asarray(colormapped=False)
-        if libtiff_available:
-            tiff.close()
+                idx += 1
+                yield np.array(images).astype(float)
+        images.close()
 
     def _todict(self, savedir=None):
         d = {'__class__': self.__class__,
@@ -518,11 +495,20 @@ class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexable
     def _get_frame(self, t):
 
         def arange_channels(plane):
-            if libtiff_available:
-                unpack = lambda p: TIFF.open(p, 'r').iter_images()
-            else:
-                unpack = lambda p: (im.asarray(colormapped=False)
-                                    for im in TiffFile(p).pages)
+
+            def unpack(p):
+                images = Image.open(p, 'r')
+                idx = 0
+                while True:
+                    try:
+                        images.seek(idx)
+                    except EOFError:
+                        break
+                    else:
+                        idx += 1
+                        yield np.array(images)
+                images.close()
+
             return np.concatenate([np.concatenate(
                 [np.expand_dims(a, 2) for a in unpack(path)],
                 axis=2).astype(float) for path in plane], axis=2)

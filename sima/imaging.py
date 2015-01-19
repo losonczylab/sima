@@ -16,7 +16,7 @@ try:
 except ImportError:
     h5py_available = False
 else:
-    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.2.1')
 
 import sima
 import sima.misc
