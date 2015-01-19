@@ -29,8 +29,10 @@
 # For convenience, we have created iterable objects that can be used with
 # common data formats.
 
-
-from builtins import input  # Python 3
+try:
+    input = raw_input
+except NameError:  # Python 3
+    pass
 import itertools as it
 import glob
 import warnings

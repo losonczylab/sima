@@ -16,7 +16,6 @@ the various prerequisites. Recommended distributions are:
 * `Python(x,y) <http://code.google.com/p/pythonxy/>`_
 * `WinPython <http://code.google.com/p/winpython/>`_
 * `Anaconda <https://store.continuum.io/cshop/anaconda>`_
-* `EPD <http://www.enthought.com/products/epd.php>`_
 
 For Mac OS X, we recommend installing the prerequisites, especially OpenCV,
 using a package manager, such as `MacPorts <http://www.macports.org>`_.
