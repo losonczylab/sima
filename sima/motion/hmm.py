@@ -1,9 +1,9 @@
+try:
+    from itertools import izip as zip
+except:  # Python 3
+    pass
 import itertools as it
 import warnings
-try:
-    from future_builtins import zip
-except ImportError:  # Python 3.x
-    pass
 
 import numpy as np
 from scipy.special import gammaln
