@@ -253,7 +253,9 @@ class ImagingDataset(object):
         """Load a saved ImagingDataset object."""
         try:
             return cls(None, path)
-        except (ImportError, KeyError):
+        except ImportError as error:
+            if not error.args[0] == 'No module named iterables':
+                raise error
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
             ds = _load_version0(path)
