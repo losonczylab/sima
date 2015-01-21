@@ -41,7 +41,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'SIMA'
-copyright = u'2014, Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson'
+copyright = u'2014, The SIMA Development Team'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -184,7 +184,7 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
   ('index', 'SIMA.tex', u'SIMA Documentation',
-   u'Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson', 'manual'),
+   u'The SIMA Development Team', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -214,7 +214,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'sima', u'SIMA Documentation',
-     [u'Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson'], 1)
+     [u'The SIMA Development Team'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -228,7 +228,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'SIMA', u'SIMA Documentation',
-   u'Patrick Kaifosh, Jeffrey Zaremba, Nathan Danielson', 'SIMA', 'One line description of project.',
+   u'The SIMA Development Team', 'SIMA', 'One line description of project.',
    'Miscellaneous'),
 ]
 

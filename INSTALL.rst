@@ -59,17 +59,13 @@ Linux
 -----
 The SIMA package can be installed from the python package index::
 
-    $ pip install sima
-
-The easy_install tool can also be used::
-
-    $ easy_install sima
+    $ pip install sima --user 
 
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
 
     $ python setup.py build
-    $ sudo python setup.py install
+    $ python setup.py install --user
 
 Windows
 -------
@@ -97,4 +93,4 @@ install SIMA and its dependencies::
     $ sudo port install python27 py27-numpy py27-scipy py27-matplotlib py27-shapely py27-pip py27-h5py opencv +python27
     $ sudo port select --set python python27
     $ sudo port select --set pip pip27
-    $ sudo pip install sima
+    $ pip install sima --user
