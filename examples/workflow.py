@@ -33,9 +33,6 @@ tiff_filenames = [
 # The resulting filenames are printed for clarification.
 print "TIFF filenames:\n", tiff_filenames
 
-# We set the clip to remove the first 20 columns from each image because
-# of a problem with the imaging system that produced the images.
-clip = ((0, 0), (20, 0))
 
 # Finally, we construct a MultiPageTIFF iterable using each of the filenames.
 sequences = [
