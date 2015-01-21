@@ -200,21 +200,25 @@ class Test_VaryingData(object):
             overlap_signals['raw'][0][1], roi2_expected_overlap)
 
 
-class Test_MissingData(object):
-    def setup(self):
-        return
+# class Test_MissingData(object):
+#     def setup(self):
+#         return
 
-    def test_empty_roi(self):
-        return
+#     @dec.knownfailureif(True)
+#     def test_empty_roi(self):
+#         raise NotImplemented
 
-    def test_missing_frame(self):
-        return
+#     @dec.knownfailureif(True)
+#     def test_missing_frame(self):
+#         raise NotImplemented
 
-    def test_partial_missing_data(self):
-        return
+#     @dec.knownfailureif(True)
+#     def test_partial_missing_data(self):
+#         raise NotImplemented
 
-    def test_partial_missing_data_overlapping_rois(self):
-        return
+#     @dec.knownfailureif(True)
+#     def test_partial_missing_data_overlapping_rois(self):
+#         raise NotImplemented
 
 if __name__ == "__main__":
     run_module_suite()

@@ -30,13 +30,25 @@ def teardown():
 
 class TestSequence(object):
 
-    def test_create_TIFFs(self):
+    def test_create_tiffs(self):
         seq = sima.Sequence.create(
             'TIFFs', [[example_tiffs(), example_tiffs()],
                       [example_tiffs(), example_tiffs()],
                       [example_tiffs(), example_tiffs()],
                       [example_tiffs(), example_tiffs()]])
         assert_equal(seq.shape, (3, 4, 173, 173, 2))
+
+    # @dec.knownfailureif(True)
+    # def test_export_hdf5(self):
+    #     raise NotImplemented
+
+    # @dec.knownfailureif(True)
+    # def test_export_tiff8(self):
+    #     raise NotImplemented
+
+    # @dec.knownfailureif(True)
+    # def test_export_tiff16(self):
+    #     raise NotImplemented
 
 
 if __name__ == "__main__":

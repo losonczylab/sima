@@ -199,7 +199,7 @@ class ImagingDataset(object):
                     if overwrite:
                         self._savedir = savedir
                     else:
-                        return
+                        self._savedir = None
             else:
                 self._savedir = savedir
             if orig_dir:
@@ -356,7 +356,7 @@ class ImagingDataset(object):
                 transforms = [estimate_array_transform(s, t, method=method)
                               for s, t in it.izip(source, target)]
             except ValueError:
-                print 'Auto transform not implemented for this method'
+                print('Auto transform not implemented for this method')
                 return
         else:
             # Assume one ROI per plane
@@ -453,7 +453,7 @@ class ImagingDataset(object):
         filenames : str or list of str
             A single (.h5) output filename, or a list of (.tif) output
             filenames with one per channel.
-        fmt : {'TIFF8', 'TIFF16'}, optional
+        fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
@@ -466,23 +466,40 @@ class ImagingDataset(object):
         elif not len(filenames) == self.frame_shape[-1]:
             raise ValueError(
                 "The number of filenames must equal the number of channels.")
-        for chan, filename in enumerate(filenames):
-            im = self.time_averages[:, :, :, chan]
-            if dirname(filename):
-                mkdir_p(dirname(filename))
-            if fmt is 'TIFF8':
-                if scale_values:
-                    out = sima.misc.to8bit(im)
-                else:
-                    out = im.astype('uint8')
-            elif fmt is 'TIFF16':
-                if scale_values:
-                    out = sima.misc.to16bit(im)
-                else:
-                    out = im.astype('uint16')
+        if fmt == 'HDF5':
+            if not h5py_available:
+                raise ImportError('h5py >= 2.3.1 required')
+            f = h5py.File(filenames, 'w')
+            im = self.time_averages
+            if scale_values:
+                im = sima.misc.to16bit(im)
             else:
-                raise ValueError('Unrecognized format.')
-            imsave(filename, out)
+                im = im.astype('uint16')
+            f.create_dataset(name='time_average', data=im)
+            for idx, label in enumerate(['z', 'y', 'x', 'c']):
+                f['time_average'].dims[idx].label = label
+            if self.channel_names is not None:
+                f['time_average'].attrs['channel_names'] = np.array(
+                    self.channel_names)
+            f.close()
+        else:
+            for chan, filename in enumerate(filenames):
+                im = self.time_averages[:, :, :, chan]
+                if dirname(filename):
+                    mkdir_p(dirname(filename))
+                if fmt is 'TIFF8':
+                    if scale_values:
+                        out = sima.misc.to8bit(im)
+                    else:
+                        out = im.astype('uint8')
+                elif fmt is 'TIFF16':
+                    if scale_values:
+                        out = sima.misc.to16bit(im)
+                    else:
+                        out = im.astype('uint16')
+                else:
+                    raise ValueError('Unrecognized format.')
+                imsave(filename, out)
 
     def export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
                       scale_values=False):

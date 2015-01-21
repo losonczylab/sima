@@ -32,6 +32,7 @@ installed prior to using SIMA:
 * `matplotlib <http://matplotlib.org>`_ >= 1.2.1
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
+* `pillow <https://pypi.python.org/pypi/Pillow>` _ >= 2.6.1
 
 Depending on the features and data formats you wish to use, you may also need
 to install the following packages:
@@ -40,10 +41,8 @@ to install the following packages:
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11, required for stICA
   segmentation
-* `h5py <http://http://www.h5py.org>`_ >= 2.3.1, required for HDF5 file format
-* `pylibtiff <https://code.google.com/p/pylibtiff/>`_, required for more
-  efficient handling of large TIFF files
-* `bottleneck <sima.ROI://pypi.python.org/pypi/Bottleneck>`_ >=0.8 , for faster
+* `h5py <http://www.h5py.org>`_ >= 2.3.1, required for HDF5 file format
+* `bottleneck <https://pypi.python.org/pypi/Bottleneck>`_ >=0.8 , for faster
   performance
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
@@ -60,11 +59,11 @@ Linux
 -----
 The SIMA package can be installed from the python package index::
 
-    $ sudo pip install sima
+    $ pip install sima
 
 The easy_install tool can also be used::
 
-    $ sudo easy_install sima
+    $ easy_install sima
 
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
