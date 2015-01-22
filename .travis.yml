@@ -46,6 +46,7 @@ before_install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
   - pip install sphinxcontrib-napoleon 
+  - pip install bottleneck>=0.8
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
   - python -c "import h5py; print h5py.__file__"
