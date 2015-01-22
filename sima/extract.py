@@ -295,7 +295,8 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     else:
         n_pools = n_processes
 
-    pool = Pool(processes=n_pools)
+    if n_pools > 1:
+        pool = Pool(processes=n_pools)
 
     num_sequences = dataset.num_sequences
     num_planes, num_rows, num_columns, num_channels = dataset.frame_shape
@@ -407,8 +408,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
             demix[np.isinf(demix)] = np.nan
             demixed_signal[cycle_idx] = demix
 
-    pool.close()
-    pool.join()
+    if n_pools > 1:
+        pool.close()
+        pool.join()
 
     def put_back_nan_rois(signals, included_rois, n_rois):
         """Put NaN rows back in the signals file for ROIs that were never
