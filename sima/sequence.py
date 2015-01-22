@@ -79,8 +79,8 @@ class Sequence(object):
     >>> path = example_hdf5()
     >>> seq = Sequence.create('HDF5', path, 'yxt')
 
-    For numpy 1.9 or higher, Sequences are array like, and can be converted to
-    numpy arrays or passed as arguments into numpy functions that take arrays.
+    Sequences are array like, and can be converted to numpy arrays or passed as
+    arguments into numpy functions that take arrays.
 
     >>> import numpy as np
     >>> arr = np.array(seq)
@@ -319,14 +319,14 @@ class Sequence(object):
         else:
             raise ValueError('Unrecognized format')
 
-    def asarray(self):
-        """Convert the Sequence to a numpy array.
+    def __array__(self):
+        """Used to convert the Sequence to a numpy array.
 
         >>> import sima
         >>> import numpy as np
         >>> data = np.ones((10, 3, 16, 16, 2))
         >>> seq = sima.Sequence.create('ndarray', data)
-        >>> np.all(data == seq.asarray())
+        >>> np.all(data == np.array(seq))
         True
 
         """
