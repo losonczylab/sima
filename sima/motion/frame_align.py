@@ -38,8 +38,9 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         default, arbitrarily large displacements are allowed.
     method : {'correlation', 'ECC'}
         Alignment method to be used.
-    n_processes : (None, int)
-        Number of pool processes to spawn to parallelize frame alignment
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to half the number of CPUs.
     """
 
     def __init__(self, max_displacement=None, method='correlation',
@@ -84,8 +85,9 @@ def _frame_alignment_base(
     correlations : array
         (num_frames*num_cycles)-array giving the correlation of
         each shifted frame with the reference
-    n_processes : (None, int)
-        Number of pool processes to spawn to parallelize frame alignment
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to half the number of CPUs.
     """
     if n_processes is None:
         n_pools = multiprocessing.cpu_count() / 2

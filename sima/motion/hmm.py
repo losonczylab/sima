@@ -437,6 +437,9 @@ class HiddenMarkov2D(_HiddenMarkov):
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [y,x]. By
         default, arbitrarily large displacements are allowed.
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to half the number of CPUs.
 
     References
     ----------
@@ -769,6 +772,9 @@ class HiddenMarkov3D(_HiddenMarkov):
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [y,x]. By
         default, arbitrarily large displacements are allowed.
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to half the number of CPUs.
 
     References
     ----------
