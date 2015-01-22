@@ -103,6 +103,16 @@ class Sequence(object):
     """
     __metaclass__ = ABCMeta
 
+    def __new__(cls, *args, **kwargs):
+        try:
+            return super(Sequence, cls).__new__(cls, *args, **kwargs)
+        except TypeError as err:
+            if err.args[0] == 'object() takes no parameters':
+                raise Exception('Sequences must be created using the '
+                                'Sequence.create() method')
+            else:
+                raise err
+
     def __getitem__(self, indices):
         """Create a new Sequence by slicing this Sequence."""
         return _IndexedSequence(self, indices)
@@ -116,7 +126,20 @@ class Sequence(object):
         """
         raise NotImplementedError
 
-    def _get_frame(self, t):
+    @abstractmethod
+    def _get_frame(self, n):
+        """Get the nth frame.
+
+        Parameters
+        ----------
+        n : int
+            The index of the frame being accessed.
+
+        Returns
+        -------
+        frame : np.ndarray
+            The desired frame of image data.
+        """
         raise NotImplementedError
 
     @abstractmethod
