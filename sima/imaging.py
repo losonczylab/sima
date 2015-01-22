@@ -129,7 +129,7 @@ class ImagingDataset(object):
                 self.num_frames = data.pop('num_frames')
             except KeyError:
                 self.num_frames = sum(len(c) for c in self)
-        else:
+        elif all(isinstance(s, sima.Sequence) for s in sequences):
             self.savedir = savedir
             self.sequences = sequences
             self.frame_shape = self.sequences[0].shape[1:]
@@ -140,6 +140,9 @@ class ImagingDataset(object):
                     str(x) for x in range(self.frame_shape[-1])]
             else:
                 self.channel_names = channel_names
+        else:
+            raise TypeError('ImagingDataset objects must be initialized '
+                            'with a list of sequences.')
         # initialize sequences
         self.num_sequences = len(self.sequences)
         if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
