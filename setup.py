@@ -53,7 +53,8 @@ setup(
               'sima.misc',
               'sima.motion',
               'sima.motion.tests',
-              'sima.segment'
+              'sima.segment',
+              'sima.segment.tests',
               ],
     #   scripts = [''],
     #
