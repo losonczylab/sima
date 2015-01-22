@@ -46,6 +46,7 @@ before_install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
   - pip install sphinxcontrib-napoleon 
+  - pip install bottleneck>=0.8
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
   - python -c "import h5py; print h5py.__file__"
@@ -55,7 +56,7 @@ before_install:
   - ldconfig -p
   - python -c "import cv2; print cv2.__version__; print cv2.__file__"
 script: 
-    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/misc/align.py,sima/motion/__init__.py
+    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/misc/align.py,sima/motion/__init__.py,sima/segment/__init__.py
     - python runtests.py --doctests -m $TESTMODE $COVERAGE
     - cd doc && make html && cd ..
 branches:
