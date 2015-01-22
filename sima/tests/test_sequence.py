@@ -17,7 +17,7 @@ from numpy.testing import (
     assert_allclose)
 
 import sima
-from sima.misc import example_tiffs
+from sima.misc import example_tiffs, example_tiff
 
 
 def setup():
@@ -30,6 +30,9 @@ def teardown():
 
 class TestSequence(object):
 
+    def setup(self):
+        self.tiff_seq = sima.Sequence.create('TIFF', example_tiff(), 2, 2)
+
     def test_create_tiffs(self):
         seq = sima.Sequence.create(
             'TIFFs', [[example_tiffs(), example_tiffs()],
@@ -37,6 +40,11 @@ class TestSequence(object):
                       [example_tiffs(), example_tiffs()],
                       [example_tiffs(), example_tiffs()]])
         assert_equal(seq.shape, (3, 4, 173, 173, 2))
+
+    def test__get_frame_tiff(self):
+        it = iter(self.tiff_seq)
+        assert_array_equal(next(it), self.tiff_seq._get_frame(0))
+        assert_array_equal(next(it), self.tiff_seq._get_frame(1))
 
     # @dec.knownfailureif(True)
     # def test_export_hdf5(self):

@@ -105,7 +105,7 @@ class Sequence(object):
 
     def __new__(cls, *args, **kwargs):
         try:
-            return super(Sequence, cls).__new__(cls, *args, **kwargs)
+            return super(Sequence, cls).__new__(cls)
         except TypeError as err:
             if err.args[0] == 'object() takes no parameters':
                 raise Exception('Sequences must be created using the '
@@ -117,14 +117,14 @@ class Sequence(object):
         """Create a new Sequence by slicing this Sequence."""
         return _IndexedSequence(self, indices)
 
-    @abstractmethod
     def __iter__(self):
         """Iterate over the frames of the Sequence.
 
         The yielded structures are numpy arrays of the shape (num_planes,
         num_rows, num_columns, num_channels).
         """
-        raise NotImplementedError
+        for t in xrange(len(self)):
+            yield self._get_frame(t)
 
     @abstractmethod
     def _get_frame(self, n):
@@ -462,6 +462,26 @@ class _Sequence_TIFF_Interleaved(Sequence):
                         axis=2), 0)
                  for _ in range(self._num_planes)], 0)
 
+    def _get_frame(self, n):
+        images = Image.open(self._path, 'r')
+
+        def _get_im(n, p, c):
+            """Get the image corresponding to time n, plane p, channel c"""
+            images.seek(n * self._num_planes * self._num_channels +
+                        p * self._num_channels + c)
+            return np.array(images).astype(float)
+
+        images.seek(n * self._num_planes * self._num_channels)
+        frame = np.concatenate(
+            [np.expand_dims(
+                np.concatenate(
+                    [np.expand_dims(_get_im(n, p, c), 2)
+                     for c in range(self._num_channels)],
+                    axis=2), 0)
+             for p in range(self._num_planes)], 0)
+        images.close()
+        return frame
+
     def _iter_pages(self):
         idx = 0
         images = Image.open(self._path, 'r')
@@ -493,22 +513,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
         return self._len
 
 
-class _IndexableSequence(Sequence):
-
-    """Iterable whose underlying structure supports indexing."""
-    __metaclass__ = ABCMeta
-
-    def __iter__(self):
-        for t in xrange(len(self)):
-            yield self._get_frame(t)
-
-    # @abstractmethod
-    # def _get_frame(self, t):
-    #     """Return frame with index t."""
-    #     pass
-
-
-class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexable
+class _Sequence_TIFFs(Sequence):  # TODO: make indexable
     """
 
     Parameters
@@ -562,7 +567,7 @@ class _Sequence_TIFFs(_IndexableSequence):  # TODO: make indexable
         return {'__class__': self.__class__, 'paths': self._paths}
 
 
-class _Sequence_ndarray(_IndexableSequence):
+class _Sequence_ndarray(Sequence):
     def __init__(self, array):
         self._array = array
 
@@ -576,7 +581,7 @@ class _Sequence_ndarray(_IndexableSequence):
         return {'__class__': self.__class__, 'array': self._array}
 
 
-class _Sequence_HDF5(_IndexableSequence):
+class _Sequence_HDF5(Sequence):
 
     """
     Iterable for an HDF5 file containing imaging data.
