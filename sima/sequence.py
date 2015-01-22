@@ -319,6 +319,19 @@ class Sequence(object):
         else:
             raise ValueError('Unrecognized format')
 
+    def asarray(self):
+        """Convert the Sequence to a numpy array.
+
+        >>> import sima
+        >>> import numpy as np
+        >>> data = np.ones((10, 3, 16, 16, 2))
+        >>> seq = sima.Sequence.create('ndarray', data)
+        >>> np.all(data == seq.asarray())
+        True
+
+        """
+        return np.concatenate([np.expand_dims(frame, 0) for frame in self])
+
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
                channel_names=None):
         """Save frames to the indicated filenames.
