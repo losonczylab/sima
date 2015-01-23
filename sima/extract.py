@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import cPickle as pickle
 import itertools as it
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
