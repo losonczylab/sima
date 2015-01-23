@@ -87,9 +87,9 @@ def _frame_alignment_base(
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
     """
+
     if n_processes < 1:
         raise ValueError('n_processes must be at least 1')
-    n_pools = n_processes
 
     global namespace
     global lock
@@ -105,12 +105,12 @@ def _frame_alignment_base(
     namespace.max_shift = np.zeros(3)
 
     lock = multiprocessing.Lock()
-    if n_pools > 1:
-        pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
+    if n_processes > 1:
+        pool = multiprocessing.Pool(processes=n_processes, maxtasksperchild=1)
 
     for cycle_idx, cycle in zip(it.count(), dataset):
-        chunksize = min(1 + len(cycle) / n_pools, 200)
-        if n_pools > 1:
+        chunksize = min(1 + len(cycle) / n_processes, 200)
+        if n_processes > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
@@ -129,7 +129,7 @@ def _frame_alignment_base(
             except StopIteration:
                 break
 
-    if n_pools > 1:
+    if n_processes > 1:
         pool.close()
         pool.join()
 
