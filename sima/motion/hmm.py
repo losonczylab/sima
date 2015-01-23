@@ -451,10 +451,6 @@ class HiddenMarkov2D(_HiddenMarkov):
     verbose : bool, optional
         Whether to print information about progress.
 
-    Examples
-    --------
-    >>> a
-
     References
     ----------
     * Dombeck et al. 2007. Neuron. 56(1): 43-57.
