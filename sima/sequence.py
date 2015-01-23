@@ -228,9 +228,9 @@ class Sequence(object):
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
         >>> joined = Sequence.join(seq, seq)
-        >>> joined.shape[:4] == seq.shape[:4]
+        >>> joined.shape[4] == 2 * seq.shape[4]  # twice as many channels
         True
-        >>> joined.shape[4] == 2 * seq.shape[4]
+        >>> joined.shape[:4] == seq.shape[:4]  # the frame shape is unchanged
         True
 
         """
@@ -244,8 +244,10 @@ class Sequence(object):
         ----------
         fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray'}
             The format of the data used to create the Sequence.
-        *args, **kwargs
-            Additional arguments depending on the data format.
+        *args
+        **kwargs
+            Additional arguments depending on the data format. See
+            Notes below.
 
         Notes
         -----
@@ -397,7 +399,7 @@ class Sequence(object):
                             for plane in filenames]
         elif fmt == 'HDF5':
             if not h5py_available:
-                raise ImportError('h5py >= 2.3.1 required')
+                raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
             output_array = np.empty(self.shape, dtype='uint16')
             # TODO: change dtype?
@@ -513,7 +515,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
         return self._len
 
 
-class _Sequence_TIFFs(Sequence):  # TODO: make indexable
+class _Sequence_TIFFs(Sequence):
     """
 
     Parameters
@@ -591,7 +593,7 @@ class _Sequence_HDF5(Sequence):
 
     def __init__(self, path, dim_order, group=None, key=None):
         if not h5py_available:
-            raise ImportError('h5py >= 2.3.1 required')
+            raise ImportError('h5py >= 2.2.1 required')
         self._path = abspath(path)
         self._file = h5py.File(path, 'r')
         if group is None:
@@ -748,7 +750,6 @@ class _MotionCorrectedSequence(_WrapperSequence):
         Shape: (num_frames, num_planes, num_rows, 2).
 
     This object has the same attributes and methods as the class it wraps."""
-    # TODO: check clipping and output frame size
 
     def __init__(self, base, displacements, extent=None):
         super(_MotionCorrectedSequence, self).__init__(base)

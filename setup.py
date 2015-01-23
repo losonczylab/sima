@@ -67,7 +67,6 @@ setup(
         'scikit-image>=0.9.3',
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
-        'h5py>=2.3.0',
         'bottleneck>=0.8',
         'pillow>=2.6.1',
     ],

@@ -66,7 +66,7 @@ class ImagingDataset(object):
 
     Parameters
     ----------
-    sequences : list of sima.???.Sequence
+    sequences : list of sima.Sequence
         Imaging sequences that can each be iterated over to yield
         the imaging data from each acquistion time.
     savedir : str
@@ -75,17 +75,6 @@ class ImagingDataset(object):
         be appended.
     channel_names : list of str, optional
         Names for the channels. Defaults to ['0', '1', '2', ...].
-    info : dict
-        Data for the order and timing of the data acquisition.
-        See Notes for details. *** combine channel names here? ***
-
-    Notes
-    -----
-    Keys for info:
-        'acquisition period' :\n
-        'plane order' :\n
-        'plane times' :\n
-        'plane heights' :\n
 
     Attributes
     ----------
@@ -103,11 +92,10 @@ class ImagingDataset(object):
 
     """
 
-    def __init__(self, sequences, savedir, channel_names=None, info=None,
+    def __init__(self, sequences, savedir, channel_names=None,
                  read_only=False):
 
         self._read_only = read_only
-        self.info = {} if info is None else info
         if sequences is None:
             # Special case used to load an existing ImagingDataset
             if not savedir:
@@ -153,15 +141,14 @@ class ImagingDataset(object):
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
-            return ImagingDataset([self.sequences[indices]], None,
-                                  info=self.info)
+            return ImagingDataset([self.sequences[indices]], None)
         indices = list(indices)
         seq_indices = indices.pop(0)
         if isinstance(seq_indices, int):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None, info=self.info)
+        return ImagingDataset(sequences, None)
 
     @property
     def channel_names(self):
@@ -473,7 +460,7 @@ class ImagingDataset(object):
                 "The number of filenames must equal the number of channels.")
         if fmt == 'HDF5':
             if not h5py_available:
-                raise ImportError('h5py >= 2.3.1 required')
+                raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
             im = self.time_averages
             if scale_values:
@@ -508,12 +495,7 @@ class ImagingDataset(object):
 
     def export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
                       scale_values=False):
-        """Save a multi-page TIFF files of the motion-corrected time series.
-
-        # TODO: HDF5, multiple Z planes
-        One TIFF file is created for each sequence and channel.
-        The TIFF files have the same name as the uncorrected files, but should
-        be saved in a different directory.
+        """Export imaging data from the dataset.
 
         Parameters
         ----------
@@ -691,11 +673,11 @@ class ImagingDataset(object):
         return '<ImagingDataset>'
 
     def __repr__(self):
-        return ('<ImagingDataset: ' + 'num_sequences={n_sequences}, ' +
-                'frame_shape={fsize}, num_frames={frames}>').format(
-            n_sequences=self.num_sequences,
-            fsize=self.frame_shape,
-            frames=self.num_frames)
+        return (
+            '<ImagingDataset: ' + 'num_sequences={n_sequences}, ' +
+            'frame_shape={fsize}, num_frames={frames}>'
+        ).format(n_sequences=self.num_sequences,
+                 fsize=self.frame_shape, frames=self.num_frames)
 
     def __iter__(self):
         return self.sequences.__iter__()

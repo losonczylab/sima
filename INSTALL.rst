@@ -33,7 +33,7 @@ installed prior to using SIMA:
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
-* `pillow <https://pypi.python.org/pypi/Pillow>` _ >= 2.6.1
+* `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
 * `bottleneck <sima.ROI://pypi.python.org/pypi/Bottleneck>`_ >=0.8
 
 Depending on the features and data formats you wish to use, you may also need
@@ -41,7 +41,7 @@ to install the following packages:
 
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
-* `h5py <http://www.h5py.org>`_ >= 2.3.1, required for HDF5 file format
+* `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
 

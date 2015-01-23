@@ -431,6 +431,14 @@ class HiddenMarkov2D(_HiddenMarkov):
 
     Parameters
     ----------
+    granularity : int, str, or tuple, optional
+        The granularity of the calculated displacements. A separate
+        displacement can be calculated for each frame (granularity=0
+        or granularity='frame'), each plane (1 or 'plane'), each
+        row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
+        displacement can be calculated for every n consecutive elements
+        (e.g.\ granularity=('row', 8) for every 8 rows).
+        Defaults to one displacement per row.
     num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
@@ -440,6 +448,12 @@ class HiddenMarkov2D(_HiddenMarkov):
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
+    verbose : bool, optional
+        Whether to print information about progress.
+
+    Examples
+    --------
+    >>> a
 
     References
     ----------
