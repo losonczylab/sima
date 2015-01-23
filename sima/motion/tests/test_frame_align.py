@@ -80,7 +80,8 @@ def test_base_alignment():
     shifted = reference
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
-    estimated_shifts = sima.motion.frame_align.base_alignment(reference, shifted)
+    estimated_shifts = sima.motion.frame_align.base_alignment(
+        reference, shifted)
     assert_array_equal(shifts, estimated_shifts)
 
 
@@ -91,7 +92,8 @@ def test_pyramid_align():
     shifted = reference
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
-    estimated_shifts = sima.motion.frame_align.pyramid_align(reference, shifted)
+    estimated_shifts = sima.motion.frame_align.pyramid_align(
+        reference, shifted)
     assert_array_equal(shifts, estimated_shifts)
 
     # test plane
@@ -100,7 +102,8 @@ def test_pyramid_align():
     shifted = reference
     for i, s in enumerate(shifts):
         shifted = np.roll(shifted, -s, i)
-    estimated_shifts = sima.motion.frame_align.pyramid_align(reference, shifted)
+    estimated_shifts = sima.motion.frame_align.pyramid_align(
+        reference, shifted)
     assert_array_equal(shifts, estimated_shifts)
 
 

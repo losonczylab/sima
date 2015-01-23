@@ -312,7 +312,7 @@ class Struct:
 class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=2, num_states_retained=50,
-                 max_displacement=None, n_processes=None, verbose=True):
+                 max_displacement=None, n_processes=1, verbose=True):
         if isinstance(granularity, int) or isinstance(granularity, str):
             granularity = (granularity, 1)
         elif not isinstance(granularity, tuple):
@@ -439,7 +439,7 @@ class HiddenMarkov2D(_HiddenMarkov):
         default, arbitrarily large displacements are allowed.
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
-        Defaults to half the number of CPUs.
+        Defaults to 1.
 
     References
     ----------
@@ -774,7 +774,7 @@ class HiddenMarkov3D(_HiddenMarkov):
         default, arbitrarily large displacements are allowed.
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
-        Defaults to half the number of CPUs.
+        Defaults to 1.
 
     References
     ----------

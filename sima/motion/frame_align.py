@@ -40,11 +40,10 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         Alignment method to be used.
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
-        Defaults to half the number of CPUs.
+        Defaults to 1.
     """
-
     def __init__(self, max_displacement=None, method='correlation',
-                 n_processes=None):
+                 n_processes=1):
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -68,8 +67,7 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
 
 
 def _frame_alignment_base(
-        dataset, max_displacement=None, method='correlation',
-        n_processes=None):
+        dataset, max_displacement=None, method='correlation', n_processes=1):
     """Estimate whole-frame displacements based on pixel correlations.
 
     Parameters
@@ -87,14 +85,11 @@ def _frame_alignment_base(
         each shifted frame with the reference
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
-        Defaults to half the number of CPUs.
+        Defaults to 1.
     """
-    if n_processes is None:
-        n_pools = multiprocessing.cpu_count() / 2
-    else:
-        n_pools = n_processes
-        if n_pools == 0:
-            n_pools = 1
+    if n_processes < 1:
+        raise ValueError('n_processes must be at least 1')
+    n_pools = n_processes
 
     global namespace
     global lock
@@ -110,7 +105,8 @@ def _frame_alignment_base(
     namespace.max_shift = np.zeros(3)
 
     lock = multiprocessing.Lock()
-    pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
+    if n_pools > 1:
+        pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
 
     for cycle_idx, cycle in zip(it.count(), dataset):
         chunksize = min(1 + len(cycle) / n_pools, 200)
@@ -133,9 +129,9 @@ def _frame_alignment_base(
             except StopIteration:
                 break
 
-    # TODO: align planes to minimize shifts between them
-    pool.close()
-    pool.join()
+    if n_pools > 1:
+        pool.close()
+        pool.join()
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
