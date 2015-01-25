@@ -21,7 +21,7 @@ from importROIsWidget import Ui_importROIsWidget
 import sima
 from sima.imaging import ImagingDataset
 from sima.ROI import ROIList, ROI, mask2poly, poly2mask
-from sima.segment import _processed_image_ca1pc
+from sima.segment import ca1pc
 from sima.misc import TransformError, estimate_array_transform, \
     estimate_coordinate_transform
 
@@ -1603,7 +1603,7 @@ class UI_tSeries(QListWidgetItem):
             key = 'processed_' + channel_name
             if key not in self.base_images:
                 channel_idx = self.dataset.channel_names.index(channel_name)
-                self.base_images[key] = _processed_image_ca1pc(
+                self.base_images[key] = ca1pc._processed_image_ca1pc(
                     self.dataset, channel_idx=channel_idx, x_diameter=14,
                     y_diameter=7)
             data = self.base_images[key][plane_idx]
