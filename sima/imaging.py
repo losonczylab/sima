@@ -102,21 +102,23 @@ class ImagingDataset(object):
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
-            def unpack(sequence):
-                """Parse a saved Sequence dictionary."""
-                return sequence.pop('__class__')._from_dict(
-                    sequence, savedir)
+            # def unpack(sequence):
+            #     """Parse a saved Sequence dictionary."""
+            #     return sequence.pop('__class__')._from_dict(
+            #         sequence, savedir)
 
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
-            self.sequences = [unpack(s) for s in data.pop('sequences')]
+            if 'sequences' in data:
+                raise ValueError('Old version')
+            # self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
-            self.frame_shape = self.sequences[0].shape[1:]
+            # self.frame_shape = self.sequences[0].shape[1:]
             try:
-                self.num_frames = data.pop('num_frames')
+                self._num_frames = data.pop('num_frames')
             except KeyError:
-                self.num_frames = sum(len(c) for c in self)
+                pass
         elif all(isinstance(s, sima.Sequence) for s in sequences):
             self.savedir = savedir
             self.sequences = sequences
@@ -149,6 +151,25 @@ class ImagingDataset(object):
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
         return ImagingDataset(sequences, None)
+
+    @property
+    def sequences(self):
+        if not hasattr(self, '_sequences'):
+            self._sequences = xx
+        return self._sequences
+
+
+    @property
+    def frame_shape(self):
+        if not hasattr(self, '_frame_shape'):
+            self._frame_shape = self.sequences[0].shape[1:]
+        return self._frame_shape
+
+    @property
+    def num_frames(self):
+        if not hasattr(self, '_num_frames'):
+            self._num_frames = sum(len(c) for c in self)
+        return self._num_frames
 
     @property
     def channel_names(self):
@@ -210,14 +231,15 @@ class ImagingDataset(object):
                 with open(join(self.savedir, 'time_averages.pkl'),
                           'rb') as f:
                     time_averages = pickle.load(f)
+            except IOError:
+                pass
+            else:
                 # Older versions of SIMA saved time_averages as a list
                 # of arrays instead of a single 4D (zyxc) array.
                 # Make sure this is a numpy array and if not just re-calculate
                 # the time averages.
                 if isinstance(time_averages, np.ndarray):
                     return time_averages
-            except IOError:
-                pass
         sums = np.zeros(self.frame_shape)
         counts = np.zeros(self.frame_shape)
         for frame in it.chain.from_iterable(self):
