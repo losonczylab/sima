@@ -302,6 +302,13 @@ class STICA(SegmentationStrategy):
     .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
        cellular signals from large-scale calcium imaging data. Neuron.
        2009 Sep 24;63(6):747-60.
+
+    Warning
+    -------
+    In version 1.0.0, this method currently only works on datasets with a
+    single plane, or in conjunction with
+    :class:`sima.segment.PlaneWiseSegmentation`.
+
     """
 
     def __init__(

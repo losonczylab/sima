@@ -70,6 +70,13 @@ CA1 pyramidal cells
 Post-Processing Steps
 =====================
 
+Any number of post-processing steps can be added to a segmentation method using
+the :func:`SegmentationStrategy.append()` method. These appended
+post-processing steps must have the interface defined by
+:class:`PostProcessingStep` below. The appended steps can be selected from
+those documented in this section, or can be created by the user by subclassing
+any of the classes listed below.
+
 .. autoclass:: sima.segment.PostProcessingStep
     :members:
 .. autoclass:: sima.segment.ROIFilter

@@ -177,7 +177,9 @@ def _remove_overlapping(rois, percent_overlap=0.9):
 
 
 class PostProcessingStep(object):
-    """Post processing step applied to segmented ROIs."""
+    """Abstract class representing the interface for post processing
+    steps that can be appended to a segmentation method to modify the
+    the segmented ROIs."""
     __metaclass__ = abc.ABCMeta
     # TODO: method for clearing memory after the step is applied
 
@@ -194,37 +196,38 @@ class PostProcessingStep(object):
 
         Returns
         -------
-        sima.ROI.ROIList
+        ROIs : sima.ROI.ROIList
             The post-processed ROIs.
         """
         return
 
 
 class ROIFilter(PostProcessingStep):
-    """Filter a set of ROIs.
+    """Postprocessing step for generic filtering of ROIs.
+
+    ROIs produced by the segmentation are filtered to retain
+    only the ROIs that cause the specified function to evaluate
+    to be True.
 
     Parameters
     ----------
     func : function
         A boolean-valued function taking arguments (rois, dataset)
         that is used to filter the ROIs.
-    setup_func : function, optional
-        A function with parameters rois, dataset that is called
-        to set parameters depending on the dataset.
     """
 
-    def __init__(self, func, setup_func=None):
+    def __init__(self, func):
         self._valid = func
-        self._setup = setup_func
 
     def apply(self, rois, dataset=None):
-        if self._setup is not None:
-            self._setup(rois, dataset)
         return ROIList([r for r in rois if self._valid(r)])
 
 
 class ROISizeFilter(ROIFilter):
-    """Filter that accepts ROIs based on size.
+    """Postprocessing step to filter ROIs based on size.
+
+    ROIs produced by the segmentation are filtered to retain only
+    the ROIs with a specific size, in terms of number of non-zero pixels.
 
     Parameters
     ----------
@@ -248,7 +251,7 @@ class ROISizeFilter(ROIFilter):
 
 
 class CircularityFilter(ROIFilter):
-    """Filter based on circularity of the ROIs.
+    """Postprocessing step to filter ROIs based on circularity.
 
     Parameters
     ----------
