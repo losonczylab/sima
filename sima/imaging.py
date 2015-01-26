@@ -102,19 +102,12 @@ class ImagingDataset(object):
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
-            # def unpack(sequence):
-            #     """Parse a saved Sequence dictionary."""
-            #     return sequence.pop('__class__')._from_dict(
-            #         sequence, savedir)
-
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             if 'sequences' in data:
                 raise ValueError('Old version')
-            # self.sequences = [unpack(s) for s in data.pop('sequences')]
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
-            # self.frame_shape = self.sequences[0].shape[1:]
             try:
                 self._num_frames = data.pop('num_frames')
             except KeyError:
@@ -122,9 +115,6 @@ class ImagingDataset(object):
         elif all(isinstance(s, sima.Sequence) for s in sequences):
             self.savedir = savedir
             self.sequences = sequences
-            self.frame_shape = self.sequences[0].shape[1:]
-            if not hasattr(self, 'num_frames'):
-                self.num_frames = sum(len(c) for c in self)
             if channel_names is None:
                 self.channel_names = [
                     str(x) for x in range(self.frame_shape[-1])]
@@ -133,13 +123,6 @@ class ImagingDataset(object):
         else:
             raise TypeError('ImagingDataset objects must be initialized '
                             'with a list of sequences.')
-        # initialize sequences
-        self.num_sequences = len(self.sequences)
-        if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
-                       for sequence in self.sequences]):
-            raise ValueError(
-                'All sequences must have images of the same size ' +
-                'and the same number of channels.')
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
@@ -155,14 +138,36 @@ class ImagingDataset(object):
     @property
     def sequences(self):
         if not hasattr(self, '_sequences'):
-            self._sequences = xx
+            def unpack(sequence):
+                """Parse a saved Sequence dictionary."""
+                return sequence.pop('__class__')._from_dict(
+                    sequence, self.savedir)
+            with open(join(self.savedir, 'sequences.pkl'), 'wb') as f:
+                sequences = pickle.load(f)
+            self._sequences = [unpack(seq) for seq in sequences]
+            if not np.all([seq.shape[1:] == self._sequences[0].shape[1:]
+                           for seq in self._sequences]):
+                raise ValueError(
+                    'All sequences must have images of the same size ' +
+                    'and the same number of channels.')
+
         return self._sequences
 
+    @sequences.setter
+    def sequences(self, sequences):
+        self._sequences = sequences
+
+    @property
+    def num_sequences(self):
+        if not hasattr(self, '_num_sequences'):
+            self._num_sequences = len(self.sequences)
+        return self._num_sequences
 
     @property
     def frame_shape(self):
         if not hasattr(self, '_frame_shape'):
-            self._frame_shape = self.sequences[0].shape[1:]
+            self._frame_shape = self.time_averages.shape
+            # self._frame_shape = self.sequences[0].shape[1:]
         return self._frame_shape
 
     @property
@@ -276,9 +281,7 @@ class ImagingDataset(object):
 
     def _todict(self, savedir):
         """Returns the dataset as a dictionary, useful for saving"""
-        sequences = [sequence._todict(savedir) for sequence in self]
-        return {'sequences': sequences,
-                'savedir': abspath(self.savedir),
+        return {'savedir': abspath(self.savedir),
                 'channel_names': self.channel_names,
                 'num_frames': self.num_frames,
                 '__version__': sima.__version__}
@@ -648,8 +651,11 @@ class ImagingDataset(object):
         if self._read_only:
             raise Exception('Cannot save read-only dataset.  Change savedir ' +
                             'to a new directory')
+        with open(join(savedir, 'sequences.pkl'), 'wb') as f:
+            pickle.dump([seq._todict(savedir) for seq in self.sequences],
+                        f, pickle.HIGHEST_PROTOCOL)
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
-            pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self._todict(), f, pickle.HIGHEST_PROTOCOL)
 
     def segment(self, method, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
