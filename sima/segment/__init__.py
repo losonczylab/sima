@@ -1,13 +1,12 @@
 from .segment import (
     SegmentationStrategy,
     CircularityFilter,
-    PlaneSegmentationStrategy,
-    PlaneWiseSegmentationStrategy,
+    PlaneWiseSegmentation,
     ROIFilter,
     ROISizeFilter,
     PostProcessingStep,
 )
-from .stica import PlaneSTICA
+from .stica import STICA
 from .ca1pc import (
     PlaneCA1PC,
     AffinityMatrixCA1PC,

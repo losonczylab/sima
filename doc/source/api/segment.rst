@@ -4,26 +4,39 @@ Segmentation
 
 .. Contents::
 
+The SIMA package implements multiple segmentation strategies, which
+share a common interface defined by the abstract class 
+:class:`SegmentationStrategy`. Any strategy with this interface can
+be used in conjunction with the :func:`ImagingDataset.segment()`
+method to segment an :class:`ImagingDataset` object.
+
 .. automethod:: sima.imaging.ImagingDataset.segment
 
-Segmentation approaches
+
+Segmentation strategies
 =======================
 
 .. note:: Please consider contributing additional methods to the SIMA project.
 
 .. autoclass:: sima.segment.SegmentationStrategy
     :members:
-.. autoclass:: sima.segment.PlaneWiseSegmentationStrategy
-    :members:
-    :show-inheritance:
-.. autoclass:: sima.segment.PlaneSegmentationStrategy
+    :private-members:
+
+The specific segmentation strategies that have been implemented are
+documented below. Once initialized as documented, these strategies
+all share the above interface.
+
+Plane-Wise Segmentation
+-----------------------
+
+.. autoclass:: sima.segment.PlaneWiseSegmentation
     :members:
     :show-inheritance:
 
 Spatialtemporal Independent Component Analysis
 ----------------------------------------------
 
-.. autoclass:: sima.segment.PlaneSTICA
+.. autoclass:: sima.segment.STICA
     :members:
     :show-inheritance:
 

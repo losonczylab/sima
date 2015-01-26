@@ -1,4 +1,5 @@
 import abc
+import itertools as it
 
 import numpy as np
 from scipy import sparse, ndimage
@@ -7,7 +8,14 @@ from sima.ROI import ROI, ROIList, mask2poly
 
 
 class SegmentationStrategy(object):
-    """Abstract segmentation method."""
+    """Abstract class implementing the inteface for segmentation strategies.
+
+    This class can be subclassed to create a concreate segmentation
+    strategy by implementing a :func:`_segment()` method. As well,
+    any existing segmentation strategy can be extended by adding a
+    :class:`PostProcessingStep` with the :func:`append` method.
+
+    """
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
@@ -44,34 +52,64 @@ class SegmentationStrategy(object):
 
     @abc.abstractmethod
     def _segment(self, dataset):
-        return
+        """Implemetnation of the segmentation strategy.
+
+        This abstract method must be implemented by any subclass of
+        SegmentationStrategy.
+
+        Parameters
+        ----------
+        dataset : sima.ImagingDataset
+            The dataset to be segmented.
+
+        Returns
+        -------
+            ROIs : sima.ROI.ROIList
+                The segmented regions of interest.
+        """
+        raise NotImplementedError
 
 
-class PlaneSegmentationStrategy(SegmentationStrategy):
-    __metaclass__ = abc.ABCMeta
-
-    def _segment(self, dataset):
+def _check_single_plane(func):
+    """Decorator to check that dataset has a single plane"""
+    def checked_func(self, dataset):
         if dataset.frame_shape[0] is not 1:
             raise ValueError('This segmentation strategy requires a '
                              'dataset with exactly one plane.')
-        return self._segment_plane(dataset)
-
-    @abc.abstractmethod
-    def _segment_plane(self, dataset):
-        pass
+        return func(self, dataset)
+    return checked_func
 
 
-class PlaneWiseSegmentationStrategy(SegmentationStrategy):
+class PlaneWiseSegmentation(SegmentationStrategy):
     """Segmentation approach with each plane segmented separately.
 
     Parameters
     ----------
-    plane_strategy : PlaneSegmentationStrategy
-        The strategy to be applied to each plane.
+    plane_strategy : SegmentationStrategy or list of SegmentationStrategy
+        The strategies to be applied to each plane.
+
+    Examples
+    --------
+    One use is to apply the same segmentation method to multiple layers.
+    For example, the user may wish to apply the PlaneCA1PC strategy separately
+    to multiple well-separated planes in which distinct cell bodies are imaged:
+
+    >>> from sima.segment import PlaneWiseSegmentation, PlaneCA1PC
+    >>> layer_strategy = PlaneCA1PC()
+    >>> strategy = PlaneWiseSegmentation(layer_strategy)
+
+    Alternatively, one may wish to use different segmentation strategies on
+    each plane. For example, to segment one plane of dendrites with stICA and
+    one plane of cell bodies with the CA1PC strategy, a PlaneWiseSegmentation
+    strategy can be created as follows:
+
+    >>> from sima.segment import PlaneWiseSegmentation, PlaneCA1PC, STICA
+    >>> strategy = PlaneWiseSegmentation([STICA(), PlaneCA1PC()])
+
     """
 
     def __init__(self, plane_strategy):
-        super(PlaneWiseSegmentationStrategy, self).__init__()
+        super(PlaneWiseSegmentation, self).__init__()
         self.strategy = plane_strategy
 
     def _segment(self, dataset):
@@ -82,10 +120,18 @@ class PlaneWiseSegmentationStrategy(SegmentationStrategy):
                       for _ in range(z - 1)] + [old_mask[0]])
 
         rois = ROIList([])
-        for plane in range(dataset.frame_shape[0]):
-            plane_rois = self.strategy.segment(dataset[:, :, plane])
+        if isinstance(self.strategy, list):
+            if len(self.strategy) != dataset.frame_shape[0]:
+                raise Exception('There is not exactly one strategy per plane.')
+            iterator = zip(self.strategy, range(dataset.frame_shape[0]))
+        elif isinstance(self.strategy, SegmentationStrategy):
+            iterator = zip(it.repeat(self.strategy),
+                           range(dataset.frame_shape[0]))
+
+        for strategy, plane_idx in iterator:
+            plane_rois = strategy.segment(dataset[:, :, plane_idx])
             for roi in plane_rois:
-                set_z(roi, plane)
+                set_z(roi, plane_idx)
             rois.extend(plane_rois)
         return rois
 

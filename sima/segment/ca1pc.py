@@ -13,9 +13,9 @@ else:
 
 import sima.misc
 from .segment import (
-    PlaneSegmentationStrategy, ROISizeFilter,
-    CircularityFilter, PostProcessingStep)
+    SegmentationStrategy, ROISizeFilter, CircularityFilter, PostProcessingStep)
 from .normcut import BasicAffinityMatrix, PlaneNormalizedCuts
+from .segment import _check_single_plane
 from sima.ROI import ROI, ROIList
 
 
@@ -177,7 +177,7 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
         return w * np.exp(-3. * m / self._dm)
 
 
-class PlaneCA1PC(PlaneSegmentationStrategy):
+class PlaneCA1PC(SegmentationStrategy):
     """Segmentation method designed for finding CA1 pyramidal cell somata.
 
     Parameters
@@ -229,6 +229,12 @@ class PlaneCA1PC(PlaneSegmentationStrategy):
     --------
     sima.segment.normcut
 
+    Warning
+    -------
+    In version 1.0.0, this method currently only works on datasets with a
+    single plane, or in conjunction with
+    :class:`sima.segment.PlaneWiseSegmentation`.
+
     """
     def __init__(
             self, channel=0, num_pcs=75, max_dist=None, spatial_decay=None,
@@ -247,5 +253,6 @@ class PlaneCA1PC(PlaneSegmentationStrategy):
         self._normcut_method.append(ROISizeFilter(min_roi_size))
         self._normcut_method.append(CircularityFilter(circularity_threhold))
 
-    def _segment_plane(self, dataset):
+    @_check_single_plane
+    def _segment(self, dataset):
         return self._normcut_method.segment(dataset)

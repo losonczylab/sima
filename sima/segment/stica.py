@@ -7,9 +7,11 @@ from bottleneck import nanmean
 
 import sima.misc
 from .segment import (
-    PlaneSegmentationStrategy,
+    SegmentationStrategy,
     _remove_overlapping,
-    _smooth_roi)
+    _smooth_roi,
+    _check_single_plane,
+)
 from .normcut import _OPCA
 from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
@@ -220,7 +222,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
     return rois
 
 
-class PlaneSTICA(PlaneSegmentationStrategy):
+class STICA(SegmentationStrategy):
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
@@ -306,12 +308,13 @@ class PlaneSTICA(PlaneSegmentationStrategy):
             self, channel=0, mu=0.01, components=75, static_threshold=0.5,
             min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
             spatial_sep=True, verbose=False):
-        super(PlaneSTICA, self).__init__()
+        super(STICA, self).__init__()
         d = locals()
         d.pop('self')
         self._params = Struct(**d)
 
-    def _segment_plane(self, dataset):
+    @_check_single_plane
+    def _segment(self, dataset):
 
         channel = sima.misc.resolve_channels(self._params.channel,
                                              dataset.channel_names)

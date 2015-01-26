@@ -629,13 +629,13 @@ class ImagingDataset(object):
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
 
-    def segment(self, method, label=None, planes=None):
+    def segment(self, strategy, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
 
         Parameters
         ----------
-        method : sima.segment.SegmentationStrategy
-            The method for segmentation.
+        strategy : sima.segment.SegmentationStrategy
+            The strategy for segmentation.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
         planes : list of int
@@ -646,7 +646,7 @@ class ImagingDataset(object):
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
         """
-        rois = method.segment(self)
+        rois = strategy.segment(self)
         if self.savedir is not None:
             rois.save(join(self.savedir, 'rois.pkl'), label)
         return rois
