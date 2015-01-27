@@ -116,6 +116,8 @@ class ROI(object):
     im_shape : 3-tuple
         The shape of the image associated with the ROI (z, y, x). Determines
         the shape of the mask.
+    size : int
+        The number of non-zero pixel-weights in the ROI mask.
 
     """
 
@@ -250,6 +252,10 @@ class ROI(object):
     def mask(self, mask):
         self._mask = _reformat_mask(mask)
         self._polys = None
+
+    @property
+    def size(self):
+        return sum(np.count_nonzero(plane.todense()) for plane in self.mask)
 
     @property
     def im_shape(self):
