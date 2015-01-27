@@ -363,8 +363,8 @@ class Sequence(object):
 
         This function stores a multipage tiff file for each channel.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         filenames : str or list of list str
             The names of the output files. For HDF5 files, this must be a
             single string. For TIFF formats, this should be a list of list
