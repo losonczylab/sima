@@ -179,7 +179,27 @@ def _remove_overlapping(rois, percent_overlap=0.9):
 class PostProcessingStep(object):
     """Abstract class representing the interface for post processing
     steps that can be appended to a segmentation method to modify the
-    the segmented ROIs."""
+    the segmented ROIs.
+
+    Examples
+    --------
+    To apply a binary opening to all ROIs, a subclass of PostProcessingStep can
+    be created as follows:
+
+    >>> from scipy import ndimage
+    >>> import sima.segment
+    >>> class BinaryOpening(sima.segment.PostProcessingStep):
+    ...     def apply(rois, dataset=None):
+    ...         for r in rois:
+    ...             r.mask = ndimage.binary_opening(r.mask)
+    ...         return rois
+
+    We can then append an instance of this class to any segmentation strategy.
+
+    >>> strategy = sima.segment.STICA()
+    >>> strategy.append(BinaryOpening())
+
+    """
     __metaclass__ = abc.ABCMeta
     # TODO: method for clearing memory after the step is applied
 
