@@ -4,26 +4,39 @@ Segmentation
 
 .. Contents::
 
+The SIMA package implements multiple segmentation strategies, which
+share a common interface defined by the abstract class 
+:class:`SegmentationStrategy`. Any strategy with this interface can
+be used in conjunction with the :func:`ImagingDataset.segment()`
+method to segment an :class:`ImagingDataset` object.
+
 .. automethod:: sima.imaging.ImagingDataset.segment
 
-Segmentation approaches
+
+Segmentation strategies
 =======================
 
 .. note:: Please consider contributing additional methods to the SIMA project.
 
 .. autoclass:: sima.segment.SegmentationStrategy
     :members:
-.. autoclass:: sima.segment.PlaneWiseSegmentationStrategy
-    :members:
-    :show-inheritance:
-.. autoclass:: sima.segment.PlaneSegmentationStrategy
+    :private-members:
+
+The specific segmentation strategies that have been implemented are
+documented below. Once initialized as documented, these strategies
+all share the above interface.
+
+Plane-Wise Segmentation
+-----------------------
+
+.. autoclass:: sima.segment.PlaneWiseSegmentation
     :members:
     :show-inheritance:
 
 Spatialtemporal Independent Component Analysis
 ----------------------------------------------
 
-.. autoclass:: sima.segment.PlaneSTICA
+.. autoclass:: sima.segment.STICA
     :members:
     :show-inheritance:
 
@@ -57,18 +70,19 @@ CA1 pyramidal cells
 Post-Processing Steps
 =====================
 
+Any number of post-processing steps can be added to a segmentation method using
+the :func:`SegmentationStrategy.append()` method. These appended
+post-processing steps must have the interface defined by
+:class:`PostProcessingStep` below. The appended steps can be selected from
+those documented in this section, or can be created by the user by subclassing
+any of the classes listed below.
+
 .. autoclass:: sima.segment.PostProcessingStep
     :members:
 .. autoclass:: sima.segment.ROIFilter
     :members:
     :show-inheritance:
-.. autoclass:: sima.segment.ROISizeFilter
-    :members:
-    :show-inheritance:
 .. autoclass:: sima.segment.CircularityFilter
-    :members:
-    :show-inheritance:
-.. autoclass:: sima.segment.CA1PCNucleus
     :members:
     :show-inheritance:
 

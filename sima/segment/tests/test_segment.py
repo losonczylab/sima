@@ -27,16 +27,16 @@ def test_extract_rois():
     return
 
 
-def test_PlaneSTICA():
+def test_STICA():
     ds = ImagingDataset.load(example_data())
-    method = segment.PlaneSTICA(components=5)
+    method = segment.STICA(components=5)
     ds.segment(method)
 
 
 def test_PlaneNormalizedCuts():
     ds = ImagingDataset.load(example_data())[:, :, :, :50, :50]
     affinty_method = segment.BasicAffinityMatrix(num_pcs=5)
-    method = segment.PlaneWiseSegmentationStrategy(
+    method = segment.PlaneWiseSegmentation(
         segment.PlaneNormalizedCuts(affinty_method))
     ds.segment(method)
 

@@ -1,7 +1,17 @@
 from .segment import (
-    PlaneWiseSegmentationStrategy,
-    ROISizeFilter,
-    CircularityFilter)
-from .stica import PlaneSTICA
-from .ca1pc import PlaneCA1PC
-from .normcut import PlaneNormalizedCuts, BasicAffinityMatrix
+    SegmentationStrategy,
+    CircularityFilter,
+    PlaneWiseSegmentation,
+    ROIFilter,
+    PostProcessingStep,
+)
+from .stica import STICA
+from .ca1pc import (
+    PlaneCA1PC,
+    AffinityMatrixCA1PC,
+)
+from .normcut import (
+    AffinityMatrixMethod,
+    BasicAffinityMatrix,
+    PlaneNormalizedCuts,
+)

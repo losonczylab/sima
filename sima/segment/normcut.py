@@ -19,7 +19,7 @@ from scipy import sparse, ndimage
 
 import sima.misc
 from sima.ROI import ROI, ROIList
-from .segment import Struct, PlaneSegmentationStrategy
+from .segment import Struct, SegmentationStrategy, _check_single_plane
 from . import oPCA
 from . import _opca
 
@@ -473,7 +473,7 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
         return sparse.csr_matrix(sparse.coo_matrix(A), dtype=float)
 
 
-class PlaneNormalizedCuts(PlaneSegmentationStrategy):
+class PlaneNormalizedCuts(SegmentationStrategy):
 
     """Segment image by iteratively performing normalized cuts.
 
@@ -500,6 +500,12 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
     .. [3] Jianbo Shi and Jitendra Malik. Normalized Cuts and Image
        Segmentation.  IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE
        INTELLIGENCE, VOL. 22, NO. 8, AUGUST 2000.
+
+    Warning
+    -------
+    In version 1.0.0, this method currently only works on datasets with a
+    single plane, or in conjunction with
+    :class:`sima.segment.PlaneWiseSegmentation`.
 
     """
     def __init__(self, affinity_method=None, cut_max_pen=0.01,
@@ -534,7 +540,8 @@ class PlaneNormalizedCuts(PlaneSegmentationStrategy):
                 ROIs.append(ROI(mask=mask))
         return ROIs
 
-    def _segment_plane(self, dataset):
+    @_check_single_plane
+    def _segment(self, dataset):
         params = self._params
         affinity = params.affinity_method.calculate(dataset)
         shape = dataset.frame_shape[1:3]

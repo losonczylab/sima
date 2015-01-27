@@ -7,9 +7,11 @@ from bottleneck import nanmean
 
 import sima.misc
 from .segment import (
-    PlaneSegmentationStrategy,
+    SegmentationStrategy,
     _remove_overlapping,
-    _smooth_roi)
+    _smooth_roi,
+    _check_single_plane,
+)
 from .normcut import _OPCA
 from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
@@ -220,7 +222,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
     return rois
 
 
-class PlaneSTICA(PlaneSegmentationStrategy):
+class STICA(SegmentationStrategy):
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
@@ -300,18 +302,26 @@ class PlaneSTICA(PlaneSegmentationStrategy):
     .. [2] Mukamel EA, Nimmerjahn A, Schnitzer MJ. Automated analysis of
        cellular signals from large-scale calcium imaging data. Neuron.
        2009 Sep 24;63(6):747-60.
+
+    Warning
+    -------
+    In version 1.0.0, this method currently only works on datasets with a
+    single plane, or in conjunction with
+    :class:`sima.segment.PlaneWiseSegmentation`.
+
     """
 
     def __init__(
             self, channel=0, mu=0.01, components=75, static_threshold=0.5,
             min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
             spatial_sep=True, verbose=False):
-        super(PlaneSTICA, self).__init__()
+        super(STICA, self).__init__()
         d = locals()
         d.pop('self')
         self._params = Struct(**d)
 
-    def _segment_plane(self, dataset):
+    @_check_single_plane
+    def _segment(self, dataset):
 
         channel = sima.misc.resolve_channels(self._params.channel,
                                              dataset.channel_names)
