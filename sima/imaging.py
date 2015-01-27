@@ -163,10 +163,22 @@ class ImagingDataset(object):
 
     @sequences.setter
     def sequences(self, sequences):
-        del self._frame_shape
-        del self._num_frames
-        del self._num_sequences
-        del self._time_averages
+        try:
+            del self._frame_shape
+        except AttributeError:
+            pass
+        try:
+            del self._num_frames
+        except AttributeError:
+            pass
+        try:
+            del self._num_sequences
+        except AttributeError:
+            pass
+        try:
+            del self._time_averages
+        except AttributeError:
+            pass
         # TODO: Delete time_averages.pkl? Is that too aggressive?
         self._sequences = sequences
 
@@ -221,7 +233,8 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and os.path.isdir(savedir):
                     overwrite = strtobool(
-                        raw_input("Overwrite existing directory? "))
+                        raw_input("Overwrite existing directory ({})? ".format(
+                            savedir)))
                     # Note: This will overwrite dataset.pkl but will leave
                     #       all other files in the directory intact
                     if overwrite:
