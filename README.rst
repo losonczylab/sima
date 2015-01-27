@@ -1,6 +1,9 @@
 .. image:: https://travis-ci.org/losonczylab/sima.svg?branch=master
    :target: https://travis-ci.org/losonczylab/sima/
 
+.. image:: https://ci.appveyor.com/api/projects/status/q3bgxcoget1xef33/branch/master?svg=true
+   :target: https://ci.appveyor.com/project/nbdanielson/sima
+
 .. image:: https://coveralls.io/repos/losonczylab/sima/badge.png 
    :target: https://coveralls.io/r/losonczylab/sima 
 
