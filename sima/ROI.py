@@ -87,6 +87,7 @@ class ROI(object):
 
     Examples
     --------
+    >>> import numpy as np
     >>> from sima.ROI import ROI
     >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
     >>> roi.coords
@@ -95,9 +96,9 @@ class ROI(object):
            [ 1.,  1.,  0.],
            [ 1.,  0.,  0.],
            [ 0.,  0.,  0.]])]
-    >>> roi.mask[0].todense()
-    matrix([[ True, False],
-            [False, False]], dtype=bool)
+    >>> np.array(roi)
+    array([[[ True, False],
+            [False, False]]], dtype=bool)
 
     Attributes
     ----------
@@ -252,6 +253,16 @@ class ROI(object):
     def mask(self, mask):
         self._mask = _reformat_mask(mask)
         self._polys = None
+
+    def __array__(self):
+        """Obtain a numpy.ndarray representation of the ROI mask.
+
+        Returns
+        -------
+        mask : numpy.ndarray
+            An array representation of the ROI mask.
+        """
+        return np.array([plane.todense() for plane in self.mask])
 
     @property
     def size(self):
