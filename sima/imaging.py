@@ -105,7 +105,10 @@ class ImagingDataset(object):
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             if 'sequences' in data:
-                raise ImportError('Old version')
+                # 1.0.0-dev sets stored sequences in dataset.pkl. Without this
+                # check a later call to ImagingDataset.sequences will fail.
+                # Remove in future version.
+                raise ImportError('Old 1.0.0-dev dataset')
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
             try:
