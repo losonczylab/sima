@@ -1859,10 +1859,10 @@ class UI_tSeries(QListWidgetItem):
                     mask = np.zeros(self.parent.base_im.data.shape, dtype=bool)
                     for x in np.arange(
                             np.floor(center[0] - radius),
-                            np.ceil(center[0] + radius)):
+                            np.ceil(center[0] + radius)).astype(int):
                         for y in np.arange(
                                 np.floor(center[1] - radius),
-                                np.ceil(center[1] + radius)):
+                                np.ceil(center[1] + radius)).astype(int):
 
                             d = np.linalg.norm(
                                 np.array((x, y)) - np.array(center))
@@ -1874,7 +1874,7 @@ class UI_tSeries(QListWidgetItem):
 
                     points = np.array(poly[0].exterior.coords)[:, :2]
                     new_roi = UI_ROI(self, points, id=None,
-                                     label=parent.next_label(), tags=None)
+                                     label=self.next_label(), tags=None)
                     self.parent.plot.del_item(item)
                     self.parent.plot.add_item(new_roi)
                 else:
