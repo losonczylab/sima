@@ -105,11 +105,19 @@ class ImagingDataset(object):
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
             if 'sequences' in data:
-                raise ValueError('Old version')
+                raise ImportError('Old version')
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
             try:
                 self._num_frames = data.pop('num_frames')
+            except KeyError:
+                pass
+            try:
+                self._frame_shape = data.pop('frame_shape')
+            except KeyError:
+                pass
+            try:
+                self._num_sequences = data.pop('num_sequences')
             except KeyError:
                 pass
         elif all(isinstance(s, sima.Sequence) for s in sequences):
@@ -142,7 +150,7 @@ class ImagingDataset(object):
                 """Parse a saved Sequence dictionary."""
                 return sequence.pop('__class__')._from_dict(
                     sequence, self.savedir)
-            with open(join(self.savedir, 'sequences.pkl'), 'wb') as f:
+            with open(join(self.savedir, 'sequences.pkl'), 'rb') as f:
                 sequences = pickle.load(f)
             self._sequences = [unpack(seq) for seq in sequences]
             if not np.all([seq.shape[1:] == self._sequences[0].shape[1:]
@@ -155,6 +163,9 @@ class ImagingDataset(object):
 
     @sequences.setter
     def sequences(self, sequences):
+        del self._frame_shape
+        del self._num_frames
+        del self._num_sequences
         self._sequences = sequences
 
     @property
@@ -166,8 +177,7 @@ class ImagingDataset(object):
     @property
     def frame_shape(self):
         if not hasattr(self, '_frame_shape'):
-            self._frame_shape = self.time_averages.shape
-            # self._frame_shape = self.sequences[0].shape[1:]
+            self._frame_shape = self.sequences[0].shape[1:]
         return self._frame_shape
 
     @property
@@ -284,6 +294,8 @@ class ImagingDataset(object):
         return {'savedir': abspath(self.savedir),
                 'channel_names': self.channel_names,
                 'num_frames': self.num_frames,
+                'frame_shape': self.frame_shape,
+                'num_sequences': self.num_sequences,
                 '__version__': sima.__version__}
 
     def add_ROIs(self, ROIs, label=None):
