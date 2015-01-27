@@ -214,6 +214,16 @@ class ROIFilter(PostProcessingStep):
     func : function
         A boolean-valued function taking arguments (rois, dataset)
         that is used to filter the ROIs.
+
+    Example
+    -------
+
+    To select ROIs with a size (i.e. number of non-zero pixels) of at least 20
+    pixels and no more than 50 pixels, the following ROIFilter can be created:
+
+    >>> from sima.segment import ROIFilter
+    >>> size_filter = ROIFilter(lambda roi: roi.size >= 20 and roi.size <= 50)
+
     """
 
     def __init__(self, func):
@@ -221,33 +231,6 @@ class ROIFilter(PostProcessingStep):
 
     def apply(self, rois, dataset=None):
         return ROIList([r for r in rois if self._valid(r)])
-
-
-class ROISizeFilter(ROIFilter):
-    """Postprocessing step to filter ROIs based on size.
-
-    ROIs produced by the segmentation are filtered to retain only
-    the ROIs with a specific size, in terms of number of non-zero pixels.
-
-    Parameters
-    ----------
-    min_size : int
-        The minimum ROI size in pixels.
-    max_size : int, optional
-        The maximum ROI size in pixels.
-    """
-
-    def __init__(self, min_size, max_size=None):
-        if min_size is None:
-            min_size = 0
-        if max_size is None:
-            max_size = np.Inf
-
-        def f(roi, dataset=None):
-            size = sum(np.count_nonzero(plane.todense()) for plane in roi.mask)
-            return not (size > max_size or size < min_size)
-
-        super(ROISizeFilter, self).__init__(f)
 
 
 class CircularityFilter(ROIFilter):

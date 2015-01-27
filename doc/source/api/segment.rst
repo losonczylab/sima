@@ -82,13 +82,7 @@ any of the classes listed below.
 .. autoclass:: sima.segment.ROIFilter
     :members:
     :show-inheritance:
-.. autoclass:: sima.segment.ROISizeFilter
-    :members:
-    :show-inheritance:
 .. autoclass:: sima.segment.CircularityFilter
-    :members:
-    :show-inheritance:
-.. autoclass:: sima.segment.CA1PCNucleus
     :members:
     :show-inheritance:
 

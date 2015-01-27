@@ -13,7 +13,7 @@ else:
 
 import sima.misc
 from .segment import (
-    SegmentationStrategy, ROISizeFilter, CircularityFilter, PostProcessingStep)
+    SegmentationStrategy, ROIFilter, CircularityFilter, PostProcessingStep)
 from .normcut import BasicAffinityMatrix, PlaneNormalizedCuts
 from .segment import _check_single_plane
 from sima.ROI import ROI, ROIList
@@ -247,10 +247,12 @@ class PlaneCA1PC(SegmentationStrategy):
             verbose)
         self._normcut_method = PlaneNormalizedCuts(
             affinity_method, cut_max_pen, cut_min_size, cut_max_size)
-        self._normcut_method.append(ROISizeFilter(min_cut_size))
+        self._normcut_method.append(
+            ROIFilter(lambda r: r.size >= min_cut_size))
         self._normcut_method.append(
             CA1PCNucleus(channel, x_diameter, y_diameter))
-        self._normcut_method.append(ROISizeFilter(min_roi_size))
+        self._normcut_method.append(
+            ROIFilter(lambda r: r.size >= min_roi_size))
         self._normcut_method.append(CircularityFilter(circularity_threhold))
 
     @_check_single_plane
