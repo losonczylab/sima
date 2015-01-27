@@ -166,6 +166,8 @@ class ImagingDataset(object):
         del self._frame_shape
         del self._num_frames
         del self._num_sequences
+        del self._time_averages
+        # TODO: Delete time_averages.pkl? Is that too aggressive?
         self._sequences = sequences
 
     @property
@@ -241,6 +243,8 @@ class ImagingDataset(object):
 
     @property
     def time_averages(self):
+        if hasattr(self, '_time_averages'):
+            return self._time_averages
         if self.savedir is not None:
             try:
                 with open(join(self.savedir, 'time_averages.pkl'),
@@ -254,7 +258,9 @@ class ImagingDataset(object):
                 # Make sure this is a numpy array and if not just re-calculate
                 # the time averages.
                 if isinstance(time_averages, np.ndarray):
-                    return time_averages
+                    self._time_averages = time_averages
+                    return self._time_averages
+
         sums = np.zeros(self.frame_shape)
         counts = np.zeros(self.frame_shape)
         for frame in it.chain.from_iterable(self):
@@ -264,7 +270,8 @@ class ImagingDataset(object):
         if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
-        return averages
+        self._time_averages = averages
+        return self._time_averages
 
     @property
     def ROIs(self):

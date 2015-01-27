@@ -330,46 +330,46 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def connectSignals(self):
 
-        #toggle the edit or align mdoe
+        # toggle the edit or align mdoe
         self.modeSelection.buttonClicked.connect(self.toggle_mode)
 
-        #buttons for adding and removing t-series from list
+        # buttons for adding and removing t-series from list
         self.add_tseries_button.clicked.connect(self.add_tseries)
         self.remove_tseries_button.clicked.connect(self.remove_tseries)
 
-        #selection in tSeries_list changes
+        # selection in tSeries_list changes
         self.tSeries_list.currentItemChanged.connect(
             self.toggle_active_tSeries)
 
-        #toggle the active roi set
+        # toggle the active roi set
         self.active_rois_combobox.activated.connect(self.toggle_rois)
 
-        #add/delete roi sets
+        # add/delete roi sets
         self.new_set_button.clicked.connect(self.new_roi_set)
         self.delete_set_button.clicked.connect(self.delete_roi_set)
 
-        #z-plane selection
+        # z-plane selection
         self.plane_index_box.valueChanged.connect(self.toggle_plane)
 
-        #Channel selection
+        # Channel selection
         self.baseImage_list.activated.connect(self.toggle_base_image)
         self.processed_checkbox.clicked.connect(self.toggle_base_image)
 
-        #show/hide ROIs
+        # show/hide ROIs
         self.show_ROIs_checkbox.stateChanged.connect(self.toggle_show_rois)
         self.show_all_checkbox.stateChanged.connect(self.toggle_show_all)
 
-        #save ROIs buttons
+        # save ROIs buttons
         self.save_current_rois_button.clicked.connect(
             lambda: self.save([self.tSeries_list.currentItem()]))
 
-        #Run registration
+        # Run registration
         self.register_rois_button.clicked.connect(self.register_rois)
 
-        #Propagate tags
+        # Propagate tags
         self.propagate_tags_button.clicked.connect(self.propagate_tags)
 
-        #Import transformed ROIs
+        # Import transformed ROIs
         self.import_rois_button.clicked.connect(self.import_rois)
 
     def closeEvent(self, event):
@@ -393,19 +393,19 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         Configure the main display window with a guiqwt ImageDialog object
         """
 
-        #initialize the viewer
+        # initialize the viewer
         viewer = ImageDialog(edit=False, toolbar=True,
                              wintitle='Experiment Image Display')
-        #Add the freeform tool
+        # Add the freeform tool
         viewer.add_tool(FreeFormTool)
         viewer.add_tool(EllipseTool)
         viewer.add_tool(RectangleTool)
-        #Remove the grid from the item list manager
+        # Remove the grid from the item list manager
         viewer.get_plot().get_items()[0].set_private(True)
-        #add viewer to the display frame layout
+        # add viewer to the display frame layout
         self.displayFrame.layout().addWidget(viewer)
 
-        #remove useless buttons
+        # remove useless buttons
         for i in range(3, 18)[::-1]:
             viewer.toolbar.removeAction(viewer.toolbar.actions()[i])
 
@@ -440,7 +440,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
     def initialize_roi_manager(self):
 
-        #add the ROI manager to the roiListFame
+        # add the ROI manager to the roiListFame
         itemListPanel = self.viewer.get_itemlist_panel()
         layout = QGridLayout()
 
@@ -448,13 +448,13 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         self.itemListFrame.setLayout(layout)
         itemListPanel.show()
 
-        #This is the ROI manager toolbar
+        # This is the ROI manager toolbar
         toolbar = itemListPanel.findChild(QToolBar)
 
-        #remove the default delete actions -- doesn't work with freeform tool
+        # remove the default delete actions -- doesn't work with freeform tool
         toolbar.removeAction(toolbar.actions()[-1])
 
-        #adding actions to the ROI manager toolbar
+        # adding actions to the ROI manager toolbar
         toolbar.addAction(self.delete_action)
         toolbar.addAction(self.edit_label_action)
         toolbar.addAction(self.add_tags_action)
@@ -482,7 +482,7 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         contrastPanel.show()
 
     def toggle_button_state(self, enabled=True):
-        #for when there are no t-series in the list
+        # for when there are no t-series in the list
         self.remove_tseries_button.setEnabled(enabled)
 
         self.active_rois_combobox.clear()
@@ -1908,7 +1908,7 @@ class UI_tSeries(QListWidgetItem):
             if name in rois_by_label:
                 # If two ROIs have the same name they'll have the same
                 # tags and id, so no need to check here
-                #TODO: ensure that this is true
+                # TODO: ensure that this is true
                 rois_by_label[name]['polygons'].extend(verts)
             else:
                 rois_by_label[name] = {}
@@ -1925,8 +1925,9 @@ class UI_tSeries(QListWidgetItem):
                             id=rois_by_label[label]['id'],
                             label=rois_by_label[label]['label']))
 
-        ROIs.save(path=join(self.dataset.savedir, 'rois.pkl'),
-                  label=roi_set_name)
+        self.dataset.add_ROIs(ROIs, label=roi_set_name)
+        # ROIs.save(path=join(self.dataset.savedir, 'rois.pkl'),
+        #           label=roi_set_name)
 
 
 class UI_ROI(PolygonShape, ROI):
@@ -2109,7 +2110,7 @@ class ImportROIsWidget(QDialog, Ui_importROIsWidget):
 
         self.parent = parent
 
-        #initialize source imaging datasets
+        # initialize source imaging datasets
         self.initialize_form()
 
     def initialize_form(self):
