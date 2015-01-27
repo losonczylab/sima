@@ -289,7 +289,7 @@ class ImagingDataset(object):
             ds._read_only = True
             return ds
 
-    def _todict(self, savedir):
+    def _todict(self):
         """Returns the dataset as a dictionary, useful for saving"""
         return {'savedir': abspath(self.savedir),
                 'channel_names': self.channel_names,
@@ -663,9 +663,12 @@ class ImagingDataset(object):
         if self._read_only:
             raise Exception('Cannot save read-only dataset.  Change savedir ' +
                             'to a new directory')
+        # Keep this out side the with statement
+        # If sequences haven't been loaded yet, need to read sequences.pkl
+        sequences = [seq._todict(savedir) for seq in self.sequences]
         with open(join(savedir, 'sequences.pkl'), 'wb') as f:
-            pickle.dump([seq._todict(savedir) for seq in self.sequences],
-                        f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(sequences, f, pickle.HIGHEST_PROTOCOL)
+
         with open(join(savedir, 'dataset.pkl'), 'wb') as f:
             pickle.dump(self._todict(), f, pickle.HIGHEST_PROTOCOL)
 
