@@ -189,7 +189,7 @@ class PostProcessingStep(object):
     >>> from scipy import ndimage
     >>> import sima.segment
     >>> class BinaryOpening(sima.segment.PostProcessingStep):
-    ...     def apply(rois, dataset=None):
+    ...     def apply(self, rois, dataset=None):
     ...         for r in rois:
     ...             r.mask = ndimage.binary_opening(r.mask)
     ...         return rois
@@ -204,7 +204,7 @@ class PostProcessingStep(object):
     # TODO: method for clearing memory after the step is applied
 
     @abc.abstractmethod
-    def apply(rois, dataset=None):
+    def apply(self, rois, dataset=None):
         """Apply the post-processing step to rois from a dataset.
 
         Parameters
