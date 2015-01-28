@@ -638,6 +638,9 @@ class MovementModel(object):
             if np.all(min_displacements <= position) and np.all(
                     position <= max_displacements):
                 states.append(index)
+
+
+
                 # probability of initial displacement
                 log_p.append(np.log(initial_dist(position)))
         if not np.any(np.isfinite(log_p)):
@@ -664,14 +667,14 @@ class PositionIterator(object):
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'plane')
     >>> positions = next(iter(pi))
-    >>> positions.shape
-    (32768, 3)
+    >>> positions.shape == (32768, 3)
+    True
 
     Group two rows at a time
     >>> pi = PositionIterator((100, 5, 128, 256), (2, 2), [10, 12])
     >>> positions = next(iter(pi))
-    >>> positions.shape
-    (512, 3)
+    >>> positions.shape == (512, 3)
+    True
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'column', [3, 10, 12])
     >>> positions = next(iter(pi))
@@ -692,7 +695,7 @@ class PositionIterator(object):
             raise TypeError('granularity must be of type str, int, or tuple '
                             'of int')
         self.shape = shape
-        if self.shape[self.granularity[0]] % self.granularity[1] is not 0:
+        if self.shape[self.granularity[0]] % self.granularity[1] != 0:
             raise ValueError('granularity[1] must divide the frame shape '
                              'along dimension granularity[0]')
         if offset is None:
@@ -736,7 +739,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
     num_retained : int
 
     """
-    if state_table.shape[1] is not 3:
+    if state_table.shape[1] != 3:
         raise ValueError
     log_references = np.log(references)
     backpointer = []
@@ -832,16 +835,16 @@ class NormalizedIterator(object):
     >>> it = NormalizedIterator(
     ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
     ...         np.ones(2), 'plane')
-    >>> next(iter(it))[0].shape
-    (30, 2)
+    >>> next(iter(it))[0].shape == (30, 2)
+    True
 
     Row-wise iteration:
 
     >>> it = NormalizedIterator(
     ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
     ...         np.ones(2), 'row')
-    >>> next(iter(it))[0].shape
-    (5, 2)
+    >>> next(iter(it))[0].shape == (5, 2)
+    True
 
     """
     def __init__(self, sequence, gains, pixel_means, pixel_variances,

@@ -73,7 +73,7 @@ class SegmentationStrategy(object):
 def _check_single_plane(func):
     """Decorator to check that dataset has a single plane"""
     def checked_func(self, dataset):
-        if dataset.frame_shape[0] is not 1:
+        if dataset.frame_shape[0] != 1:
             raise ValueError('This segmentation strategy requires a '
                              'dataset with exactly one plane.')
         return func(self, dataset)
