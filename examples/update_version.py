@@ -17,6 +17,7 @@ loading a 1.x dataset, so updating SIMA 0.x datasets can improve read times.
 import os
 import shutil
 import argparse
+import datetime
 
 from sima import ImagingDataset
 from sima.misc.convert import _0_to_1
@@ -37,11 +38,16 @@ if __name__ == '__main__':
         if directory.endswith('.sima'):
             try:
                 dataset = ImagingDataset(None, directory)
-            except (ImportError, KeyError):
-                # Possiblly old SIMA directory, attempt convert
+            except ImportError as error:
+                if not error.args[0] == 'No module named iterables':
+                    raise error
+                # Possibly old SIMA directory, attempt convert
                 if args.backup:
-                    shutil.copyfile(os.path.join(directory, 'dataset.pkl'),
-                                    os.path.join(directory, 'dataset.pkl.bak'))
+                    date_stamp = datetime.date.today().strftime('%Y%m%d')
+                    shutil.copyfile(
+                        os.path.join(directory, 'dataset.pkl'),
+                        os.path.join(directory, 'dataset.pkl.{}.bak'.format(
+                            date_stamp)))
                 try:
                     # Convert and overwrite the current dataset
                     _0_to_1(directory, directory)
