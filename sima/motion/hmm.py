@@ -544,7 +544,7 @@ class MovementModel(object):
         cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Uc))
         assert np.linalg.det(cov_matrix) > 0
         U, s, _ = np.linalg.svd(A)  # NOTE: U == V for positive definite A
-        assert np.max(s) < 1
+        s = np.minimum(s, 1.)  # Don't allow negative decay, i.e. growth
         return cls(cov_matrix, U, s, mean_shift)
 
     def decay_matrix(self, dt=1.):
