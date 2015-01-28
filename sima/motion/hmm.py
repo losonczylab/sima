@@ -638,9 +638,6 @@ class MovementModel(object):
             if np.all(min_displacements <= position) and np.all(
                     position <= max_displacements):
                 states.append(index)
-
-
-
                 # probability of initial displacement
                 log_p.append(np.log(initial_dist(position)))
         if not np.any(np.isfinite(log_p)):
