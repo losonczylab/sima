@@ -45,9 +45,10 @@ install:
   - conda info -a
   - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
   - activate test-environment
-  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow bottleneck
+  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow
   - conda install -q --yes -c https://conda.binstar.org/rsignell shapely
   - conda install -q --yes -c https://conda.binstar.org/menpo opencv
+  - conda install -q --yes -c https://conda.binstar.org/dhirschfeld bottleneck
   # - ps: cp -Force C:\conda\pkgs\opencv-2.4.9.1-np19py27_0\Lib\site-packages\cv2.pyd C:\conda\envs\test-environment\Lib\site-packages
   # - "%CMD_IN_ENV% '''python -c import cv2; print cv2.__version__; print cv2.__file__'''"
 
