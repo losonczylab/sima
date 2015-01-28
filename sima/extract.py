@@ -5,6 +5,7 @@ from datetime import datetime
 import cPickle as pickle
 import itertools as it
 from multiprocessing import Pool
+import warnings as wa
 
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
@@ -310,7 +311,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     # If mask is boolean convert to float and normalize values such that
     # the sum of the weights in each ROI is 1
     for mask_idx, mask in it.izip(it.count(), masks):
-        if mask.dtype == bool:
+        if mask.dtype == bool and mask.nnz:
             masks[mask_idx] = mask.astype('float') / mask.nnz
 
     # Identify non-empty ROIs
@@ -318,6 +319,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     rois_to_include = np.array(
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
+    if n_rois != original_n_rois:
+        wa.warn("Empty ROIs will return all NaN values: "
+                + "{} empty ROIs found".format(original_n_rois - n_rois))
 
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()

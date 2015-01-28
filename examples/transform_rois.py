@@ -37,7 +37,8 @@ if __name__ == '__main__':
     argParser.add_argument(
         "-l", "--target_label", action="store", type=str,
         default="auto_transformed",
-        help="Label to give the new transformed ROIs")
+        help="Label to give the new transformed ROIs "
+        + "(default: auto_transformed)")
     argParser.add_argument(
         "-c", "--channel", action="store", type=str, default="0",
         help="Channel of the datasets used to calculate the affine transform")
