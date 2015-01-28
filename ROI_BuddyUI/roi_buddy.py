@@ -35,6 +35,7 @@ from guiqwt.tools import FreeFormTool, InteractiveTool, \
 from guiqwt.builder import make
 from guiqwt.shapes import PolygonShape, EllipseShape
 from guiqwt.events import setup_standard_tool_filter, PanHandler
+from guiqwt.image import ImageItem
 
 
 icon_filepath = \
@@ -548,6 +549,8 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
         # delete it, then use the freeform tool again, it fails.
         self.freeform_tool.shape = None
         items = self.plot.get_selected_items()
+        # Don't delete the base image
+        items = [item for item in items if not isinstance(item, ImageItem)]
         self.plot.unselect_all()
         if self.mode == 'align':
             for item in items:

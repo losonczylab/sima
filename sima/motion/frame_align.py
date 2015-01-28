@@ -298,8 +298,8 @@ def _resize_array(array, displacement, frame_shape):
     >>> import numpy as np
     >>> a = np.ones((2, 128, 128, 5))
     >>> a = _resize_array(a, (0, -1, 2), (2, 128, 128, 5))
-    >>> a.shape
-    (2, 129, 130, 5)
+    >>> a.shape == (2, 129, 130, 5)
+    True
 
     """
     pad_width = np.zeros((len(array.shape), 2))

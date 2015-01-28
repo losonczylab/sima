@@ -13,6 +13,7 @@ from numpy.testing import (
 from sima import ImagingDataset
 from sima.misc import example_data
 from sima import segment
+from sima.segment.ca1pc import cv2_available
 
 
 def setup():
@@ -33,6 +34,7 @@ def test_STICA():
     ds.segment(method)
 
 
+@dec.skipif(not cv2_available)
 def test_PlaneNormalizedCuts():
     ds = ImagingDataset.load(example_data())[:, :, :, :50, :50]
     affinty_method = segment.BasicAffinityMatrix(num_pcs=5)
@@ -41,6 +43,7 @@ def test_PlaneNormalizedCuts():
     ds.segment(method)
 
 
+@dec.skipif(not cv2_available)
 def test_PlaneCA1PC():
     ds = ImagingDataset.load(example_data())[:, :, :, :50, :50]
     method = segment.PlaneCA1PC(num_pcs=5)

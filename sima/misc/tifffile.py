@@ -865,8 +865,8 @@ def imread(files, *args, **kwargs):
     >>> from sima.misc.tifffile import imread
     >>> from sima.misc import example_tiff
     >>> im = imread(example_tiff(), 0)
-    >>> im.shape
-    (128, 256)
+    >>> im.shape == (128, 256)
+    True
 
     """
     kwargs_file = {}
@@ -2043,8 +2043,8 @@ class TiffSequence(object):
     >>> from os.path import dirname,join
     >>> ims = TiffSequence(join(dirname(example_tiff()),"*.tif"))
     >>> ims = ims.asarray()
-    >>> ims.shape
-    (1, 20, 128, 256)
+    >>> ims.shape == (1, 20, 128, 256)
+    True
 
     """
     _axes_pattern = """

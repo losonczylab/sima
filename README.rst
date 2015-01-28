@@ -1,6 +1,9 @@
 .. image:: https://travis-ci.org/losonczylab/sima.svg?branch=master
    :target: https://travis-ci.org/losonczylab/sima/
 
+.. image:: https://ci.appveyor.com/api/projects/status/q3bgxcoget1xef33/branch/master?svg=true
+   :target: https://ci.appveyor.com/project/nbdanielson/sima
+
 .. image:: https://coveralls.io/repos/losonczylab/sima/badge.png 
    :target: https://coveralls.io/r/losonczylab/sima 
 
@@ -38,7 +41,6 @@ Dependencies
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
-* `bottleneck <sima.ROI://pypi.python.org/pypi/Bottleneck>`_ >=0.8
 
 Optional dependencies
 ---------------------
@@ -46,6 +48,7 @@ Optional dependencies
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
 * `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
+* `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
 

@@ -284,8 +284,8 @@ class Sequence(object):
         >>> from sima.misc import example_hdf5
         >>> path = example_hdf5()
         >>> seq = Sequence.create('HDF5', path, 'yxt')
-        >>> seq.shape
-        (20, 1, 128, 256, 1)
+        >>> seq.shape == (20, 1, 128, 256, 1)
+        True
 
         Warning
         -------
