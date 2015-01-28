@@ -261,7 +261,7 @@ def _lookup_tables(position_bounds, log_markov_matrix):
     log_markov_matrix_tbl = []
     for step in it.product(
             *[range(-s + 1, s) for s in log_markov_matrix.shape]):
-        if len(step) is 2:
+        if len(step) == 2:
             step = (0,) + step
         tmp_tbl = []
         for pos in position_tbl:
@@ -599,7 +599,7 @@ class MovementModel(object):
             log_transition_matrix[disp] = _discrete_transition_prob(
                 disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
-        if log_transition_matrix.ndim is 2:
+        if log_transition_matrix.ndim == 2:
             log_transition_matrix = np.expand_dims(log_transition_matrix, 0)
         return log_transition_matrix
 
@@ -617,7 +617,7 @@ class MovementModel(object):
             initial_cov[i, i] = max(initial_cov[i, i], 0.1)
 
         def idist(x):
-            if len(x) is 3 and len(initial_cov) is 2:
+            if len(x) == 3 and len(initial_cov) == 2:
                 x = x[1:]
             return np.exp(
                 -0.5 * np.dot(x - self.mean_shift,
