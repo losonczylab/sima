@@ -3,7 +3,10 @@ import os
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import measurements
-from bottleneck import nanmean
+try:
+    from bottleneck import nanmean
+except ImportError:
+    from scipy.stats import nanmean
 
 import sima.misc
 from .segment import (
