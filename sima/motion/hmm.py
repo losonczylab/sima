@@ -10,8 +10,7 @@ from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
 except ImportError:
-    from numpy import nansum
-    from scipy.stats import nanmedian
+    from numpy import nansum, nanmedian
 from scipy.stats.mstats import mquantiles
 
 import _motion as mc

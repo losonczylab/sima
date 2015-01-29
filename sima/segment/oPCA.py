@@ -5,7 +5,7 @@ import numpy as np
 try:
     from bottleneck import nanmean
 except ImportError:
-    from scipy.stats import nanmean
+    from numpy import nanmean
 from scipy.linalg import eig, eigh, inv, norm
 from scipy.sparse.linalg import eigsh, eigs
 import warnings

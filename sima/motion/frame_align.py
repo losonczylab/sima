@@ -6,7 +6,7 @@ import numpy as np
 try:
     from bottleneck import nanmean
 except ImportError:
-    from scipy.stats import nanmean
+    from numpy import nanmean
 import scipy.ndimage.filters
 
 import motion
