@@ -923,9 +923,15 @@ class _IndexedSequence(_WrapperSequence):
         self._indices = \
             indices if isinstance(indices, tuple) else (indices,)
         # Reformat integer slices to avoid dimension collapse
-        self._indices = tuple(
-            slice(i, i + 1) if isinstance(i, int) else int(i)
-            for i in self._indices)
+        new_indices = []
+        for i in self._indices:
+            try:
+                i = int(i)
+            except TypeError:
+                new_indices.append(i)
+            else:
+                new_indices.append(slice(i, i + 1))
+        self._indices = tuple(new_indices)
         self._times = range(self._base_len)[self._indices[0]]
         # TODO: switch to generator/iterator if possible?
 
