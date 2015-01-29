@@ -5,7 +5,7 @@ from datetime import datetime
 import cPickle as pickle
 import itertools as it
 from multiprocessing import Pool
-import warnings as wa
+import warnings
 
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
@@ -320,8 +320,8 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
     if n_rois != original_n_rois:
-        wa.warn("Empty ROIs will return all NaN values: "
-                + "{} empty ROIs found".format(original_n_rois - n_rois))
+        warnings.warn("Empty ROIs will return all NaN values: "
+                      + "{} empty ROIs found".format(original_n_rois - n_rois))
 
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()
@@ -493,7 +493,11 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
                            signal_channel=signal_channel, **kwargs)
 
     if save_summary:
-        _save_extract_summary(signals, save_path, rois)
+        try:
+            _save_extract_summary(signals, save_path, rois)
+        except ImportError:
+            warnings.warn('Failed to import matplotlib. No extraction '
+                          'summary could be saved.')
 
     signals.pop('_masks')
 

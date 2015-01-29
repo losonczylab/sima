@@ -29,7 +29,6 @@ installed prior to using SIMA:
 * `Python <http://python.org>`_ 2.7 
 * `numpy <http://www.scipy.org>`_ >= 1.6.2
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
-* `matplotlib <http://matplotlib.org>`_ >= 1.2.1
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
@@ -42,6 +41,7 @@ to install the following packages:
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
 * `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
 * `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
+* `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
 

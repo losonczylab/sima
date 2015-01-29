@@ -63,7 +63,6 @@ setup(
     install_requires=[
         'numpy>=1.9',
         'scipy>=0.13.0',
-        'matplotlib>=1.2.1',
         'scikit-image>=0.9.3',
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
