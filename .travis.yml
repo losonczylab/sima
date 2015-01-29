@@ -15,20 +15,20 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq libatlas-dev libatlas-base-dev liblapack-dev gfortran
   # install OpenCV
-  - sudo apt-get install -qq libopencv-dev python-dev unzip
-  - sudo apt-get install -qq build-essential checkinstall cmake
-  - wget -O opencv-2.4.9.zip http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
-  - unzip opencv-2.4.9.zip
-  - cd opencv-2.4.9/
-  - mkdir build
-  - cd build
-  - cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D BUILD_ZLIB=ON -D BUILD_NEW_PYTHON_SUPPORT=ON ..
-  - make -j2
-  - sudo make -j2 install
-  - sudo sh -c 'echo "/usr/local/lib" > /etc/ld.so.conf.d/opencv.conf'
-  - sudo ldconfig
-  - cd ../..
-  - sudo rm -r opencv*
+  # - sudo apt-get install -qq libopencv-dev python-dev unzip
+  # - sudo apt-get install -qq build-essential checkinstall cmake
+  # - wget -O opencv-2.4.9.zip http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
+  # - unzip opencv-2.4.9.zip
+  # - cd opencv-2.4.9/
+  # - mkdir build
+  # - cd build
+  # - cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D BUILD_ZLIB=ON -D BUILD_NEW_PYTHON_SUPPORT=ON ..
+  # - make -j2
+  # - sudo make -j2 install
+  # - sudo sh -c 'echo "/usr/local/lib" > /etc/ld.so.conf.d/opencv.conf'
+  # - sudo ldconfig
+  # - cd ../..
+  # - sudo rm -r opencv*
   # done installing OpenCV
   - sudo cp /usr/lib/x86_64-linux-gnu/libm.so /usr/lib/x86_64-linux-gnu/libm.so.6
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
@@ -45,14 +45,14 @@ before_install:
   - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn sphinx numpydoc pillow'
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
+  - conda install -c https://conda.binstar.org/menpo opencv
   - pip install sphinxcontrib-napoleon 
-  - pip install bottleneck>=0.8
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
   - python -c "import h5py; print h5py.__file__"
   - echo $PATH
   - cp /usr/lib/x86_64-linux-gnu/libm.so /home/travis/miniconda/envs/test-environment/bin/../lib/libm.so.6
-  - cp /usr/local/lib/python2.7/site-packages/cv* /home/travis/miniconda/envs/test-environment/lib/python2.7/site-packages/
+  # - cp /usr/local/lib/python2.7/site-packages/cv* /home/travis/miniconda/envs/test-environment/lib/python2.7/site-packages/
   - ldconfig -p
   - python -c "import cv2; print cv2.__version__; print cv2.__file__"
 script: 
