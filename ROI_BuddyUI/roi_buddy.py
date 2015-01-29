@@ -14,6 +14,7 @@ from shapely.geometry import MultiPolygon, Polygon
 from skimage import transform as tf
 import itertools as it
 from random import shuffle
+import warnings as wa
 
 from roiBuddyUI import Ui_ROI_Buddy
 from importROIsWidget import Ui_importROIsWidget
@@ -645,14 +646,16 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
             QFileDialog.ShowDirsOnly))
 
         if sima_path is not '':
+            if not self.tSeries_list.count():
+                self.toggle_button_state(True)
             try:
                 tSeries = UI_tSeries(sima_path, parent=self)
             except IOError:
-                return
-
-            if not self.tSeries_list.count():
-                self.toggle_button_state(True)
-            self.tSeries_list.setCurrentItem(tSeries)
+                print('Invalid path, skipping: ' + sima_path)
+                if not self.tSeries_list.count():
+                    self.toggle_button_state(False)
+            else:
+                self.tSeries_list.setCurrentItem(tSeries)
 
     def add_tseries_by_tag(self):
         """Select a root folder, then recursively search all subdirectories for
@@ -1553,10 +1556,12 @@ class RoiBuddy(QMainWindow, Ui_ROI_Buddy):
 
 class UI_tSeries(QListWidgetItem):
     def __init__(self, sima_path, parent):
+        # Try to load the dataset first, if it fails, don't add it to the panel
+        self.dataset = ImagingDataset.load(sima_path)
+        
         QListWidgetItem.__init__(
             self, QString(dirname(sima_path)), parent=parent.tSeries_list)
 
-        self.dataset = ImagingDataset.load(sima_path)
         self.parent = parent
 
         self.num_planes = self.dataset.frame_shape[0]
@@ -1569,9 +1574,11 @@ class UI_tSeries(QListWidgetItem):
         # Lock ROI ids
         self.roi_id_lock = False
 
-        self.roi_sets = self.dataset.ROIs.keys()
+        rois = self.dataset.ROIs
+
+        self.roi_sets = rois.keys()
         try:
-            self.active_rois = sima.misc.most_recent_key(self.dataset.ROIs)
+            self.active_rois = sima.misc.most_recent_key(rois)
         except ValueError:
             new_set = datetime.strftime(datetime.now(), '%Y-%m-%d-%Hh%Mm%Ss')
             self.active_rois = new_set
