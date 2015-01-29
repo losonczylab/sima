@@ -5,6 +5,7 @@ from datetime import datetime
 import cPickle as pickle
 import itertools as it
 from multiprocessing import Pool
+import warnings
 
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
@@ -489,7 +490,11 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
                            signal_channel=signal_channel, **kwargs)
 
     if save_summary:
-        _save_extract_summary(signals, save_path, rois)
+        try:
+            _save_extract_summary(signals, save_path, rois)
+        except ImportError:
+            warnings.warn('Failed to import matplotlib. No extraction '
+                          'summary could be saved.')
 
     signals.pop('_masks')
 
