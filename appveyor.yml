@@ -8,8 +8,8 @@ branches:
   # whitelist
   only:
     - master
-    - 0.2.x
     - 0.3.x
+    - 1.0.x
 
 #---------------------------------#
 #    environment configuration    #
