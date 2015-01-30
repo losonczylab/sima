@@ -1,6 +1,9 @@
 .. image:: https://travis-ci.org/losonczylab/sima.svg?branch=master
    :target: https://travis-ci.org/losonczylab/sima/
 
+.. image:: https://ci.appveyor.com/api/projects/status/q3bgxcoget1xef33/branch/master?svg=true
+   :target: https://ci.appveyor.com/project/nbdanielson/sima
+
 .. image:: https://coveralls.io/repos/losonczylab/sima/badge.png 
    :target: https://coveralls.io/r/losonczylab/sima 
 
@@ -33,22 +36,19 @@ Dependencies
 * `Python <http://python.org>`_ 2.7 
 * `numpy <http://www.scipy.org>`_ >= 1.6.2
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
-* `matplotlib <http://matplotlib.org>`_ >= 1.2.1
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
+* `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
+* `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
 
 Optional dependencies
 ---------------------
 
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
-* `scikit-learn <http://scikit-learn.org>`_ >= 0.11, required for stICA
-  segmentation
-* `h5py <http://http://www.h5py.org>`_ >= 2.3.1, required for HDF5 file format
-* `pylibtiff <https://code.google.com/p/pylibtiff/>`_, required for more
-  efficient handling of large TIFF files
-* `bottleneck <sima.ROI://pypi.python.org/pypi/Bottleneck>`_ >=0.8 , for faster
-  performance
+* `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
+* `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
+* `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
 

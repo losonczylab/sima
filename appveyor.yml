@@ -1,0 +1,65 @@
+###Appveyor CI build script
+
+# version format
+version: 0.3.x{build}
+
+# branches to build
+branches:
+  # whitelist
+  only:
+    - master
+    - 0.2.x
+    - 0.3.x
+
+#---------------------------------#
+#    environment configuration    #
+#---------------------------------#
+
+# Operating system (build VM template)
+os: Windows Server 2012
+
+# clone directory
+clone_folder: c:\sima
+
+environment:
+  global:
+    PYTHON: "C:\\conda"
+    MINICONDA_VERSION: "3.5.5"
+    CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_compiler.cmd"
+  matrix:
+    - PYTHON_VERSION: "2.7"
+
+platform:
+  - x64
+  - x86
+
+# scripts that are called at very beginning, before repo cloning
+init:
+  - echo %PYTHON_VERSION% %platform%
+
+install:
+  - powershell appveyor/.install-miniconda.ps1
+  - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update --yes conda
+  - conda info -a
+  - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
+  - activate test-environment
+  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip
+  - conda install -q --yes -c https://conda.binstar.org/rsignell shapely
+  - conda install -q --yes -c https://conda.binstar.org/menpo opencv
+  - pip install wheel
+
+  # - ps: cp -Force C:\conda\pkgs\opencv-2.4.9.1-np19py27_0\Lib\site-packages\cv2.pyd C:\conda\envs\test-environment\Lib\site-packages
+  # - "%CMD_IN_ENV% '''python -c import cv2; print cv2.__version__; print cv2.__file__'''"
+
+build: off
+
+test_script:
+  - "%CMD_IN_ENV% python runtests.py --doctests -m full --coverage"
+
+after_test:
+  - "%CMD_IN_ENV% python setup.py bdist_wheel"
+
+artifacts:
+  - path: dist\*

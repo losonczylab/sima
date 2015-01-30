@@ -6,7 +6,7 @@ import numpy as np
 try:
     from bottleneck import nanmean
 except ImportError:
-    from scipy.stats import nanmean
+    from numpy import nanmean
 import scipy.ndimage.filters
 
 import motion
@@ -38,12 +38,12 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         default, arbitrarily large displacements are allowed.
     method : {'correlation', 'ECC'}
         Alignment method to be used.
-    n_processes : (None, int)
-        Number of pool processes to spawn to parallelize frame alignment
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to 1.
     """
-
     def __init__(self, max_displacement=None, method='correlation',
-                 n_processes=None):
+                 n_processes=1):
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -67,8 +67,7 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
 
 
 def _frame_alignment_base(
-        dataset, max_displacement=None, method='correlation',
-        n_processes=None):
+        dataset, max_displacement=None, method='correlation', n_processes=1):
     """Estimate whole-frame displacements based on pixel correlations.
 
     Parameters
@@ -84,15 +83,13 @@ def _frame_alignment_base(
     correlations : array
         (num_frames*num_cycles)-array giving the correlation of
         each shifted frame with the reference
-    n_processes : (None, int)
-        Number of pool processes to spawn to parallelize frame alignment
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to 1.
     """
-    if n_processes is None:
-        n_pools = multiprocessing.cpu_count() / 2
-    else:
-        n_pools = n_processes
-        if n_pools == 0:
-            n_pools = 1
+
+    if n_processes < 1:
+        raise ValueError('n_processes must be at least 1')
 
     global namespace
     global lock
@@ -108,11 +105,12 @@ def _frame_alignment_base(
     namespace.max_shift = np.zeros(3)
 
     lock = multiprocessing.Lock()
-    pool = multiprocessing.Pool(processes=n_pools, maxtasksperchild=1)
+    if n_processes > 1:
+        pool = multiprocessing.Pool(processes=n_processes, maxtasksperchild=1)
 
     for cycle_idx, cycle in zip(it.count(), dataset):
-        chunksize = min(1 + len(cycle) / n_pools, 200)
-        if n_pools > 1:
+        chunksize = min(1 + len(cycle) / n_processes, 200)
+        if n_processes > 1:
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
@@ -131,9 +129,9 @@ def _frame_alignment_base(
             except StopIteration:
                 break
 
-    # TODO: align planes to minimize shifts between them
-    pool.close()
-    pool.join()
+    if n_processes > 1:
+        pool.close()
+        pool.join()
 
     def _align_planes(shifts):
         """Align planes to minimize shifts between them."""
@@ -300,8 +298,8 @@ def _resize_array(array, displacement, frame_shape):
     >>> import numpy as np
     >>> a = np.ones((2, 128, 128, 5))
     >>> a = _resize_array(a, (0, -1, 2), (2, 128, 128, 5))
-    >>> a.shape
-    (2, 129, 130, 5)
+    >>> a.shape == (2, 129, 130, 5)
+    True
 
     """
     pad_width = np.zeros((len(array.shape), 2))
@@ -479,6 +477,8 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
         disp = pyramid_align(pyr_down_3d(reference, axes),
                              pyr_down_3d(target, axes),
                              min_shape, max_levels - 1, new_bounds)
+        if disp is None:
+            return disp
         best_corr = -np.inf
         best_displacement = None
         for adjustment in it.product(

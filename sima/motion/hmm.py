@@ -1,17 +1,16 @@
+try:
+    from itertools import izip as zip
+except:  # Python 3
+    pass
 import itertools as it
 import warnings
-try:
-    from future_builtins import zip
-except ImportError:  # Python 3.x
-    pass
 
 import numpy as np
 from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
 except ImportError:
-    from numpy import nansum
-    from scipy.stats import nanmedian
+    from numpy import nansum, nanmedian
 from scipy.stats.mstats import mquantiles
 
 import _motion as mc
@@ -54,12 +53,6 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
             if t > min_frames and np.all(
                     np.sqrt(var_est / counts) / mean_est < tolerance):
                 break
-            # im = np.concatenate(
-            #     [np.expand_dims(x, 0) for x in plane],
-            #     axis=0).astype(float)  # NOTE: integers overflow
-            # sums += im.sum(axis=0).sum(axis=0)
-            # sum_squares += (im ** 2).sum(axis=0).sum(axis=0)
-            # cnt += np.prod(im.shape[0] * im.shape[1])
             sums += np.nan_to_num(nansum(nansum(plane, axis=0), axis=0))
             sum_squares += np.nan_to_num(
                 nansum(nansum(plane ** 2, axis=0), axis=0))
@@ -114,8 +107,9 @@ def _whole_frame_shifting(dataset, shifts):
                 continue
             l = shift - min_shifts
             h = shift + frame.shape[:-1]
-            reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame
-            sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += frame ** 2
+            reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(frame)
+            sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(
+                frame ** 2)
             count[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.isfinite(frame)
         else:  # plane-specific shifts
             for plane, p_shifts, ref, ssq, cnt in zip(
@@ -124,8 +118,9 @@ def _whole_frame_shifting(dataset, shifts):
                     continue
                 low = p_shifts - min_shifts  # TOOD: NaN considerations
                 high = low + plane.shape[:-1]
-                ref[low[0]:high[0], low[1]:high[1]] += plane
-                ssq[low[0]:high[0], low[1]:high[1]] += plane ** 2
+                ref[low[0]:high[0], low[1]:high[1]] += np.nan_to_num(plane)
+                ssq[low[0]:high[0], low[1]:high[1]] += np.nan_to_num(
+                    plane ** 2)
                 cnt[low[0]:high[0], low[1]:high[1]] += np.isfinite(plane)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -265,7 +260,7 @@ def _lookup_tables(position_bounds, log_markov_matrix):
     log_markov_matrix_tbl = []
     for step in it.product(
             *[range(-s + 1, s) for s in log_markov_matrix.shape]):
-        if len(step) is 2:
+        if len(step) == 2:
             step = (0,) + step
         tmp_tbl = []
         for pos in position_tbl:
@@ -316,17 +311,18 @@ class Struct:
 class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=2, num_states_retained=50,
-                 max_displacement=None, n_processes=None, verbose=True):
-        if isinstance(granularity, int):
+                 max_displacement=None, n_processes=1, verbose=True):
+        if isinstance(granularity, int) or isinstance(granularity, str):
             granularity = (granularity, 1)
-        elif isinstance(granularity, str):
-            granularity = {'frame': (0, 1),
-                           'plane': (1, 1),
-                           'row': (2, 1),
-                           'column': (3, 1)}[granularity]
         elif not isinstance(granularity, tuple):
             raise TypeError(
-                'granularity must be of type str, int, or tuple of int')
+                'granularity must be of type str, int, or tuple')
+        if isinstance(granularity[0], str):
+            granularity = ({'frame': 0,
+                            'plane': 1,
+                            'row': 2,
+                            'column': 3}[granularity[0]], granularity[1])
+
         d = locals()
         del d['self']
         self._params = Struct(**d)
@@ -434,12 +430,25 @@ class HiddenMarkov2D(_HiddenMarkov):
 
     Parameters
     ----------
+    granularity : int, str, or tuple, optional
+        The granularity of the calculated displacements. A separate
+        displacement can be calculated for each frame (granularity=0
+        or granularity='frame'), each plane (1 or 'plane'), each
+        row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
+        displacement can be calculated for every n consecutive elements
+        (e.g.\ granularity=('row', 8) for every 8 rows).
+        Defaults to one displacement per row.
     num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [y,x]. By
         default, arbitrarily large displacements are allowed.
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to 1.
+    verbose : bool, optional
+        Whether to print information about progress.
 
     References
     ----------
@@ -469,6 +478,7 @@ class MovementModel(object):
     def __init__(self, cov_matrix, U, s, mean_shift):
         if not np.all(np.isfinite(cov_matrix)):
             raise ValueError
+        assert np.linalg.det(cov_matrix) > 0
         self._cov_matrix = cov_matrix
         self._U = U
         self._s = s
@@ -528,11 +538,12 @@ class MovementModel(object):
                           [coefficients[3], coefficients[4], coefficients[5]]])
         cov_matrix = np.cov(future.T - np.dot(A, past.T))
         # make cov_matrix non-singular
-        Uc, sc, Vc = np.linalg.svd(A)
+        Uc, sc, _ = np.linalg.svd(cov_matrix)  # NOTE: U == V
         sc = np.maximum(sc, 1. / len(shifts))
-        cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Vc))
+        cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Uc))
+        assert np.linalg.det(cov_matrix) > 0
         U, s, _ = np.linalg.svd(A)  # NOTE: U == V for positive definite A
-        assert np.max(s) < 1
+        s = np.minimum(s, 1.)  # Don't allow negative decay, i.e. growth
         return cls(cov_matrix, U, s, mean_shift)
 
     def decay_matrix(self, dt=1.):
@@ -577,6 +588,7 @@ class MovementModel(object):
 
         """
         cov_matrix = self.cov_matrix(dt)
+        assert np.linalg.det(cov_matrix) > 0
         log_transition_probs = lambda x: -0.5 * (
             np.log(2 * np.pi * np.linalg.det(cov_matrix)) +
             np.dot(x, np.linalg.solve(cov_matrix, x)))
@@ -586,7 +598,7 @@ class MovementModel(object):
             log_transition_matrix[disp] = _discrete_transition_prob(
                 disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
-        if log_transition_matrix.ndim is 2:
+        if log_transition_matrix.ndim == 2:
             log_transition_matrix = np.expand_dims(log_transition_matrix, 0)
         return log_transition_matrix
 
@@ -604,7 +616,7 @@ class MovementModel(object):
             initial_cov[i, i] = max(initial_cov[i, i], 0.1)
 
         def idist(x):
-            if len(x) is 3 and len(initial_cov) is 2:
+            if len(x) == 3 and len(initial_cov) == 2:
                 x = x[1:]
             return np.exp(
                 -0.5 * np.dot(x - self.mean_shift,
@@ -651,14 +663,14 @@ class PositionIterator(object):
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'plane')
     >>> positions = next(iter(pi))
-    >>> positions.shape
-    (32768, 3)
+    >>> positions.shape == (32768, 3)
+    True
 
     Group two rows at a time
     >>> pi = PositionIterator((100, 5, 128, 256), (2, 2), [10, 12])
     >>> positions = next(iter(pi))
-    >>> positions.shape
-    (512, 3)
+    >>> positions.shape == (512, 3)
+    True
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'column', [3, 10, 12])
     >>> positions = next(iter(pi))
@@ -679,7 +691,7 @@ class PositionIterator(object):
             raise TypeError('granularity must be of type str, int, or tuple '
                             'of int')
         self.shape = shape
-        if self.shape[self.granularity[0]] % self.granularity[1] is not 0:
+        if self.shape[self.granularity[0]] % self.granularity[1] != 0:
             raise ValueError('granularity[1] must divide the frame shape '
                              'along dimension granularity[0]')
         if offset is None:
@@ -723,7 +735,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
     num_retained : int
 
     """
-    if state_table.shape[1] is not 3:
+    if state_table.shape[1] != 3:
         raise ValueError
     log_references = np.log(references)
     backpointer = []
@@ -769,6 +781,9 @@ class HiddenMarkov3D(_HiddenMarkov):
     max_displacement : array of int, optional
         The maximum allowed displacement magnitudes in [y,x]. By
         default, arbitrarily large displacements are allowed.
+    n_processes : int, optional
+        Number of pool processes to spawn to parallelize frame alignment.
+        Defaults to 1.
 
     References
     ----------
@@ -816,16 +831,16 @@ class NormalizedIterator(object):
     >>> it = NormalizedIterator(
     ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
     ...         np.ones(2), 'plane')
-    >>> next(iter(it))[0].shape
-    (30, 2)
+    >>> next(iter(it))[0].shape == (30, 2)
+    True
 
     Row-wise iteration:
 
     >>> it = NormalizedIterator(
     ...         np.ones((100, 10, 6, 5, 2)), np.ones(2), np.ones(2),
     ...         np.ones(2), 'row')
-    >>> next(iter(it))[0].shape
-    (5, 2)
+    >>> next(iter(it))[0].shape == (5, 2)
+    True
 
     """
     def __init__(self, sequence, gains, pixel_means, pixel_variances,

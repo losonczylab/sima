@@ -27,6 +27,11 @@ from skimage.measure import find_contours
 import sima.misc
 import sima.misc.imagej
 
+import os
+import glob
+import re
+import scipy.io
+
 
 class NonBooleanMask(Exception):
     pass
@@ -82,6 +87,7 @@ class ROI(object):
 
     Examples
     --------
+    >>> import numpy as np
     >>> from sima.ROI import ROI
     >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
     >>> roi.coords
@@ -90,9 +96,9 @@ class ROI(object):
            [ 1.,  1.,  0.],
            [ 1.,  0.,  0.],
            [ 0.,  0.,  0.]])]
-    >>> roi.mask[0].todense()
-    matrix([[ True, False],
-            [False, False]], dtype=bool)
+    >>> np.array(roi)
+    array([[[ True, False],
+            [False, False]]], dtype=bool)
 
     Attributes
     ----------
@@ -111,6 +117,8 @@ class ROI(object):
     im_shape : 3-tuple
         The shape of the image associated with the ROI (z, y, x). Determines
         the shape of the mask.
+    size : int
+        The number of non-zero pixel-weights in the ROI mask.
 
     """
 
@@ -246,6 +254,20 @@ class ROI(object):
         self._mask = _reformat_mask(mask)
         self._polys = None
 
+    def __array__(self):
+        """Obtain a numpy.ndarray representation of the ROI mask.
+
+        Returns
+        -------
+        mask : numpy.ndarray
+            An array representation of the ROI mask.
+        """
+        return np.array([plane.todense() for plane in self.mask])
+
+    @property
+    def size(self):
+        return sum(np.count_nonzero(plane.todense()) for plane in self.mask)
+
     @property
     def im_shape(self):
         if self._im_shape is not None:
@@ -311,12 +333,14 @@ class ROIList(list):
         Parameters
         ----------
         path : string
-            Path to either a pickled ROIList or an ImageJ ROI zip file.
+            Path to either a pickled ROIList, an ImageJ ROI zip file, or the
+            path to the direcotry containing the 'IC filter' .mat files for
+            inscopix/mosaic data.
         label : str, optional
             The label for selecting the ROIList if multiple ROILists
             have been saved in the same file. By default, the most
             recently saved ROIList will be selected.
-        fmt : {'pkl', 'ImageJ'}
+        fmt : {'pkl', 'ImageJ', 'inscopix'}
             The file format being imported.
         reassign_label: boolean
             If true, assign ascending integer strings as labels
@@ -340,6 +364,21 @@ class ROIList(list):
             roi_list = cls(**rois)
         elif fmt == 'ImageJ':
             roi_list = cls(rois=sima.misc.imagej.read_imagej_roi_zip(path))
+        elif fmt == 'inscopix':
+            dirnames = os.walk(path).next()[1]
+            # this naming convetion for ROI masks is used in Mosiac 1.0.0b
+            files = [glob.glob(os.path.join(path, dirname, '*IC filter*.mat'))
+                     for dirname in dirnames]
+            files = filter(lambda f: len(f) > 0, files)[0]
+
+            rois = []
+            for filename in files:
+                label = re.findall('\d+', filename)[-1]
+                data = scipy.io.loadmat(filename)
+                # this is the ROI mask index in Mosiac 1.0.0b
+                mask = data['Object'][0][0][11]
+                rois.append(ROI(mask=mask, id=label, im_shape=mask.shape))
+            roi_list = cls(rois=rois)
         else:
             raise ValueError('Unrecognized file format.')
         if reassign_label:

@@ -16,7 +16,7 @@ try:
 except ImportError:
     h5py_available = False
 else:
-    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.3.1')
+    h5py_available = StrictVersion(h5py.__version__) >= StrictVersion('2.2.1')
 
 import sima
 import sima.misc
@@ -66,7 +66,7 @@ class ImagingDataset(object):
 
     Parameters
     ----------
-    sequences : list of sima.???.Sequence
+    sequences : list of sima.Sequence
         Imaging sequences that can each be iterated over to yield
         the imaging data from each acquistion time.
     savedir : str
@@ -75,17 +75,6 @@ class ImagingDataset(object):
         be appended.
     channel_names : list of str, optional
         Names for the channels. Defaults to ['0', '1', '2', ...].
-    info : dict
-        Data for the order and timing of the data acquisition.
-        See Notes for details. *** combine channel names here? ***
-
-    Notes
-    -----
-    Keys for info:
-        'acquisition period' :\n
-        'plane order' :\n
-        'plane times' :\n
-        'plane heights' :\n
 
     Attributes
     ----------
@@ -103,62 +92,116 @@ class ImagingDataset(object):
 
     """
 
-    def __init__(self, sequences, savedir, channel_names=None, info=None,
+    def __init__(self, sequences, savedir, channel_names=None,
                  read_only=False):
 
         self._read_only = read_only
-        self.info = {} if info is None else info
         if sequences is None:
             # Special case used to load an existing ImagingDataset
             if not savedir:
                 raise Exception('Cannot initialize dataset without sequences '
                                 'or a directory.')
 
-            def unpack(sequence):
-                """Parse a saved Sequence dictionary."""
-                return sequence.pop('__class__')._from_dict(
-                    sequence, savedir)
-
             with open(join(savedir, 'dataset.pkl'), 'rb') as f:
                 data = pickle.load(f)
-            self.sequences = [unpack(s) for s in data.pop('sequences')]
+            if 'sequences' in data:
+                # 1.0.0-dev sets stored sequences in dataset.pkl. Without this
+                # check a later call to ImagingDataset.sequences will fail.
+                # Remove in future version.
+                raise ImportError('Old 1.0.0-dev dataset')
             self._channel_names = data.pop('channel_names', None)
             self._savedir = savedir
-            self.frame_shape = self.sequences[0].shape[1:]
             try:
-                self.num_frames = data.pop('num_frames')
+                self._num_frames = data.pop('num_frames')
             except KeyError:
-                self.num_frames = sum(len(c) for c in self)
-        else:
+                pass
+            try:
+                self._frame_shape = data.pop('frame_shape')
+            except KeyError:
+                pass
+            try:
+                self._num_sequences = data.pop('num_sequences')
+            except KeyError:
+                pass
+        elif all(isinstance(s, sima.Sequence) for s in sequences):
             self.savedir = savedir
             self.sequences = sequences
-            self.frame_shape = self.sequences[0].shape[1:]
-            if not hasattr(self, 'num_frames'):
-                self.num_frames = sum(len(c) for c in self)
             if channel_names is None:
                 self.channel_names = [
                     str(x) for x in range(self.frame_shape[-1])]
             else:
                 self.channel_names = channel_names
-        # initialize sequences
-        self.num_sequences = len(self.sequences)
-        if not np.all([sequence.shape[1:] == self.sequences[0].shape[1:]
-                       for sequence in self.sequences]):
-            raise ValueError(
-                'All sequences must have images of the same size ' +
-                'and the same number of channels.')
+        else:
+            raise TypeError('ImagingDataset objects must be initialized '
+                            'with a list of sequences.')
 
     def __getitem__(self, indices):
         if isinstance(indices, int):
-            return ImagingDataset([self.sequences[indices]], None,
-                                  info=self.info)
+            return ImagingDataset([self.sequences[indices]], None)
         indices = list(indices)
         seq_indices = indices.pop(0)
         if isinstance(seq_indices, int):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None, info=self.info)
+        return ImagingDataset(sequences, None)
+
+    @property
+    def sequences(self):
+        if not hasattr(self, '_sequences'):
+            def unpack(sequence):
+                """Parse a saved Sequence dictionary."""
+                return sequence.pop('__class__')._from_dict(
+                    sequence, self.savedir)
+            with open(join(self.savedir, 'sequences.pkl'), 'rb') as f:
+                sequences = pickle.load(f)
+            self._sequences = [unpack(seq) for seq in sequences]
+            if not np.all([seq.shape[1:] == self._sequences[0].shape[1:]
+                           for seq in self._sequences]):
+                raise ValueError(
+                    'All sequences must have images of the same size ' +
+                    'and the same number of channels.')
+
+        return self._sequences
+
+    @sequences.setter
+    def sequences(self, sequences):
+        try:
+            del self._frame_shape
+        except AttributeError:
+            pass
+        try:
+            del self._num_frames
+        except AttributeError:
+            pass
+        try:
+            del self._num_sequences
+        except AttributeError:
+            pass
+        try:
+            del self._time_averages
+        except AttributeError:
+            pass
+        # TODO: Delete time_averages.pkl? Is that too aggressive?
+        self._sequences = sequences
+
+    @property
+    def num_sequences(self):
+        if not hasattr(self, '_num_sequences'):
+            self._num_sequences = len(self.sequences)
+        return self._num_sequences
+
+    @property
+    def frame_shape(self):
+        if not hasattr(self, '_frame_shape'):
+            self._frame_shape = self.sequences[0].shape[1:]
+        return self._frame_shape
+
+    @property
+    def num_frames(self):
+        if not hasattr(self, '_num_frames'):
+            self._num_frames = sum(len(c) for c in self)
+        return self._num_frames
 
     @property
     def channel_names(self):
@@ -193,13 +236,14 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and os.path.isdir(savedir):
                     overwrite = strtobool(
-                        raw_input("Overwrite existing directory? "))
+                        raw_input("Overwrite existing directory ({})? ".format(
+                            savedir)))
                     # Note: This will overwrite dataset.pkl but will leave
                     #       all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
                     else:
-                        return
+                        self._savedir = None
             else:
                 self._savedir = savedir
             if orig_dir:
@@ -215,19 +259,24 @@ class ImagingDataset(object):
 
     @property
     def time_averages(self):
+        if hasattr(self, '_time_averages'):
+            return self._time_averages
         if self.savedir is not None:
             try:
                 with open(join(self.savedir, 'time_averages.pkl'),
                           'rb') as f:
                     time_averages = pickle.load(f)
+            except IOError:
+                pass
+            else:
                 # Older versions of SIMA saved time_averages as a list
                 # of arrays instead of a single 4D (zyxc) array.
                 # Make sure this is a numpy array and if not just re-calculate
                 # the time averages.
                 if isinstance(time_averages, np.ndarray):
-                    return time_averages
-            except IOError:
-                pass
+                    self._time_averages = time_averages
+                    return self._time_averages
+
         sums = np.zeros(self.frame_shape)
         counts = np.zeros(self.frame_shape)
         for frame in it.chain.from_iterable(self):
@@ -237,7 +286,8 @@ class ImagingDataset(object):
         if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
-        return averages
+        self._time_averages = averages
+        return self._time_averages
 
     @property
     def ROIs(self):
@@ -253,20 +303,22 @@ class ImagingDataset(object):
         """Load a saved ImagingDataset object."""
         try:
             return cls(None, path)
-        except (ImportError, KeyError):
+        except ImportError as error:
+            if not error.args[0] == 'No module named iterables':
+                raise error
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
             ds = _load_version0(path)
             ds._read_only = True
             return ds
 
-    def _todict(self, savedir):
+    def _todict(self):
         """Returns the dataset as a dictionary, useful for saving"""
-        sequences = [sequence._todict(savedir) for sequence in self]
-        return {'sequences': sequences,
-                'savedir': abspath(self.savedir),
+        return {'savedir': abspath(self.savedir),
                 'channel_names': self.channel_names,
                 'num_frames': self.num_frames,
+                'frame_shape': self.frame_shape,
+                'num_sequences': self.num_sequences,
                 '__version__': sima.__version__}
 
     def add_ROIs(self, ROIs, label=None):
@@ -356,7 +408,7 @@ class ImagingDataset(object):
                 transforms = [estimate_array_transform(s, t, method=method)
                               for s, t in it.izip(source, target)]
             except ValueError:
-                print 'Auto transform not implemented for this method'
+                print('Auto transform not implemented for this method')
                 return
         else:
             # Assume one ROI per plane
@@ -453,7 +505,7 @@ class ImagingDataset(object):
         filenames : str or list of str
             A single (.h5) output filename, or a list of (.tif) output
             filenames with one per channel.
-        fmt : {'TIFF8', 'TIFF16'}, optional
+        fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
@@ -466,32 +518,44 @@ class ImagingDataset(object):
         elif not len(filenames) == self.frame_shape[-1]:
             raise ValueError(
                 "The number of filenames must equal the number of channels.")
-        for chan, filename in enumerate(filenames):
-            im = self.time_averages[:, :, :, chan]
-            if dirname(filename):
-                mkdir_p(dirname(filename))
-            if fmt is 'TIFF8':
-                if scale_values:
-                    out = sima.misc.to8bit(im)
-                else:
-                    out = im.astype('uint8')
-            elif fmt is 'TIFF16':
-                if scale_values:
-                    out = sima.misc.to16bit(im)
-                else:
-                    out = im.astype('uint16')
+        if fmt == 'HDF5':
+            if not h5py_available:
+                raise ImportError('h5py >= 2.2.1 required')
+            f = h5py.File(filenames, 'w')
+            im = self.time_averages
+            if scale_values:
+                im = sima.misc.to16bit(im)
             else:
-                raise ValueError('Unrecognized format.')
-            imsave(filename, out)
+                im = im.astype('uint16')
+            f.create_dataset(name='time_average', data=im)
+            for idx, label in enumerate(['z', 'y', 'x', 'c']):
+                f['time_average'].dims[idx].label = label
+            if self.channel_names is not None:
+                f['time_average'].attrs['channel_names'] = np.array(
+                    self.channel_names)
+            f.close()
+        else:
+            for chan, filename in enumerate(filenames):
+                im = self.time_averages[:, :, :, chan]
+                if dirname(filename):
+                    mkdir_p(dirname(filename))
+                if fmt is 'TIFF8':
+                    if scale_values:
+                        out = sima.misc.to8bit(im)
+                    else:
+                        out = im.astype('uint8')
+                elif fmt is 'TIFF16':
+                    if scale_values:
+                        out = sima.misc.to16bit(im)
+                    else:
+                        out = im.astype('uint16')
+                else:
+                    raise ValueError('Unrecognized format.')
+                imsave(filename, out)
 
     def export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
                       scale_values=False):
-        """Save a multi-page TIFF files of the motion-corrected time series.
-
-        # TODO: HDF5, multiple Z planes
-        One TIFF file is created for each sequence and channel.
-        The TIFF files have the same name as the uncorrected files, but should
-        be saved in a different directory.
+        """Export imaging data from the dataset.
 
         Parameters
         ----------
@@ -556,7 +620,7 @@ class ImagingDataset(object):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
 
     def extract(self, rois=None, signal_channel=0, label=None,
-                remove_overlap=True, n_processes=None, demix_channel=None,
+                remove_overlap=True, n_processes=1, demix_channel=None,
                 save_summary=True):
         """Extracts imaging data from the current dataset using the
         supplied ROIs file.
@@ -576,7 +640,7 @@ class ImagingDataset(object):
         n_processes : int, optional
             Number of processes to farm out the extraction across. Should be
             at least 1 and at most one less then the number of CPUs in the
-            computer. If None, uses half the CPUs.
+            computer. Defaults to 1.
         demix_channel : string or int, optional
             Channel to demix from the signal channel, either an integer index
             or a name in self.channel_names If None, do not demix signals.
@@ -622,16 +686,22 @@ class ImagingDataset(object):
         if self._read_only:
             raise Exception('Cannot save read-only dataset.  Change savedir ' +
                             'to a new directory')
-        with open(join(savedir, 'dataset.pkl'), 'wb') as f:
-            pickle.dump(self._todict(savedir), f, pickle.HIGHEST_PROTOCOL)
+        # Keep this out side the with statement
+        # If sequences haven't been loaded yet, need to read sequences.pkl
+        sequences = [seq._todict(savedir) for seq in self.sequences]
+        with open(join(savedir, 'sequences.pkl'), 'wb') as f:
+            pickle.dump(sequences, f, pickle.HIGHEST_PROTOCOL)
 
-    def segment(self, method, label=None, planes=None):
+        with open(join(savedir, 'dataset.pkl'), 'wb') as f:
+            pickle.dump(self._todict(), f, pickle.HIGHEST_PROTOCOL)
+
+    def segment(self, strategy, label=None, planes=None):
         """Segment an ImagingDataset to generate ROIs.
 
         Parameters
         ----------
-        method : sima.segment.SegmentationStrategy
-            The method for segmentation. Defaults to normcut.
+        strategy : sima.segment.SegmentationStrategy
+            The strategy for segmentation.
         label : str, optional
             Label to be associated with the segmented set of ROIs.
         planes : list of int
@@ -642,7 +712,7 @@ class ImagingDataset(object):
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
         """
-        rois = method.segment(self)
+        rois = strategy.segment(self)
         if self.savedir is not None:
             rois.save(join(self.savedir, 'rois.pkl'), label)
         return rois
@@ -669,11 +739,11 @@ class ImagingDataset(object):
         return '<ImagingDataset>'
 
     def __repr__(self):
-        return ('<ImagingDataset: ' + 'num_sequences={n_sequences}, ' +
-                'frame_shape={fsize}, num_frames={frames}>').format(
-            n_sequences=self.num_sequences,
-            fsize=self.frame_shape,
-            frames=self.num_frames)
+        return (
+            '<ImagingDataset: ' + 'num_sequences={n_sequences}, ' +
+            'frame_shape={fsize}, num_frames={frames}>'
+        ).format(n_sequences=self.num_sequences,
+                 fsize=self.frame_shape, frames=self.num_frames)
 
     def __iter__(self):
         return self.sequences.__iter__()

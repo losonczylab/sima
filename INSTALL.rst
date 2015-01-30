@@ -16,7 +16,6 @@ the various prerequisites. Recommended distributions are:
 * `Python(x,y) <http://code.google.com/p/pythonxy/>`_
 * `WinPython <http://code.google.com/p/winpython/>`_
 * `Anaconda <https://store.continuum.io/cshop/anaconda>`_
-* `EPD <http://www.enthought.com/products/epd.php>`_
 
 For Mac OS X, we recommend installing the prerequisites, especially OpenCV,
 using a package manager, such as `MacPorts <http://www.macports.org>`_.
@@ -30,22 +29,19 @@ installed prior to using SIMA:
 * `Python <http://python.org>`_ 2.7 
 * `numpy <http://www.scipy.org>`_ >= 1.6.2
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
-* `matplotlib <http://matplotlib.org>`_ >= 1.2.1
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
+* `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
+* `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
 
 Depending on the features and data formats you wish to use, you may also need
 to install the following packages:
 
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
-* `scikit-learn <http://scikit-learn.org>`_ >= 0.11, required for stICA
-  segmentation
-* `h5py <http://http://www.h5py.org>`_ >= 2.3.1, required for HDF5 file format
-* `pylibtiff <https://code.google.com/p/pylibtiff/>`_, required for more
-  efficient handling of large TIFF files
-* `bottleneck <sima.ROI://pypi.python.org/pypi/Bottleneck>`_ >=0.8 , for faster
-  performance
+* `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
+* `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
+* `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
 * `mdp <http://mdp-toolkit.sourceforge.net>`_, required for ICA demixing of
   channels
 
@@ -61,17 +57,13 @@ Linux
 -----
 The SIMA package can be installed from the python package index::
 
-    $ sudo pip install sima
-
-The easy_install tool can also be used::
-
-    $ sudo easy_install sima
+    $ pip install sima --user 
 
 Source code can be downloaded from https://pypi.python.org/pypi/sima.  If you
 download the source, you can install the package with setuptools::
 
     $ python setup.py build
-    $ sudo python setup.py install
+    $ python setup.py install --user
 
 Windows
 -------
@@ -95,7 +87,8 @@ commands in the Terminal to complete the XCode installation and license agreemen
 Next, download and install MacPorts. Then run the following command in terminal to
 install SIMA and its dependencies::
 
+    $ sudo port selfupdate
     $ sudo port install python27 py27-numpy py27-scipy py27-matplotlib py27-shapely py27-pip py27-h5py opencv +python27
     $ sudo port select --set python python27
     $ sudo port select --set pip pip27
-    $ sudo pip install sima
+    $ pip install sima --user
