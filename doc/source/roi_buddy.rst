@@ -32,27 +32,22 @@ Typical Workflow
 Installation
 ============
 
-The ROI Buddy GUI is compiled as a Windows executable (.exe) file and is
-available for **download** `here <http://losonczylab.org/ROI_Buddy.zip>`__.
-Launch the application directly by opening the .exe file.
+ROI Buddy can be installed from the Python Package Index.::
 
-Alternatively, the ROI Buddy GUI can be built from source.  Source code is
-available for **download** `here
-<http://losonczylab.org/ROI_Buddy_Source.zip>`__.  The ROI Buddy GUI depends on
-SIMA, so shares all dependencies with SIMA. In addition, the following packages
-are required:
+    $ pip install roibuddy --user
 
+Alternatively, the ROI Buddy GUI can be built from source. Source code for
+released versions can be downloaded from the `Python Package Index
+<https://pypi.python.org/pypi/roibuddy>`__, and code under development can be
+downloaded from the project's `GitHub page
+<https://github.com/losonczylab/roibuddy>`__.
+
+The ROI Buddy GUI has the following dependencies:
+
+* sima>=1.0 (https://pypi.python.org/pypi/sima)
 * PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
 * guidata (https://code.google.com/p/guidata/)
 * guiqwt (https://code.google.com/p/guiqwt/)
-
-.. note::
-    The ROI Buddy Windows .exe file compiled with the tifffile module rather
-    than the libtiff C library.  If the ROI Buddy GUI is to be used with large
-    TIFF files containing many frames, we recommend running the ROI Buddy from
-    source after installing the libtiff C library and its associated Python
-    bindings, as it enables more efficient memory handling.  Alternatively, 
-    initializing SIMA sequence with HDF5 datasets enables rapid data access.
 
 Mac OS X
 --------
@@ -65,6 +60,13 @@ run the following command in Terminal to install an additional dependency::
 Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
 `guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
 the `source file <http://losonczylab.org/ROI_Buddy_Source.zip>`__.
+
+Windows
+-------
+For Windows The ROI Buddy GUI with dependencies included is compiled as a
+Windows executable (.exe) file and is available for **download** `here
+<http://losonczylab.org/ROI_Buddy.zip>`__.  Launch the application directly by
+opening the .exe file.
 
 
 User Interface
@@ -118,8 +120,6 @@ Toggling the visibility of ROIs
 .. csv-table::
     :file: roi_buddy/control_panel_view_rois.csv
     :widths: 1, 4
-
-
 
 
 Keyboard shortcuts
