@@ -10,14 +10,18 @@ Development
 * Jack Bowler: test suite, stICA segmentation
 
 
-Testing
--------
+Testing / Bug Fixes
+-------------------
 
 * Ben Shababo
 * Clay Lacefield
 * Matthew Lovett-Barron
 * Matthew J. Davis
 * Thomas Hainmüller
+* Tim Machado
+* Ran Rubin
+* Gokhan Ordek
+* Nathan Kern
 
 
 External code
