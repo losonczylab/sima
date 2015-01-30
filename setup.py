@@ -61,7 +61,7 @@ setup(
     # Project uses reStructuredText, so ensure that the docutils get
     # installed or upgraded on the target machine
     install_requires=[
-        'numpy>=1.9',
+        'numpy>=1.8',
         'scipy>=0.13.0',
         'scikit-image>=0.9.3',
         'shapely>=1.2.14',
