@@ -10,7 +10,7 @@ from scipy.special import gammaln
 try:
     from bottleneck import nansum, nanmedian
 except ImportError:
-    from numpy import nansum,
+    from numpy import nansum
     try:
         from numpy import nanmedian
     except ImportError:
