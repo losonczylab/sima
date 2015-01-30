@@ -389,11 +389,11 @@ class ImagingDataset(object):
                         src_coords, trg_coords, 'affine')
 
                     src_additional_coords = [
-                        [0, 0],
-                        [0, source_dataset.frame_shape[1]],
-                        [source_dataset.frame_shape[2], 0],
-                        [source_dataset.frame_shape[2],
-                         source_dataset.frame_shape[1]]]
+                        [-50, -50],
+                        [-50, source_dataset.frame_shape[1] + 50],
+                        [source_dataset.frame_shape[2] + 50, -50],
+                        [source_dataset.frame_shape[2] + 50,
+                         source_dataset.frame_shape[1] + 50]]
                     trg_additional_coords = whole_frame_transform(
                         src_additional_coords)
 
