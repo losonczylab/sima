@@ -95,7 +95,7 @@ Next, download and install MacPorts. Then run the following command in terminal 
 install SIMA and its dependencies::
 
     $ sudo port selfupdate
-    $ sudo port install python27 py27-numpy py27-scipy py27-matplotlib py27-shapely py27-pip py27-h5py opencv +python27
+    $ sudo port install python27 py27-numpy py27-scipy py27-scikit-image py27-scikit-learn py27-shapely py27-Pillow py27-matplotlib py27-bottleneck py27-pip py27-h5py opencv +python27
     $ sudo port select --set python python27
     $ sudo port select --set pip pip27
     $ pip install sima --user
