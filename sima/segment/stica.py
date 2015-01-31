@@ -308,7 +308,7 @@ class STICA(SegmentationStrategy):
 
     Warning
     -------
-    In version 1.0.0, this method currently only works on datasets with a
+    In version 1.0, this method currently only works on datasets with a
     single plane, or in conjunction with
     :class:`sima.segment.PlaneWiseSegmentation`.
 

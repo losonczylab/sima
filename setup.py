@@ -48,7 +48,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.0.0",
+    version="1.0.1",
     packages=['sima',
               'sima.misc',
               'sima.motion',
