@@ -23,8 +23,9 @@ using a package manager, such as `MacPorts <http://www.macports.org>`_.
 Prerequisites
 =============
 
-SIMA depends on various freely available, open source software that must be
-installed prior to using SIMA:
+SIMA depends on various freely available, open source software. Whenever
+possible, we recommend installing these dependencies with your operating
+system's or Python distribution's package manager prior to installing SIMA.
 
 * `Python <http://python.org>`_ 2.7 
 * `numpy <http://www.scipy.org>`_ >= 1.6.2
