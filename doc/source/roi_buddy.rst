@@ -32,7 +32,16 @@ Typical Workflow
 Installation
 ============
 
-ROI Buddy can be installed from the Python Package Index.::
+The ROI Buddy GUI has the following dependencies which should be installed
+prior to installation of ROI Buddy:
+
+* sima>=1.0 (https://pypi.python.org/pypi/sima)
+* PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
+* guidata (https://code.google.com/p/guidata/)
+* guiqwt (https://code.google.com/p/guiqwt/)
+
+Once these dependencies are installed, the ROI Buddy can be installed from 
+the Python Package Index using pip.::
 
     $ pip install roibuddy --user
 
@@ -42,12 +51,11 @@ released versions can be downloaded from the `Python Package Index
 downloaded from the project's `GitHub page
 <https://github.com/losonczylab/roibuddy>`__.
 
-The ROI Buddy GUI has the following dependencies:
-
-* sima>=1.0 (https://pypi.python.org/pypi/sima)
-* PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
-* guidata (https://code.google.com/p/guidata/)
-* guiqwt (https://code.google.com/p/guiqwt/)
+Installation of ROI Buddy will create an executable file that can be run by
+typing "roibuddy" into your terminal. If this command does not work, check
+the output of the installation command to determine the directory where the
+executable was placed, and either add this directory to your path or run
+the executable directly from that location.
 
 Mac OS X
 --------
@@ -60,13 +68,6 @@ run the following command in Terminal to install an additional dependency::
 Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
 `guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
 the `source file <http://losonczylab.org/ROI_Buddy_Source.zip>`__.
-
-Windows
--------
-For Windows The ROI Buddy GUI with dependencies included is compiled as a
-Windows executable (.exe) file and is available for **download** `here
-<http://losonczylab.org/ROI_Buddy.zip>`__.  Launch the application directly by
-opening the .exe file.
 
 
 User Interface
