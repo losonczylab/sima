@@ -200,3 +200,8 @@ def example_imagej_rois():
 
 def example_hdf5():
     return os.path.join(os.path.dirname(__file__), "../tests/data/example.h5")
+
+
+def example_volume():
+    return os.path.join(os.path.dirname(__file__),
+                        "../tests/data/example-volume.h5")
