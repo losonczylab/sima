@@ -811,7 +811,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         indices = indices if isinstance(indices, tuple) else (indices,)
         times = indices[0]
         if indices[0] not in (None, slice(None)):
-            new_indices = (None,) + indices[1:]
+            new_indices = (slice(None),) + indices[1:]
             return _MotionCorrectedSequence(
                 self._base[times],
                 self.displacements[times],
