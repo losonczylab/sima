@@ -93,7 +93,10 @@ def _frame_alignment_base(
 
     global namespace
     global lock
-    namespace = multiprocessing.Manager().Namespace()
+    if n_processes > 1:
+        namespace = multiprocessing.Manager().Namespace()
+    else:
+        namespace = Struct()
     namespace.offset = np.zeros(3, dtype=int)
     namespace.pixel_counts = np.zeros(dataset.frame_shape)  # TODO: int?
     namespace.pixel_sums = np.zeros(dataset.frame_shape).astype('float64')
