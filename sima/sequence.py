@@ -811,7 +811,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         indices = indices if isinstance(indices, tuple) else (indices,)
         times = indices[0]
         if indices[0] not in (None, slice(None)):
-            new_indices = (None,) + indices[1:]
+            new_indices = (slice(None),) + indices[1:]
             return _MotionCorrectedSequence(
                 self._base[times],
                 self.displacements[times],
@@ -938,7 +938,10 @@ class _IndexedSequence(_WrapperSequence):
     def __iter__(self):
         try:
             for t in self._times:
-                yield self._base._get_frame(t)[self._indices[1:]]
+                # Note the np.copy is necessary to prevent the whole array
+                # into which the view is being made from being stored in
+                # memory.
+                yield np.copy(self._base._get_frame(t)[self._indices[1:]])
         except NotImplementedError:
             idx = 0
             for t, frame in enumerate(self._base):
@@ -947,7 +950,10 @@ class _IndexedSequence(_WrapperSequence):
                 except IndexError:
                     raise StopIteration
                 if whether_yield:
-                    yield frame[self._indices[1:]]
+                    # Note the np.copy is necessary to prevent the whole array
+                    # into which the view is being made from being stored in
+                    # memory.
+                    yield np.copy(frame[self._indices[1:]])
                     idx += 1
 
     def _get_frame(self, t):
