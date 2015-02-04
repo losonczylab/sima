@@ -1,3 +1,5 @@
+from __future__ import print_function
+from __future__ import absolute_import
 try:
     from itertools import izip as zip
 except:  # Python 3
@@ -18,7 +20,7 @@ except ImportError:
 
 from scipy.stats.mstats import mquantiles
 
-import _motion as mc
+from . import _motion as mc
 import sima.motion.frame_align
 import sima.misc
 from sima.motion import MotionEstimationStrategy
@@ -354,7 +356,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
         displacements = []
         for i, sequence in enumerate(dataset):
             if self._params.verbose:
-                print 'Estimating displacements for cycle ', i
+                print('Estimating displacements for cycle ', i)
             imdata = NormalizedIterator(sequence, gains, pixel_means,
                                         pixel_variances, granularity)
             positions = PositionIterator(sequence.shape[:-1], granularity)
@@ -389,7 +391,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
         """
         params = self._params
         if params.verbose:
-            print 'Estimating model parameters.'
+            print('Estimating model parameters.')
         shifts = self._estimate_shifts(dataset)
         references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 
 import numpy as np
@@ -341,7 +342,7 @@ class STICA(SegmentationStrategy):
             ica_path = None
 
         if self._params.verbose:
-            print 'performing PCA...'
+            print('performing PCA...')
         if isinstance(self._params.components, int):
             self._params.components = range(self._params.components)
         _, space_pcs, time_pcs = _OPCA(
@@ -356,7 +357,7 @@ class STICA(SegmentationStrategy):
         ).transpose((1, 0))
 
         if self._params.verbose:
-            print 'performing ICA...'
+            print('performing ICA...')
         st_components = _stica(
             space_pcs, time_pcs, mu=self._params.mu, path=ica_path,
             n_components=space_pcs.shape[2])
@@ -373,11 +374,11 @@ class STICA(SegmentationStrategy):
 
             if self._params.smooth_rois:
                 if self._params.verbose:
-                    print 'smoothing ROIs...'
+                    print('smoothing ROIs...')
                 rois = [_smooth_roi(roi)[0] for roi in rois]
 
             if self._params.verbose:
-                print 'removing overlapping ROIs...'
+                print('removing overlapping ROIs...')
             rois = _remove_overlapping(
                 rois, percent_overlap=self._params.overlap_per)
         else:

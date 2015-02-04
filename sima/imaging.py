@@ -1,4 +1,5 @@
 """Base classes for multiframe imaging data."""
+from __future__ import print_function
 import warnings
 import collections
 import itertools as it

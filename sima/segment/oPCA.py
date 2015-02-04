@@ -1,6 +1,7 @@
 """
 Offset principal component analysis functions.
 """
+from __future__ import print_function
 import numpy as np
 try:
     from bottleneck import nanmean
@@ -114,8 +115,8 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000, verbose=False):
         # U = np.dot(np.dot(np.dot(U, U.T), inv(ZUT)), Z)[order]
         U = np.linalg.qr(Z[order].T)[0].T
         if verbose:
-            print "iter_count:", iter_count, "\t\terror:", error, \
-                '\t\teivals', eivals
+            print("iter_count:", iter_count, "\t\terror:", error,
+                  '\t\teivals', eivals)
         if error < tolerance:
             break
     # project data with U
@@ -163,7 +164,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
         U = U0 / norm(U0)  # np.random.randn(num_pcs, p)
         iter_count = 0
         while True:
-            print iter_count
+            print(iter_count)
             iter_count += 1
             if iter_count > max_iter:
                 warnings.warn("max_iter reached by power_iteration_oPCA")
@@ -183,7 +184,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
         OX[1:] -= XUtU[:-1]
         OX[:-1] -= XUtU[1:]  # TODO: isn't this wrong???
         """
-        print 'Eigenvalue', pc_idx + 1, 'found'
+        print('Eigenvalue', pc_idx + 1, 'found')
     eivects = np.concatenate(eivects, axis=1)
     for i in range(eivects.shape[1]):
         eivects[:, i] /= norm(eivects[:, i])

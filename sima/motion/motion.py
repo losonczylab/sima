@@ -1,10 +1,11 @@
+from __future__ import absolute_import
 import itertools as it
 import abc
 
 import numpy as np
 
 import sima
-import _motion as mc
+from . import _motion as mc
 
 
 def add_with_offset(array1, array2, offset):

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import itertools as it
 import multiprocessing
 import warnings
@@ -9,7 +10,7 @@ except ImportError:
     from numpy import nanmean
 import scipy.ndimage.filters
 
-import motion
+from . import motion
 from sima.misc.align import align_cross_correlation
 
 try:
