@@ -65,14 +65,14 @@ class MotionEstimationStrategy(object):
             for shift in it.chain.from_iterable(shifts))
         return shifts
 
-    def correct(self, sequences, savedir, channel_names=None, info=None,
+    def correct(self, dataset, savedir, channel_names=None, info=None,
                 correction_channels=None, trim_criterion=None):
         """Create a motion-corrected dataset.
 
         Parameters
         ----------
-        sequences : list of list of iterable
-            Iterables yielding frames from imaging cycles and channels.
+        dataset : sima.ImagingDataset or list of sima.Sequence
+            Dataset or sequences to be motion corrected.
         savedir : str
             The directory used to store the dataset. If the directory
             name does not end with .sima, then this extension will
@@ -97,6 +97,7 @@ class MotionEstimationStrategy(object):
         dataset : sima.ImagingDataset
             The motion-corrected dataset.
         """
+        sequences = [s for s in dataset]
         if correction_channels:
             correction_channels = [
                 sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
@@ -108,7 +109,7 @@ class MotionEstimationStrategy(object):
         displacements = self.estimate(sima.ImagingDataset(mc_sequences, None))
         disp_dim = displacements[0].shape[-1]
         max_disp = np.max(list(it.chain.from_iterable(d.reshape(-1, disp_dim)
-                               for d in displacements)),
+                                                      for d in displacements)),
                           axis=0)
         frame_shape = np.array(sequences[0].shape)[1: -1]  # (z, y, x)
         if len(max_disp) == 2:  # if 2D displacements
