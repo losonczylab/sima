@@ -1,7 +1,7 @@
 ###Appveyor CI build script
 
 # version format
-version: 0.3.x{build}
+version: 1.0.x{build}
 
 # branches to build
 branches:
@@ -10,6 +10,7 @@ branches:
     - master
     - 0.2.x
     - 0.3.x
+    - 1.0.x
 
 #---------------------------------#
 #    environment configuration    #
