@@ -126,6 +126,52 @@ class MotionEstimationStrategy(object):
             corrected_sequences, savedir, channel_names=channel_names)
 
 
+class ResonantCorrection(MotionEstimationStrategy):
+    """Motion estimation strategy for resonant scanner data.
+
+    When acquiring data imaging data with a resonant scanner, the data
+    acquired when imaging the same positions can be substantially different
+    depending no whether the resonant scanner is moving in one direction
+    or the other when passing over that row. This can cause problems when
+    trying to motion correct the data, since even rows are collected while
+    scanning in one direction and odd rows are colleced by scanning
+    in the other direction.
+
+    The class defined here addresses this issue by using only the even
+    rows to estimate the displacments, and then uses those displacements
+    to motion-correct the entire dataset.
+
+    Parameters
+    ----------
+    base_strategy : sima.motion.MotionEstimationStrategy
+        The underlying motion estimation strategy that will be used.
+    offset : int
+        Horizontal displacement to be added to even rows. Not the
+        convention that row 0 (i.e. the "first" row) is considered
+        even.
+    """
+
+    def __init__(self, base_strategy, offset=0):
+        self._base_strategy = base_strategy
+        self._offset = offset
+
+    def _estimate(self, dataset):
+        if not next(iter(dataset)).shape[2] % 2 == 0:
+            raise ValueError(
+                'Resonant motion correction requires an even number of rows')
+        downsampled_dataset = sima.ImagingDataset(
+            [seq[:, :, ::2] for seq in dataset], None)
+        downsampled_displacements = self._base_strategy.estimate(
+            downsampled_dataset)
+        displacements = []
+        for d_disps in downsampled_displacements:
+            disps = np.repeat(d_disps, 2, axis=2)  # Repeat the displacements
+            disps[:, :, :, 0] *= 2  # multiply y-shifts by 2
+            disps[:, :, ::2, -1] += self._offset  # shift even rows by offset
+            displacements.append(disps)
+        return displacements
+
+
 def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     """The coordinates used to trim the corrected imaging data."""
     epsilon = 1e-8
