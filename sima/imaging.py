@@ -417,12 +417,14 @@ class ImagingDataset(object):
             for plane_idx in xrange(self.frame_shape[0]):
                 for roi in self.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
-                        trg_coords = roi.coords[0][:, :2]
+                        # Coords is a closed polygon, so the last coord and the
+                        # first coord are identical, remove one copy
+                        trg_coords = roi.coords[0][:-1, :2]
                     else:
                         pass
                 for roi in source_dataset.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
-                        src_coords = roi.coords[0][:, :2]
+                        src_coords = roi.coords[0][:-1, :2]
                 assert len(src_coords) == len(trg_coords)
 
                 mean_dists = []
