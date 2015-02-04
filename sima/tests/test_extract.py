@@ -1,3 +1,7 @@
+from __future__ import division
+from builtins import range
+from past.utils import old_div
+from builtins import object
 # Unit tests for sima/extract.py
 # Tests follow conventions for NumPy/SciPy available at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
@@ -16,7 +20,6 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
-from scipy.weave import build_tools
 import sima
 import numpy as np
 
@@ -30,6 +33,7 @@ def teardown():
 
 
 class Test_ConstantData(object):
+
     def setup(self):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
@@ -95,6 +99,7 @@ class Test_ConstantData(object):
 
 
 class Test_VaryingData(object):
+
     def setup(self):
         pattern = np.tile([0.4, 0.8, 1.2, 1.6], (3, 1))
         data = np.ones((20, 2, 6, 8, 2))
@@ -183,11 +188,11 @@ class Test_VaryingData(object):
              for t in range(20)])
         roi1_expected_overlap = np.array(
             [sum(np.array([-0.6, -0.2, 0.2, 0.6])
-             * np.roll(np.array([1 / 3., 1 / 3., 1 / 3., 0.0]), -t, 0)) + 1.
+             * np.roll(np.array([old_div(1, 3.), old_div(1, 3.), old_div(1, 3.), 0.0]), -t, 0)) + 1.
              for t in range(20)])
         roi2_expected_overlap = np.array(
             [sum(np.array([-0.6, -0.2, 0.2, 0.6])
-             * np.roll(np.array([0.0, 1 / 3., 1 / 3., 1 / 3.]), -t, 0)) + 1.
+             * np.roll(np.array([0.0, old_div(1, 3.), old_div(1, 3.), old_div(1, 3.)]), -t, 0)) + 1.
              for t in range(20)])
 
         assert_array_almost_equal(

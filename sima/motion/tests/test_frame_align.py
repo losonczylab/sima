@@ -1,3 +1,5 @@
+from future import standard_library
+standard_library.install_aliases()
 # Unit tests for sima/motion/_hmm.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
@@ -22,9 +24,8 @@ from sima import Sequence
 from sima.misc import example_hdf5, example_tiff
 
 import warnings
-import cPickle as pickle
+import pickle as pickle
 
-from scipy.weave import build_tools
 import os
 import tempfile
 import numpy as np
@@ -45,8 +46,6 @@ def setup():
     except:
         pass
 
-    tmp_dir = build_tools.configure_temp_dir(tmp_dir)
-
 
 def test_shifted_corr():
     reference = np.random.RandomState(seed=0).normal(size=(10, 20, 30, 3))
@@ -56,6 +55,7 @@ def test_shifted_corr():
         shifted = np.roll(shifted, -s, i)
     assert_almost_equal(
         sima.motion.frame_align.shifted_corr(reference, shifted, shifts), 1.)
+
 
 def teardown():
     # teardown is executed after all of the tests in this file have comlpeted

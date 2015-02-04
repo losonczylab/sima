@@ -2,6 +2,9 @@
 Offset principal component analysis functions.
 """
 from __future__ import print_function
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 import numpy as np
 try:
     from bottleneck import nanmean
@@ -27,7 +30,7 @@ def _method_1(data, num_pcs=None):
     eivals = np.real(eivals)
     eivects = np.real(eivects)
     idx = np.argsort(-eivals)  # sort the eigenvectors and eigenvalues
-    eivals = eivals[idx] / (2. * (T - 1))
+    eivals = old_div(eivals[idx], (2. * (T - 1)))
     eivects = eivects[:, idx]
     return eivals, eivects, np.dot(data, eivects)
 
@@ -47,7 +50,7 @@ def _method_2(data, num_pcs=None):
     eivals = np.real(eivals)
     eivects = np.real(eivects)
     idx = np.argsort(-eivals)  # sort the eigenvectors and eigenvalues
-    eivals = eivals[idx] / (2. * (T - 1))
+    eivals = old_div(eivals[idx], (2. * (T - 1)))
     eivects = eivects[:, idx]
     transformed_eivects = np.dot(data.T, eivects)
     for i in range(transformed_eivects.shape[1]):  # normalize the eigenvectors
@@ -105,7 +108,7 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000, verbose=False):
         ZUT = np.dot(Z, U.T)
         eivals = np.diag(ZUT)
         order = np.argsort(abs(eivals))[::-1]
-        error = np.sum(abs(eivals - eivals_old)) / np.sum(abs(eivals))
+        error = old_div(np.sum(abs(eivals - eivals_old)), np.sum(abs(eivals)))
         eivals_old = eivals[order]
         # Although part of the original OPCA algorithm, the line below
         # causes problems with convergence for large numbers of PCs,
@@ -161,7 +164,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
     eivects, eivals = [], []
     Z = np.zeros((1, p))
     for pc_idx in range(num_pcs):
-        U = U0 / norm(U0)  # np.random.randn(num_pcs, p)
+        U = old_div(U0, norm(U0))  # np.random.randn(num_pcs, p)
         iter_count = 0
         while True:
             print(iter_count)
@@ -171,13 +174,13 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
                 break
             _opca._Z_update(Z, U, data)
             U_new = np.dot(np.dot(np.dot(U, U.T), inv(np.dot(Z, U.T))), Z)
-            error = norm(U_new - U) / norm(U)
-            U = U_new / norm(U_new)
+            error = old_div(norm(U_new - U), norm(U))
+            U = old_div(U_new, norm(U_new))
             if error < tolerance:
                 break
         eivects.append(U.T)
-        eivals.append(float(np.dot(Z, U.T) /
-                            np.dot(U, U.T)) / (2. * (X.shape[0] - 1.)))
+        eivals.append(old_div(float(old_div(np.dot(Z, U.T),
+                                            np.dot(U, U.T))), (2. * (X.shape[0] - 1.))))
         """
         XUtU = np.dot(np.dot(X, U.T), U)
         X -= XUtU

@@ -1,3 +1,8 @@
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import range
+from past.utils import old_div
 # Copyright: Luis Pedro Coelho <luis@luispedro.org>, 2012
 # License: MIT
 #
@@ -112,15 +117,15 @@ def read_roi(roi_obj):
         else:
             getc = _get16
             points = np.empty((n_coordinates, 3), dtype=np.int16)
-        points[:, 0] = [getc() for _ in xrange(n_coordinates)]
-        points[:, 1] = [getc() for _ in xrange(n_coordinates)]
+        points[:, 0] = [getc() for _ in range(n_coordinates)]
+        points[:, 1] = [getc() for _ in range(n_coordinates)]
         points[:, 0] += left
         points[:, 1] += top
         points[:, 2] = z
         return points
 
     magic = roi_obj.read(4)
-    if magic != 'Iout':
+    if magic != b'Iout':
         raise IOError('read_imagej_roi: Magic number not found')
 
     _get16()  # version
@@ -177,12 +182,12 @@ def read_roi(roi_obj):
         height = bottom - top
 
         # 0.5 moves the mid point to the center of the pixel
-        x_mid = (right + left) / 2.0 - 0.5
-        y_mid = (top + bottom) / 2.0 - 0.5
+        x_mid = old_div((right + left), 2.0) - 0.5
+        y_mid = old_div((top + bottom), 2.0) - 0.5
         mask = np.zeros((z + 1, bottom, right), dtype=bool)
         for y, x in product(np.arange(top, bottom), np.arange(left, right)):
-            mask[z, y, x] = ((x - x_mid) ** 2 / (width / 2.0) ** 2 +
-                             (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
+            mask[z, y, x] = (old_div((x - x_mid) ** 2, (old_div(width, 2.0)) ** 2) +
+                             old_div((y - y_mid) ** 2, (old_div(height, 2.0)) ** 2) <= 1)
         return {'mask': mask}
     elif roi_type == 7:
         # Freehand

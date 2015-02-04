@@ -1,3 +1,4 @@
+from builtins import object
 # Unit tests for sima/imaging.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
@@ -20,7 +21,6 @@ from numpy.testing import (
 
 from sima import ImagingDataset, Sequence, ROI
 from sima.misc import example_hdf5, example_imagej_rois
-from scipy.weave import build_tools
 import os
 import shutil
 # import tempfile
@@ -40,8 +40,6 @@ def setup():
         os.mkdir(tmp_dir)
     except:
         pass
-
-    tmp_dir = build_tools.configure_temp_dir(tmp_dir)
 
 
 def teardown():

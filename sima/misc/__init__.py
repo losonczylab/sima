@@ -1,3 +1,7 @@
+from __future__ import division
+from builtins import next
+from builtins import range
+from past.utils import old_div
 import os
 import itertools as it
 import errno
@@ -35,12 +39,12 @@ def lazyprop(fn):
 
 def to8bit(array):
     """Convert an array to 8 bit."""
-    return ((255. * array) / nanmax(array)).astype('uint8')
+    return (old_div((255. * array), nanmax(array))).astype('uint8')
 
 
 def to16bit(array):
     """Convert an array to 16 bit."""
-    return ((65535. * array) / nanmax(array)).astype('uint16')
+    return (old_div((65535. * array), nanmax(array))).astype('uint16')
 
 
 def mkdir_p(path):
@@ -57,18 +61,18 @@ def mkdir_p(path):
 def most_recent_key(d):
     """Return the key to the most recently timestamped entry"""
     try:
-        return max(d.iterkeys(), key=lambda x: d[x]['timestamp'])
+        return max(iter(d.keys()), key=lambda x: d[x]['timestamp'])
     except (TypeError, KeyError):
-        return max(d.iterkeys(), key=lambda x: d[x].timestamp)
+        return max(iter(d.keys()), key=lambda x: d[x].timestamp)
 
 
 def auto_choose(d):
     """Automatically choose the most recent value in a timestamped
     dictionary."""
     try:
-        return max(d.itervalues(), key=lambda x: x['timestamp'])
+        return max(iter(d.values()), key=lambda x: x['timestamp'])
     except:
-        return max(d.itervalues(), key=lambda x: x.timestamp)
+        return max(iter(d.values()), key=lambda x: x.timestamp)
 
 
 def copy_label_to_id(rois):
@@ -99,7 +103,7 @@ def resolve_channels(chan, channel_names, num_channels=None):
 def pairwise(iterable):
     a, b = it.tee(iterable)
     next(b, None)
-    return it.izip(a, b)
+    return zip(a, b)
 
 
 # was affine_trnasform

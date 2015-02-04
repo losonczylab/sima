@@ -67,6 +67,7 @@ setup(
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
         'pillow>=2.6.1',
+        'future',
     ],
     package_data={
         'sima': [

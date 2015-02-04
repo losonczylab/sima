@@ -40,6 +40,7 @@ Dependencies
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
+* `future <https://pypi.python.org/pypi/future>`_
 
 Optional dependencies
 ---------------------

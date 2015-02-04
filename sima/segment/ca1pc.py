@@ -1,3 +1,6 @@
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 from distutils.version import LooseVersion
 
 import numpy as np
@@ -20,6 +23,7 @@ from sima.ROI import ROI, ROIList
 
 
 class CA1PCNucleus(PostProcessingStep):
+
     """Return ROI structures containing CA1 pyramidal cell somata.
 
     Parameters
@@ -106,8 +110,9 @@ def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
         raise ImportError('OpenCV >= 2.4.8 required')
     transform = cv2.createCLAHE(clipLimit=clip_limit,
                                 tileGridSize=(
-                                    int(image.shape[1] / float(x_tile_size)),
-                                    int(image.shape[0] / float(y_tile_size))))
+                                    int(old_div(
+                                        image.shape[1], float(x_tile_size))),
+                                    int(old_div(image.shape[0], float(y_tile_size)))))
     return transform.apply(sima.misc.to8bit(image))
 
 
@@ -178,6 +183,7 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
 
 
 class PlaneCA1PC(SegmentationStrategy):
+
     """Segmentation method designed for finding CA1 pyramidal cell somata.
 
     Parameters
@@ -236,6 +242,7 @@ class PlaneCA1PC(SegmentationStrategy):
     :class:`sima.segment.PlaneWiseSegmentation`.
 
     """
+
     def __init__(
             self, channel=0, num_pcs=75, max_dist=None, spatial_decay=None,
             cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, x_diameter=10,

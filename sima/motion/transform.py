@@ -1,9 +1,11 @@
+from builtins import object
 import abc
+from future.utils import with_metaclass
 
 
-class Transform(object):
+class Transform(with_metaclass(abc.ABCMeta, object)):
+
     """Abstract class for geometric transforms."""
-    __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def apply(self, source, grid=None):
@@ -21,16 +23,14 @@ class Transform(object):
         pass
 
 
-class InvertibleTransform(Transform):
-    __metaclass__ = abc.ABCMeta
+class InvertibleTransform(with_metaclass(abc.ABCMeta, Transform)):
 
     @abc.abstractmethod
     def inverse(self):
         pass
 
 
-class DifferentiableTransform(Transform):
-    __metaclass__ = abc.ABCMeta
+class DifferentiableTransform(with_metaclass(abc.ABCMeta, Transform)):
 
     @abc.abstractmethod
     def jacobian(self):
@@ -38,6 +38,7 @@ class DifferentiableTransform(Transform):
 
 
 class NullTransform(Transform):
+
     """Class to represent a null transform.
 
     This may be useful to indicate that a transform could not be estimated.
