@@ -48,7 +48,7 @@ class Test_ResonantCorrection(object):
 
     def test_estimate(self):
         displacements = self.strategy.estimate(self.dataset)
-        assert_(all((np.all(d > 0) for d in displacements)))
+        assert_(all((np.all(d >= 0) for d in displacements)))
         assert_(np.diff(displacements[0][0, 0, :, -1])[0] == 5)
 
 
