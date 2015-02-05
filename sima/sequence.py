@@ -392,7 +392,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         # Make directories necessary for saving the files.
         try:  # HDF5 case
             out_dirs = [[dirname(filenames)]]
-        except AttributeError:  # TIFF case
+        except (AttributeError, TypeError):  # TIFF case
             out_dirs = [[dirname(f) for f in plane] for plane in filenames]
         for d in [_f for _f in it.chain.from_iterable(out_dirs) if _f]:
             sima.misc.mkdir_p(d)
