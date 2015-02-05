@@ -399,9 +399,3 @@ def _smooth_roi(roi, radius=3):
     # The maximum number of cycles has completed and no suitable smoothed ROI
     # has been determined
     return roi, False
-
-
-class Struct(object):
-
-    def __init__(self, **entries):
-        self.__dict__.update(entries)

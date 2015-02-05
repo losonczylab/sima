@@ -49,9 +49,8 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
 
     def __init__(self, max_displacement=None, method='correlation',
                  n_processes=1):
-        d = locals()
-        del d['self']
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     def _estimate(self, dataset):
         """Estimate whole-frame displacements based on pixel correlations.
@@ -67,8 +66,8 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         """
         params = self._params
         return _frame_alignment_base(
-            dataset, params.max_displacement, params.method,
-            params.n_processes)[0]
+            dataset, params['max_displacement'], params['method'],
+            params['n_processes'])[0]
 
 
 def _frame_alignment_base(
@@ -341,9 +340,8 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
         if not (criterion is None or
                 isinstance(criterion, (int, int, float))):
             raise ValueError('Criterion must be a number')
-        d = locals()
-        del d['self']
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     def _estimate(self, dataset):
         reference = next(iter(next(iter(dataset))))
@@ -357,13 +355,13 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
             seq_displacements = []
             seq_correlations = []
             for frame in sequence:
-                if self._params.max_displacement is not None:
+                if self._params['max_displacement'] is not None:
                     bounds = np.array([
                         np.minimum(
-                            disp_range[1] - self._params.max_displacement,
+                            disp_range[1] - self._params['max_displacement'],
                             disp_range[0]),
                         np.maximum(
-                            disp_range[0] + self._params.max_displacement,
+                            disp_range[0] + self._params['max_displacement'],
                             disp_range[1])]) + offset
                 else:
                     bounds = None
@@ -374,15 +372,16 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
                 disp_range[1] = np.maximum(disp_range[1], displacement)
                 sums, counts, offset = _update_reference(
                     sums, counts, offset, displacement, frame)
-                if self._params.criterion is not None:
+                if self._params['criterion'] is not None:
                     seq_correlations.append(
                         shifted_corr(reference, frame, offset + displacement))
                 reference = old_div(sums, counts)
             displacements.append(np.array(seq_displacements))
             correlations.append(np.array(seq_correlations))
-        if self._params.criterion is not None:
+        if self._params['criterion'] is not None:
             threshold = np.concatenate(correlations).mean() - \
-                self._params.criterion * np.std(np.concatenate(correlations))
+                self._params['criterion'] * np.std(
+                    np.concatenate(correlations))
             for seq_idx, seq_correlations in enumerate(correlations):
                 if np.any(seq_correlations < threshold):
                     displacements[seq_idx] = np.ma.array(

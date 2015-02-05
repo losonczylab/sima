@@ -145,16 +145,16 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
                  num_pcs=75, x_diameter=10, y_diameter=10, verbose=False):
         super(AffinityMatrixCA1PC, self).__init__(
             channel, max_dist, spatial_decay, num_pcs, verbose)
-        self._params.x_diameter = x_diameter
-        self._params.y_diameter = y_diameter
+        self._params['x_diameter'] = x_diameter
+        self._params['y_diameter'] = y_diameter
 
     def _setup(self, dataset):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
-        channel = sima.misc.resolve_channels(self._params.channel,
+        channel = sima.misc.resolve_channels(self._params['channel'],
                                              dataset.channel_names)
         processed_image = _processed_image_ca1pc(
-            dataset, channel, self._params.x_diameter,
-            self._params.y_diameter)[0]
+            dataset, channel, self._params['x_diameter'],
+            self._params['y_diameter'])[0]
         time_avg = processed_image
         std = np.std(time_avg)
         time_avg = np.minimum(time_avg, 2 * std)
