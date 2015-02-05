@@ -179,8 +179,8 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
             if error < tolerance:
                 break
         eivects.append(U.T)
-        eivals.append(old_div(float(old_div(np.dot(Z, U.T),
-                                            np.dot(U, U.T))), (2. * (X.shape[0] - 1.))))
+        eivals.append(float(np.dot(Z, U.T) / np.dot(U, U.T)) /
+                      (2. * (X.shape[0] - 1.)))
         """
         XUtU = np.dot(np.dot(X, U.T), U)
         X -= XUtU

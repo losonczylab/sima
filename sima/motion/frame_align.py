@@ -494,7 +494,8 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
         best_corr = -np.inf
         best_displacement = None
         for adjustment in it.product(
-                *[list(range(-1, 2)) if a else list(range(1)) for a in axes_bool]):
+                *[list(range(-1, 2)) if a else list(range(1))
+                  for a in axes_bool]):
             displacement = (1 + axes_bool) * disp + np.array(adjustment)
             if within_bounds(displacement, bounds):
                 corr = shifted_corr(reference, target, displacement)

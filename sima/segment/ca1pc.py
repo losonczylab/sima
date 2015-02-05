@@ -1,6 +1,5 @@
 from __future__ import division
 from builtins import range
-from past.utils import old_div
 from distutils.version import LooseVersion
 
 import numpy as np
@@ -110,9 +109,8 @@ def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
         raise ImportError('OpenCV >= 2.4.8 required')
     transform = cv2.createCLAHE(clipLimit=clip_limit,
                                 tileGridSize=(
-                                    int(old_div(
-                                        image.shape[1], float(x_tile_size))),
-                                    int(old_div(image.shape[0], float(y_tile_size)))))
+                                    int(image.shape[1] // float(x_tile_size)),
+                                    int(image.shape[0] // float(y_tile_size))))
     return transform.apply(sima.misc.to8bit(image))
 
 

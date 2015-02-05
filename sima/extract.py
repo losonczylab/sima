@@ -365,8 +365,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         """Takes an aligned_data generator for a single cycle
         and returns df/f of each pixel formatted correctly for extraction"""
         while True:
-            df_frame = old_div((
-                next(cycle)[..., channel] - time_averages[..., channel]), time_averages[..., channel])
+            df_frame = (
+                next(cycle)[..., channel] - time_averages[..., channel]
+            ) / time_averages[..., channel]
             yield df_frame.flatten()
 
     for cycle_idx, sequence in zip(it.count(), dataset):

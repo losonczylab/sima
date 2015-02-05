@@ -4,7 +4,6 @@ from __future__ import division
 from builtins import zip
 from builtins import range
 from builtins import object
-from past.utils import old_div
 
 import itertools as it
 import warnings
@@ -57,10 +56,10 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
     for frame in it.chain.from_iterable(dataset):
         for plane in frame:
             if t > 0:
-                mean_est = old_div(sums, counts)
-                var_est = (old_div(sum_squares, counts)) - (mean_est ** 2)
+                mean_est = sums / counts
+                var_est = (sum_squares / counts) - (mean_est ** 2)
             if t > min_frames and np.all(
-                    old_div(np.sqrt(old_div(var_est, counts)), mean_est) < tolerance):
+                    np.sqrt(var_est / counts) / mean_est < tolerance):
                 break
             sums += np.nan_to_num(nansum(nansum(plane, axis=0), axis=0))
             sum_squares += np.nan_to_num(
@@ -135,7 +134,7 @@ def _whole_frame_shifting(dataset, shifts):
         warnings.simplefilter("ignore")
         reference /= count
         assert np.all(np.isnan(reference[np.equal(count, 0)]))
-        variances = (old_div(sum_squares, count)) - reference ** 2
+        variances = (sum_squares / count) - reference ** 2
         assert not np.any(variances < 0)
     return reference, variances
 
@@ -230,10 +229,10 @@ def _initial_distribution(decay, noise_cov, mean_shift):
     initial_cov[0, 0] = max(initial_cov[0, 0], 0.1)
     initial_cov[1, 1] = max(initial_cov[1, 1], 0.1)
 
-    return lambda x: old_div(np.exp(
+    return lambda x: np.exp(
         -0.5 * np.dot(
             x - mean_shift, np.linalg.solve(initial_cov, x - mean_shift))
-    ), np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov)))
+    ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
 
 
 def _lookup_tables(position_bounds, log_markov_matrix):
@@ -347,13 +346,13 @@ class _HiddenMarkov(MotionEstimationStrategy):
         """
         assert references.ndim == 4
         granularity = self._params.granularity
-        scaled_refs = old_div(references, gains)
+        scaled_refs = references / gains
         displacement_tbl, transition_tbl, log_markov_tbl, = _lookup_tables(
             [min_displacements, max_displacements + 1],
             movement_model.log_transition_matrix(
                 max_distance=max_step,
-                dt=old_div(float(granularity[1]), np.prod(
-                    references.shape[:granularity[0]]))))
+                dt=granularity[1] / np.prod(references.shape[:granularity[0]]))
+        )
         assert displacement_tbl.dtype == int
         tmp_states, log_p = movement_model.initial_probs(
             displacement_tbl, min_displacements, max_displacements)
@@ -370,7 +369,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
                 displacement_tbl, (tmp_states, log_p),
                 self._params.num_states_retained)
             new_shape = sequence.shape[:granularity[0]] + \
-                (old_div(sequence.shape[granularity[0]], granularity[1]),) + \
+                (sequence.shape[granularity[0]] // granularity[1],) + \
                 (disp.shape[-1],)
             displacements.append(np.repeat(disp.reshape(new_shape),
                                            repeats=granularity[1],
@@ -399,11 +398,11 @@ class _HiddenMarkov(MotionEstimationStrategy):
         shifts = self._estimate_shifts(dataset)
         references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:
-            max_displacement = old_div(np.array(dataset.frame_shape[:3]), 2)
+            max_displacement = np.array(dataset.frame_shape[:3]) // 2
         else:
             max_displacement = np.array(params.max_displacement)
         gains = nanmedian(
-            (old_div(variances, references)).reshape(-1, references.shape[-1]))
+            (variances / references).reshape(-1, references.shape[-1]))
         if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
             raise Exception('Failed to estimate positive gains')
         pixel_means, pixel_variances = _pixel_distribution(dataset)
@@ -420,7 +419,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
         # add a bit of extra room to move around
         if max_displacement.size == 2:
             max_displacement = np.hstack(([0], max_displacement))
-        extra_buffer = (old_div((max_displacement - max_shifts + min_shifts), 2)
+        extra_buffer = ((max_displacement - max_shifts + min_shifts) // 2
                         ).astype(int)
         min_displacements = min_shifts - extra_buffer
         max_displacements = max_shifts + extra_buffer
@@ -553,7 +552,7 @@ class MovementModel(object):
         cov_matrix = np.cov(future.T - np.dot(A, past.T))
         # make cov_matrix non-singular
         Uc, sc, _ = np.linalg.svd(cov_matrix)  # NOTE: U == V
-        sc = np.maximum(sc, old_div(1., len(shifts)))
+        sc = np.maximum(sc, 1. / len(shifts))
         cov_matrix = np.dot(Uc, np.dot(np.diag(sc), Uc))
         assert np.linalg.det(cov_matrix) > 0
         U, s, _ = np.linalg.svd(A)  # NOTE: U == V for positive definite A
@@ -608,7 +607,8 @@ class MovementModel(object):
             np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
-        for disp in it.product(*([list(range(max_distance + 1))] * len(cov_matrix))):
+        for disp in it.product(
+                *([list(range(max_distance + 1))] * len(cov_matrix))):
             log_transition_matrix[disp] = _discrete_transition_prob(
                 disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
@@ -632,11 +632,11 @@ class MovementModel(object):
         def idist(x):
             if len(x) == 3 and len(initial_cov) == 2:
                 x = x[1:]
-            return old_div(np.exp(
+            return np.exp(
                 -0.5 * np.dot(x - self.mean_shift,
                               np.linalg.solve(initial_cov, x - self.mean_shift)
                               )
-            ), np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov)))
+            ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
         assert np.isfinite(idist(self.mean_shift))
         return idist
 
@@ -882,14 +882,14 @@ class NormalizedIterator(object):
                             'of int')
 
     def __iter__(self):
-        means = old_div(self.pixel_means, self.gains)
-        variances = old_div(self.pixel_variances, self.gains ** 2)
+        means = self.pixel_means / self.gains
+        variances = self.pixel_variances / self.gains ** 2
         for frame in self.sequence:
             frame = frame.reshape(
                 int(np.prod(frame.shape[:self.granularity[0]])),
                 -1, frame.shape[-1])
             for chunk in zip(*[iter(frame)] * self.granularity[1]):
-                im = old_div(np.concatenate(chunk, axis=0), self.gains)
+                im = np.concatenate(chunk, axis=0) / self.gains
                 # replace NaN pixels with the mean value for the channel
                 for ch_idx, ch_mean in enumerate(means):
                     im_nans = np.isnan(im[..., ch_idx])
@@ -897,7 +897,7 @@ class NormalizedIterator(object):
                 assert(np.all(np.isfinite(im)))
                 log_im_fac = gammaln(im + 1)  # take the log of the factorial
                 # probability of observing the pixels (ignoring reference)
-                log_im_p = old_div(-(im - means) ** 2, (2 * variances)) \
+                log_im_p = -(im - means) ** 2 / (2 * variances) \
                     - 0.5 * np.log(2. * np.pi * variances)
                 assert(np.all(np.isfinite(log_im_fac)))
                 assert(np.all(np.isfinite(log_im_p)))

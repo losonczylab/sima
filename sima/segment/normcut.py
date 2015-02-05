@@ -117,8 +117,8 @@ class CutRegion(object):
         node_degrees = diags(np.array(node_degrees).flatten(), 0)
         b = old_div(k, (1 - k))
         y = np.matrix(cut - b * np.logical_not(cut)).T
-        return old_div(float(y.T * (node_degrees - self.affinity_matrix) * y), (
-            y.T * node_degrees * y))
+        return float(y.T * (node_degrees - self.affinity_matrix) * y) / (
+            y.T * node_degrees * y)
 
     def split(self):
         """Split the region according to the normalized cut criterion.
@@ -316,7 +316,7 @@ def _direction(vects, weights=None):
         vects_ = vects
     else:
         vects_ = vects * weights
-    return (old_div(vects_.T, np.sqrt((vects_ ** 2).sum(axis=2).T))).T
+    return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=2).T)).T
 
 
 def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
@@ -377,7 +377,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
                 correlations[pair_idx] = 0.
             else:
                 correlations[pair_idx] = max(
-                    -1., min(1., old_div(correlations[pair_idx], denom)))
+                    -1., min(1., correlations[pair_idx] / denom))
         return {
             ((PAIR[0], PAIR[1]), (PAIR[2], PAIR[3])): correlations[pair_idx]
             for pair_idx, PAIR in enumerate(pixel_pairs)}
@@ -450,7 +450,7 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
         dy = r1[0] - r0[0]
         dx = r1[1] - r0[1]
         return np.exp(9. * self._correlations[(r0, r1)]) * np.exp(
-            -0.5 * ((old_div(float(dx), X)) ** 2 + (old_div(float(dy), Y)) ** 2))
+            -0.5 * ((float(dx) / X) ** 2 + (float(dy) / Y) ** 2))
 
     def _setup(self, dataset):
         self._correlations = self._calculate_correlations(dataset)
