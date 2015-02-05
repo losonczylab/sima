@@ -155,7 +155,7 @@ class ResonantCorrection(MotionEstimationStrategy):
     base_strategy : sima.motion.MotionEstimationStrategy
         The underlying motion estimation strategy that will be used.
     offset : int
-        Horizontal displacement to be added to odd rows. Not the
+        Horizontal displacement to be added to odd rows. Note the
         convention that row 0 (i.e. the "first" row) is considered
         even.
     """
