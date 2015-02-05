@@ -11,7 +11,7 @@ from builtins import zip
 from builtins import range
 from builtins import object
 from past.utils import old_div
-from past.builtins import basestring, unicode
+from past.builtins import basestring
 import warnings
 import collections
 import itertools as it
@@ -547,9 +547,8 @@ class ImagingDataset(object):
             for idx, label in enumerate(['z', 'y', 'x', 'c']):
                 f['time_average'].dims[idx].label = label
             if self.channel_names is not None:
-                f['time_average'].attrs.create(
-                    'channel_names', self.channel_names,
-                    dtype=h5py.special_dtype(vlen=unicode))
+                f['time_average'].attrs['channel_names'] = [
+                    np.string_(s) for s in self.channel_names]
                 # Note: https://github.com/h5py/h5py/issues/289
             f.close()
         else:

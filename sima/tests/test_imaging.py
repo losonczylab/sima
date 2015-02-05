@@ -100,7 +100,8 @@ class TestImagingDataset(object):
 
         h5_time_avg = h5py.File(time_avg_path, 'r')['time_average']
         assert_equal(self.ds.time_averages.astype('uint16'), h5_time_avg)
-        assert_equal(self.ds.channel_names, h5_time_avg.attrs['channel_names'])
+        assert_equal(np.string_(self.ds.channel_names),
+                     np.string_(h5_time_avg.attrs['channel_names']))
         dim_labels = [dim.label for dim in h5_time_avg.dims]
         assert_equal(['z', 'y', 'x', 'c'], dim_labels)
 
