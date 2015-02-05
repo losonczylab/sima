@@ -312,12 +312,6 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
     return trajectory
 
 
-class Struct(object):
-
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
-
-
 class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=2, num_states_retained=50,
@@ -333,9 +327,8 @@ class _HiddenMarkov(MotionEstimationStrategy):
                             'row': 2,
                             'column': 3}[granularity[0]], granularity[1])
 
-        d = locals()
-        del d['self']
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     def _neighbor_viterbi(
             self, dataset, references, gains, movement_model,
@@ -345,7 +338,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
         """
         assert references.ndim == 4
-        granularity = self._params.granularity
+        granularity = self._params['granularity']
         scaled_refs = references / gains
         displacement_tbl, transition_tbl, log_markov_tbl, = _lookup_tables(
             [min_displacements, max_displacements + 1],
@@ -358,7 +351,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
             displacement_tbl, min_displacements, max_displacements)
         displacements = []
         for i, sequence in enumerate(dataset):
-            if self._params.verbose:
+            if self._params['verbose']:
                 print('Estimating displacements for cycle ', i)
             imdata = NormalizedIterator(sequence, gains, pixel_means,
                                         pixel_variances, granularity)
@@ -367,7 +360,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
                 imdata, positions,
                 it.repeat((transition_tbl, log_markov_tbl)), scaled_refs,
                 displacement_tbl, (tmp_states, log_p),
-                self._params.num_states_retained)
+                self._params['num_states_retained'])
             new_shape = sequence.shape[:granularity[0]] + \
                 (sequence.shape[granularity[0]] // granularity[1],) + \
                 (disp.shape[-1],)
@@ -393,14 +386,14 @@ class _HiddenMarkov(MotionEstimationStrategy):
             correction.
         """
         params = self._params
-        if params.verbose:
+        if params['verbose']:
             print('Estimating model parameters.')
         shifts = self._estimate_shifts(dataset)
         references, variances = _whole_frame_shifting(dataset, shifts)
-        if params.max_displacement is None:
+        if params['max_displacement'] is None:
             max_displacement = np.array(dataset.frame_shape[:3]) // 2
         else:
-            max_displacement = np.array(params.max_displacement)
+            max_displacement = np.array(params['max_displacement'])
         gains = nanmedian(
             (variances / references).reshape(-1, references.shape[-1]))
         if not (np.all(np.isfinite(gains)) and np.all(gains > 0)):
@@ -470,8 +463,8 @@ class HiddenMarkov2D(_HiddenMarkov):
 
     def _estimate_shifts(self, dataset):
         return sima.motion.frame_align.PlaneTranslation2D(
-            self._params.max_displacement,
-            n_processes=self._params.n_processes).estimate(dataset)
+            self._params['max_displacement'],
+            n_processes=self._params['n_processes']).estimate(dataset)
 
     def _post_process(self, displacements):
         return [d[..., 1:] for d in displacements]
@@ -810,7 +803,7 @@ class HiddenMarkov3D(_HiddenMarkov):
 
     def _estimate_shifts(self, dataset):
         shifts = sima.motion.frame_align.VolumeTranslation(
-            self._params.max_displacement, criterion=2.5).estimate(dataset)
+            self._params['max_displacement'], criterion=2.5).estimate(dataset)
         assert all(np.all(s) >= 0 for s in shifts)
         return shifts
 

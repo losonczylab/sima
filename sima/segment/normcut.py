@@ -24,7 +24,7 @@ from scipy import sparse, ndimage
 
 import sima.misc
 from sima.ROI import ROI, ROIList
-from .segment import Struct, SegmentationStrategy, _check_single_plane
+from .segment import SegmentationStrategy, _check_single_plane
 from . import oPCA
 from . import _opca
 from future.utils import with_metaclass
@@ -420,13 +420,12 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
             max_dist = (2, 2)
         if spatial_decay is None:
             spatial_decay = (2, 2)
-        d = locals()
-        d.pop('self')
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     def _calculate_correlations(self, dataset):
         shape = dataset.frame_shape[1:3]
-        max_dist = self._params.max_dist
+        max_dist = self._params['max_dist']
         pairs = []
         for y, x in it.product(range(shape[0]), range(shape[1])):
             for dx in range(max_dist[1] + 1):
@@ -439,14 +438,14 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
                             (y + dy < shape[0]):
                         pairs.append(
                             np.reshape([y, x, y + dy, x + dx], (1, 4)))
-        channel = sima.misc.resolve_channels(self._params.channel,
+        channel = sima.misc.resolve_channels(self._params['channel'],
                                              dataset.channel_names)
         return _offset_corrs(
             dataset, np.concatenate(pairs, 0), channel,
-            num_pcs=self._params.num_pcs, verbose=self._params.verbose)
+            num_pcs=self._params['num_pcs'], verbose=self._params['verbose'])
 
     def _weight(self, r0, r1):
-        Y, X = self._params.spatial_decay
+        Y, X = self._params['spatial_decay']
         dy = r1[0] - r0[0]
         dx = r1[1] - r0[1]
         return np.exp(9. * self._correlations[(r0, r1)]) * np.exp(
@@ -457,7 +456,7 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
 
     def calculate(self, dataset):
         self._setup(dataset)
-        max_dist = self._params.max_dist
+        max_dist = self._params['max_dist']
         shape = dataset.frame_shape[1:3]
         A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
         for y, x in it.product(range(shape[0]), range(shape[1])):
@@ -521,9 +520,8 @@ class PlaneNormalizedCuts(SegmentationStrategy):
         super(PlaneNormalizedCuts, self).__init__()
         if affinity_method is None:
             affinity_method = BasicAffinityMatrix(channel=0, num_pcs=75)
-        d = locals()
-        d.pop('self')
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     @classmethod
     def _rois_from_cuts(cls, cuts):
@@ -551,8 +549,8 @@ class PlaneNormalizedCuts(SegmentationStrategy):
     @_check_single_plane
     def _segment(self, dataset):
         params = self._params
-        affinity = params.affinity_method.calculate(dataset)
+        affinity = params['affinity_method'].calculate(dataset)
         shape = dataset.frame_shape[1:3]
-        cuts = itercut(affinity, shape, params.cut_max_pen,
-                       params.cut_min_size, params.cut_max_size)
+        cuts = itercut(affinity, shape, params['cut_max_pen'],
+                       params['cut_min_size'], params['cut_max_size'])
         return self._rois_from_cuts(cuts)
