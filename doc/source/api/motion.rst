@@ -16,3 +16,4 @@ datasets using the generic interface described above.
 .. autoclass:: sima.motion.HiddenMarkov3D
 .. autoclass:: sima.motion.PlaneTranslation2D
 .. autoclass:: sima.motion.VolumeTranslation
+.. autoclass:: sima.motion.ResonantCorrection
