@@ -9,6 +9,10 @@
 
 Overview
 --------
+
+.. image:: https://badges.gitter.im/Join%20Chat.svg
+   :alt: Join the chat at https://gitter.im/losonczylab/sima
+   :target: https://gitter.im/losonczylab/sima?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
 SIMA (Sequential IMage Analysis) is an Open Source package for 
 analysis of time-series imaging data arising from fluorescence
 microscopy.  The functionality of this package includes:
