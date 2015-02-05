@@ -1,7 +1,10 @@
-try:
-    from itertools import izip as zip
-except:  # Python 3
-    pass
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
+from builtins import zip
+from builtins import range
+from builtins import object
+
 import itertools as it
 import warnings
 
@@ -18,7 +21,7 @@ except ImportError:
 
 from scipy.stats.mstats import mquantiles
 
-import _motion as mc
+from . import _motion as mc
 import sima.motion.frame_align
 import sima.misc
 from sima.motion import MotionEstimationStrategy
@@ -164,7 +167,7 @@ def _discrete_transition_prob(r, log_transition_probs, n):
         M = max(a, b)
         if M == -np.inf:
             return -np.inf
-        return M + np.log(1. + np.exp(m-M))
+        return M + np.log(1. + np.exp(m - M))
 
     logp = - np.inf
     for x in np.linspace(-1, 1, n + 2)[1:-1]:
@@ -229,7 +232,7 @@ def _initial_distribution(decay, noise_cov, mean_shift):
     return lambda x: np.exp(
         -0.5 * np.dot(
             x - mean_shift, np.linalg.solve(initial_cov, x - mean_shift))
-        ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
+    ) / np.sqrt(2.0 * np.pi * np.linalg.det(initial_cov))
 
 
 def _lookup_tables(position_bounds, log_markov_matrix):
@@ -256,7 +259,8 @@ def _lookup_tables(position_bounds, log_markov_matrix):
         from transition_tbl.
     """
     position_tbl = np.array(
-        list(it.product(*[range(m, M) for m, M in zip(*position_bounds)])),
+        list(it.product(*[list(range(m, M))
+             for m, M in zip(*position_bounds)])),
         dtype=int)
     position_dict = {tuple(position): i
                      for i, position in enumerate(position_tbl)}
@@ -264,7 +268,7 @@ def _lookup_tables(position_bounds, log_markov_matrix):
     transition_tbl = []
     log_markov_matrix_tbl = []
     for step in it.product(
-            *[range(-s + 1, s) for s in log_markov_matrix.shape]):
+            *[list(range(-s + 1, s)) for s in log_markov_matrix.shape]):
         if len(step) == 2:
             step = (0,) + step
         tmp_tbl = []
@@ -301,14 +305,15 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
     i = start_idx
     trajectory = np.zeros([T, dim], dtype=int)
     trajectory[-1] = position_tbl[states[-1][i]]
-    for t in xrange(T - 2, -1, -1):
+    for t in range(T - 2, -1, -1):
         # NOTE: backpointer index 0 corresponds to second timestep
         i = backpointer[t][i]
         trajectory[t] = position_tbl[states[t][i]]
     return trajectory
 
 
-class Struct:
+class Struct(object):
+
     def __init__(self, **entries):
         self.__dict__.update(entries)
 
@@ -346,15 +351,15 @@ class _HiddenMarkov(MotionEstimationStrategy):
             [min_displacements, max_displacements + 1],
             movement_model.log_transition_matrix(
                 max_distance=max_step,
-                dt=float(granularity[1])/np.prod(
-                    references.shape[:granularity[0]])))
+                dt=granularity[1] / np.prod(references.shape[:granularity[0]]))
+        )
         assert displacement_tbl.dtype == int
         tmp_states, log_p = movement_model.initial_probs(
             displacement_tbl, min_displacements, max_displacements)
         displacements = []
         for i, sequence in enumerate(dataset):
             if self._params.verbose:
-                print 'Estimating displacements for cycle ', i
+                print('Estimating displacements for cycle ', i)
             imdata = NormalizedIterator(sequence, gains, pixel_means,
                                         pixel_variances, granularity)
             positions = PositionIterator(sequence.shape[:-1], granularity)
@@ -364,7 +369,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
                 displacement_tbl, (tmp_states, log_p),
                 self._params.num_states_retained)
             new_shape = sequence.shape[:granularity[0]] + \
-                (sequence.shape[granularity[0]] / granularity[1],) + \
+                (sequence.shape[granularity[0]] // granularity[1],) + \
                 (disp.shape[-1],)
             displacements.append(np.repeat(disp.reshape(new_shape),
                                            repeats=granularity[1],
@@ -389,11 +394,11 @@ class _HiddenMarkov(MotionEstimationStrategy):
         """
         params = self._params
         if params.verbose:
-            print 'Estimating model parameters.'
+            print('Estimating model parameters.')
         shifts = self._estimate_shifts(dataset)
         references, variances = _whole_frame_shifting(dataset, shifts)
         if params.max_displacement is None:
-            max_displacement = np.array(dataset.frame_shape[:3]) / 2
+            max_displacement = np.array(dataset.frame_shape[:3]) // 2
         else:
             max_displacement = np.array(params.max_displacement)
         gains = nanmedian(
@@ -414,7 +419,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
         # add a bit of extra room to move around
         if max_displacement.size == 2:
             max_displacement = np.hstack(([0], max_displacement))
-        extra_buffer = ((max_displacement - max_shifts + min_shifts) / 2
+        extra_buffer = ((max_displacement - max_shifts + min_shifts) // 2
                         ).astype(int)
         min_displacements = min_shifts - extra_buffer
         max_displacements = max_shifts + extra_buffer
@@ -430,6 +435,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
 
 
 class HiddenMarkov2D(_HiddenMarkov):
+
     """
     Row-wise hidden Markov model (HMM).
 
@@ -461,6 +467,7 @@ class HiddenMarkov2D(_HiddenMarkov):
     * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
 
     """
+
     def _estimate_shifts(self, dataset):
         return sima.motion.frame_align.PlaneTranslation2D(
             self._params.max_displacement,
@@ -471,6 +478,7 @@ class HiddenMarkov2D(_HiddenMarkov):
 
 
 class MovementModel(object):
+
     """
 
     Attributes
@@ -514,7 +522,7 @@ class MovementModel(object):
         past_past = np.dot(past.T, past)
         idx = 0
         D = shifts.shape[1]
-        n = D * (D + 1) / 2
+        n = D * (D + 1) // 2
         y = np.zeros(n)
         M = np.zeros((n, n))
         for i in range(D):  # loop over the dimensions of motion
@@ -599,7 +607,8 @@ class MovementModel(object):
             np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
-        for disp in it.product(*([range(max_distance + 1)] * len(cov_matrix))):
+        for disp in it.product(
+                *([list(range(max_distance + 1))] * len(cov_matrix))):
             log_transition_matrix[disp] = _discrete_transition_prob(
                 disp, log_transition_probs, 20)
         assert np.all(np.isfinite(log_transition_matrix))
@@ -650,6 +659,7 @@ class MovementModel(object):
 
 
 class PositionIterator(object):
+
     """Position iterator
 
     Parameters
@@ -705,16 +715,16 @@ class PositionIterator(object):
             self.offset = ([0, 0, 0, 0] + list(offset))[-4:]
 
     def __iter__(self):
-        base_iter = it.product(*[range(o, x + o) for x, o in
-                                 zip(self.shape[:(self.granularity[0]+1)],
-                                     self.offset[:(self.granularity[0]+1)])])
-        for group in zip(*[base_iter]*self.granularity[1]):
+        base_iter = it.product(*[list(range(o, x + o)) for x, o in
+                                 zip(self.shape[:(self.granularity[0] + 1)],
+                                     self.offset[:(self.granularity[0] + 1)])])
+        for group in zip(*[base_iter] * self.granularity[1]):
             positions = []
             for base in group:
                 l = [[x] for x in base[1:]] + [
-                    xrange(o, x + o) for x, o in zip(
-                        self.shape[(self.granularity[0]+1):],
-                        self.offset[(self.granularity[0]+1):])]
+                    range(o, x + o) for x, o in zip(
+                        self.shape[(self.granularity[0] + 1):],
+                        self.offset[(self.granularity[0] + 1):])]
                 positions.append(np.concatenate(
                     [a.reshape(-1, 1) for a in np.meshgrid(*l)], axis=1))
             assert len(positions)
@@ -775,6 +785,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
 
 
 class HiddenMarkov3D(_HiddenMarkov):
+
     """
     Row-wise hidden Markov model (HMM).
 
@@ -796,6 +807,7 @@ class HiddenMarkov3D(_HiddenMarkov):
     * Kaifosh et al. 2013. Nature Neuroscience. 16(9): 1182-4.
 
     """
+
     def _estimate_shifts(self, dataset):
         shifts = sima.motion.frame_align.VolumeTranslation(
             self._params.max_displacement, criterion=2.5).estimate(dataset)
@@ -804,6 +816,7 @@ class HiddenMarkov3D(_HiddenMarkov):
 
 
 class NormalizedIterator(object):
+
     """Generator of preprocessed frames for efficient computation.
 
     Parameters
@@ -848,6 +861,7 @@ class NormalizedIterator(object):
     True
 
     """
+
     def __init__(self, sequence, gains, pixel_means, pixel_variances,
                  granularity):
         self.sequence = sequence
@@ -874,7 +888,7 @@ class NormalizedIterator(object):
             frame = frame.reshape(
                 int(np.prod(frame.shape[:self.granularity[0]])),
                 -1, frame.shape[-1])
-            for chunk in zip(*[iter(frame)]*self.granularity[1]):
+            for chunk in zip(*[iter(frame)] * self.granularity[1]):
                 im = np.concatenate(chunk, axis=0) / self.gains
                 # replace NaN pixels with the mean value for the channel
                 for ch_idx, ch_mean in enumerate(means):

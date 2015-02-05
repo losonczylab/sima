@@ -1,3 +1,4 @@
+from builtins import object
 # Unit tests for sima/ROI.py
 # Tests follow conventions for NumPy/SciPy available at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt

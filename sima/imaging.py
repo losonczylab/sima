@@ -1,4 +1,17 @@
 """Base classes for multiframe imaging data."""
+from __future__ import print_function
+from __future__ import division
+from __future__ import unicode_literals
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import map
+from builtins import input
+from builtins import zip
+from builtins import range
+from builtins import object
+from past.utils import old_div
+from past.builtins import basestring
 import warnings
 import collections
 import itertools as it
@@ -6,7 +19,7 @@ import os
 import errno
 import csv
 from os.path import dirname, join, abspath
-import cPickle as pickle
+import pickle as pickle
 from distutils.version import StrictVersion
 from distutils.util import strtobool
 
@@ -236,7 +249,7 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and os.path.isdir(savedir):
                     overwrite = strtobool(
-                        raw_input("Overwrite existing directory ({})? ".format(
+                        input("Overwrite existing directory ({})? ".format(
                             savedir)))
                     # Note: This will overwrite dataset.pkl but will leave
                     #       all other files in the directory intact
@@ -282,7 +295,7 @@ class ImagingDataset(object):
         for frame in it.chain.from_iterable(self):
             sums += np.nan_to_num(frame)
             counts[np.isfinite(frame)] += 1
-        averages = sums / counts
+        averages = old_div(sums, counts)
         if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
@@ -294,7 +307,7 @@ class ImagingDataset(object):
         try:
             with open(join(self.savedir, 'rois.pkl'), 'rb') as f:
                 return {label: ROIList(**v)
-                        for label, v in pickle.load(f).iteritems()}
+                        for label, v in pickle.load(f).items()}
         except (IOError, pickle.UnpicklingError):
             return {}
 
@@ -304,7 +317,8 @@ class ImagingDataset(object):
         try:
             return cls(None, path)
         except ImportError as error:
-            if not error.args[0] == 'No module named iterables':
+            if not (error.args[0].endswith('iterables') or
+                    error.args[0].endswith("iterables'")):
                 raise error
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
@@ -406,7 +420,7 @@ class ImagingDataset(object):
         if anchor_label is None:
             try:
                 transforms = [estimate_array_transform(s, t, method=method)
-                              for s, t in it.izip(source, target)]
+                              for s, t in zip(source, target)]
             except ValueError:
                 print('Auto transform not implemented for this method')
                 return
@@ -414,7 +428,7 @@ class ImagingDataset(object):
             # Assume one ROI per plane
             assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
             transforms = []
-            for plane_idx in xrange(self.frame_shape[0]):
+            for plane_idx in range(self.frame_shape[0]):
                 for roi in self.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
                         # Coords is a closed polygon, so the last coord and the
@@ -514,7 +528,7 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         if fmt == 'HDF5':
-            if not isinstance(filenames, str):
+            if not isinstance(filenames, basestring):
                 raise ValueError(
                     'A single filename must be passed for HDF5 format.')
         elif not len(filenames) == self.frame_shape[-1]:
@@ -533,20 +547,21 @@ class ImagingDataset(object):
             for idx, label in enumerate(['z', 'y', 'x', 'c']):
                 f['time_average'].dims[idx].label = label
             if self.channel_names is not None:
-                f['time_average'].attrs['channel_names'] = np.array(
-                    self.channel_names)
+                f['time_average'].attrs['channel_names'] = [
+                    np.string_(s) for s in self.channel_names]
+                # Note: https://github.com/h5py/h5py/issues/289
             f.close()
         else:
             for chan, filename in enumerate(filenames):
                 im = self.time_averages[:, :, :, chan]
                 if dirname(filename):
                     mkdir_p(dirname(filename))
-                if fmt is 'TIFF8':
+                if fmt == 'TIFF8':
                     if scale_values:
                         out = sima.misc.to8bit(im)
                     else:
                         out = im.astype('uint8')
-                elif fmt is 'TIFF16':
+                elif fmt == 'TIFF16':
                     if scale_values:
                         out = sima.misc.to16bit(im)
                     else:
@@ -577,12 +592,12 @@ class ImagingDataset(object):
         """
         depth = lambda L: \
             isinstance(L, collections.Sequence) and \
-            (not isinstance(L, str)) and max(map(depth, L)) + 1
+            (not isinstance(L, str)) and max(list(map(depth, L))) + 1
         if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 3:
             raise ValueError
         if fmt == 'HDF5' and not depth(filenames) == 1:
             raise ValueError
-        for sequence, fns in it.izip(self, filenames):
+        for sequence, fns in zip(self, filenames):
             sequence.export(fns, fmt, fill_gaps, self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):

@@ -1,10 +1,18 @@
+from __future__ import absolute_import
+from __future__ import division
+from builtins import next
+from builtins import zip
+from builtins import range
+from past.utils import old_div
+from builtins import object
 import itertools as it
 import abc
 
 import numpy as np
 
 import sima
-import _motion as mc
+from . import _motion as mc
+from future.utils import with_metaclass
 
 
 def add_with_offset(array1, array2, offset):
@@ -23,8 +31,7 @@ def add_with_offset(array1, array2, offset):
     array1[slices] += array2
 
 
-class MotionEstimationStrategy(object):
-    __metaclass__ = abc.ABCMeta
+class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
 
     @classmethod
     def _make_nonnegative(cls, displacements):
@@ -128,6 +135,7 @@ class MotionEstimationStrategy(object):
 
 
 class ResonantCorrection(MotionEstimationStrategy):
+
     """Motion estimation strategy for resonant scanner data.
 
     When acquiring data imaging data with a resonant scanner, the data
@@ -187,22 +195,22 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
                      for d in it.chain.from_iterable(displacements))
     num_frames = sum(len(x) for x in displacements)
-    occupancy = obs_counts.astype(float) / num_frames
+    occupancy = old_div(obs_counts.astype(float), num_frames)
 
-    plane_occupancy = occupancy.sum(axis=2).sum(axis=1) / (
-        raw_shape[1] * raw_shape[2])
+    plane_occupancy = old_div(occupancy.sum(axis=2).sum(axis=1), (
+        raw_shape[1] * raw_shape[2]))
     good_planes = plane_occupancy + epsilon > trim_criterion
     plane_min = np.nonzero(good_planes)[0].min()
     plane_max = np.nonzero(good_planes)[0].max() + 1
 
-    row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
-        raw_shape[0] * raw_shape[2])
+    row_occupancy = old_div(occupancy.sum(axis=2).sum(axis=0), (
+        raw_shape[0] * raw_shape[2]))
     good_rows = row_occupancy + epsilon > trim_criterion
     row_min = np.nonzero(good_rows)[0].min()
     row_max = np.nonzero(good_rows)[0].max() + 1
 
-    col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
-        raw_shape[:2])
+    col_occupancy = old_div(occupancy.sum(axis=1).sum(axis=0), np.prod(
+        raw_shape[:2]))
     good_cols = col_occupancy + epsilon > trim_criterion
     col_min = np.nonzero(good_cols)[0].min()
     col_max = np.nonzero(good_cols)[0].max() + 1

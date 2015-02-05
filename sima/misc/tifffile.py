@@ -168,7 +168,7 @@ class TiffFileWriter(object):
     def __init__(self, filename):
         self.fh = open(filename, 'wb')
         self.pageindex = 0
-    
+
     def _first_write(self, page, photometric=None, planarconfig=None,
                      resolution=None, description=None, software='tifffile.py',
                      byteorder=None, bigtiff=False, compress=0, extratags=()):
@@ -934,7 +934,7 @@ class TiffFile(object):
     >>> from sima.misc.tifffile import TiffFile
     >>> from sima.misc import example_tiff
     >>> tif = TiffFile(example_tiff())
-    ... try:
+    >>> try:
     ...     images = tif.asarray()
     ... except Exception as e:
     ...     print(e)

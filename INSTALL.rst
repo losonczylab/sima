@@ -34,6 +34,7 @@ system's or Python distribution's package manager prior to installing SIMA.
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
+* `future <https://pypi.python.org/pypi/future>`_
 
 Depending on the features and data formats you wish to use, you may also need
 to install the following packages:

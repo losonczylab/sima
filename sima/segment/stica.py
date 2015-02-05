@@ -1,3 +1,9 @@
+from __future__ import print_function
+from __future__ import division
+from builtins import str
+from builtins import range
+from past.utils import old_div
+from builtins import object
 import os
 
 import numpy as np
@@ -20,7 +26,8 @@ from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
 
 
-class Struct:
+class Struct(object):
+
     def __init__(self, **entries):
         self.__dict__.update(entries)
 
@@ -99,7 +106,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     for i in range(st_components.shape[2]):
         st_component = st_components[:, :, i]
         st_component = abs(st_component - np.mean(st_component))
-        st_component = st_component / np.max(st_component)
+        st_component = old_div(st_component, np.max(st_component))
         st_components[:, :, i] = st_component
 
     # save the ica components if a path has been provided
@@ -140,14 +147,14 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
     accepted = []
     accepted_components = []
     rejected = []
-    for i in xrange(st_components.shape[2]):
+    for i in range(st_components.shape[2]):
 
         # copy the component, remove pixels with low weights
         frame = st_components[:, :, i].copy()
         frame[frame < 2 * np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
-        for n in xrange(x_smoothing):
+        for n in range(x_smoothing):
             check = frame[1:-1, :-2] + frame[1:-1, 2:] + frame[:-2, 1:-1] + \
                 frame[2, 1:-1]
             z = np.zeros(frame.shape)
@@ -157,7 +164,7 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
             blurred = ndimage.gaussian_filter(frame, sigma=1)
             frame = blurred + frame
 
-            frame = frame / np.max(frame)
+            frame = old_div(frame, np.max(frame))
             frame[frame < 2 * np.std(frame)] = 0
 
         # calculate the remaining static in the component
@@ -208,7 +215,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
         img, seg_count = measurements.label(img)
         component_mask = np.zeros(img.shape, 'bool')
 
-        for i in xrange(seg_count):
+        for i in range(seg_count):
             segment = np.where(img == i + 1)
             if segment[0].size >= min_area:
                 if spatial_sep:
@@ -226,6 +233,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
 
 
 class STICA(SegmentationStrategy):
+
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
@@ -341,9 +349,9 @@ class STICA(SegmentationStrategy):
             ica_path = None
 
         if self._params.verbose:
-            print 'performing PCA...'
+            print('performing PCA...')
         if isinstance(self._params.components, int):
-            self._params.components = range(self._params.components)
+            self._params.components = list(range(self._params.components))
         _, space_pcs, time_pcs = _OPCA(
             dataset, channel, self._params.components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
@@ -356,7 +364,7 @@ class STICA(SegmentationStrategy):
         ).transpose((1, 0))
 
         if self._params.verbose:
-            print 'performing ICA...'
+            print('performing ICA...')
         st_components = _stica(
             space_pcs, time_pcs, mu=self._params.mu, path=ica_path,
             n_components=space_pcs.shape[2])
@@ -373,15 +381,15 @@ class STICA(SegmentationStrategy):
 
             if self._params.smooth_rois:
                 if self._params.verbose:
-                    print 'smoothing ROIs...'
+                    print('smoothing ROIs...')
                 rois = [_smooth_roi(roi)[0] for roi in rois]
 
             if self._params.verbose:
-                print 'removing overlapping ROIs...'
+                print('removing overlapping ROIs...')
             rois = _remove_overlapping(
                 rois, percent_overlap=self._params.overlap_per)
         else:
             rois = [ROI(st_components[:, :, i]) for i in
-                    xrange(st_components.shape[2])]
+                    range(st_components.shape[2])]
 
         return ROIList(rois)

@@ -1,3 +1,5 @@
+from builtins import next
+from builtins import object
 # Unit tests for sima/sequence.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt

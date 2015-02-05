@@ -1,3 +1,6 @@
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 # The following code was copied/adapted from CellProfiler.
 #
 # CellProfiler is distributed under the GNU General Public License.
@@ -44,9 +47,9 @@ def cross_correlation_3d(pixels1, pixels2):
     #
     # Calculate the # of pixels at a particular point
     #
-    i,j,k = np.mgrid[-s[0]:s[0], -s[1]:s[1], -s[2]:s[2] ]
+    i, j, k = np.mgrid[-s[0]:s[0], -s[1]:s[1], -s[2]:s[2] ]
     unit = np.abs(i*j*k).astype(float)
-    unit[unit<1]=1 # keeps from dividing by zero in some places
+    unit[unit < 1] = 1 # keeps from dividing by zero in some places
     #
     # Normalize the pixel values around zero which does not affect the
     # correlation, keeps some of the sums of multiplications from
@@ -88,18 +91,18 @@ def cross_correlation_3d(pixels1, pixels2):
         im_sj = im.shape[1]
         im_sk = im.shape[2]
         im_sum = np.zeros(fshape)
-        im_sum[:im_si,:im_sj,:im_sk] = cumsum_quadrant(im, False, False, False)
-        im_sum[:im_si,:im_sj,-im_sk:] = cumsum_quadrant(im, False, False, True)
-        im_sum[:im_si,-im_sj:,:im_sk] = cumsum_quadrant(im, False, True, True)
-        im_sum[:im_si,-im_sj:,-im_sk:] = cumsum_quadrant(im, False, True, False)
-        im_sum[-im_si:,:im_sj,:im_sk] = cumsum_quadrant(im, True, False, True)
-        im_sum[-im_si:,:im_sj,-im_sk:] = cumsum_quadrant(im, True, False, False)
-        im_sum[-im_si:,-im_sj:,:im_sk] = cumsum_quadrant(im, True, True, True)
-        im_sum[-im_si:,-im_sj:,-im_sk:] = cumsum_quadrant(im, True, True, False)
+        im_sum[:im_si, :im_sj, :im_sk] = cumsum_quadrant(im, False, False, False)
+        im_sum[:im_si, :im_sj, -im_sk:] = cumsum_quadrant(im, False, False, True)
+        im_sum[:im_si, -im_sj:, :im_sk] = cumsum_quadrant(im, False, True, True)
+        im_sum[:im_si, -im_sj:, -im_sk:] = cumsum_quadrant(im, False, True, False)
+        im_sum[-im_si:, :im_sj, :im_sk] = cumsum_quadrant(im, True, False, True)
+        im_sum[-im_si:, :im_sj, -im_sk:] = cumsum_quadrant(im, True, False, False)
+        im_sum[-im_si:, -im_sj:, :im_sk] = cumsum_quadrant(im, True, True, True)
+        im_sum[-im_si:, -im_sj:, -im_sk:] = cumsum_quadrant(im, True, True, False)
         #
         # Divide the sum over the # of elements summed-over
         #
-        return im_sum / unit
+        return old_div(im_sum, unit)
 
     p1_mean = get_cumsums(pixels1, fshape)
     p2_mean = get_cumsums(pixels2, fshape)
@@ -118,16 +121,16 @@ def cross_correlation_3d(pixels1, pixels2):
     sd = np.sqrt(np.maximum(p1sd * p2sd, 0))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        corrnorm = corr12 / sd
+        corrnorm = old_div(corr12, sd)
     #
     # There's not much information for points where the standard
     # deviation is less than 1/100 of the maximum. We exclude these
     # from consideration.
     #
-    corrnorm[(unit < np.product(s) / 2) &
-             (sd < np.mean(sd) / 100)] = 0
+    corrnorm[(unit < old_div(np.product(s), 2)) &
+             (sd < old_div(np.mean(sd), 100))] = 0
     # Also exclude possibilites with few observed pixels.
-    corrnorm[unit < np.product(s) / 4] = 0
+    corrnorm[unit < old_div(np.product(s), 4)] = 0
 
     return corrnorm
 
@@ -158,10 +161,10 @@ def cross_correlation_2d(pixels1, pixels2):
     #
     # Calculate the # of pixels at a particular point
     #
-    i,j = np.mgrid[-s[0]:s[0],
+    i, j = np.mgrid[-s[0]:s[0],
                    -s[1]:s[1]]
     unit = np.abs(i*j).astype(float)
-    unit[unit<1]=1 # keeps from dividing by zero in some places
+    unit[unit < 1] = 1 # keeps from dividing by zero in some places
     #
     # Normalize the pixel values around zero which does not affect the
     # correlation, keeps some of the sums of multiplications from
@@ -179,8 +182,8 @@ def cross_correlation_2d(pixels1, pixels2):
     # leaving f(x,y)*(t(x-u,y-v)-t_mean) which is a convolution of f
     # by t-t_mean.
     #
-    fp1 = fft2(pixels1.astype('float32'),fshape)
-    fp2 = fft2(pixels2.astype('float32'),fshape)
+    fp1 = fft2(pixels1.astype('float32'), fshape)
+    fp2 = fft2(pixels2.astype('float32'), fshape)
     corr12 = ifft2(fp1 * fp2.conj()).real
 
     #
@@ -202,24 +205,24 @@ def cross_correlation_2d(pixels1, pixels2):
     p1_si = pixels1.shape[0]
     p1_sj = pixels1.shape[1]
     p1_sum = np.zeros(fshape)
-    p1_sum[:p1_si,:p1_sj] = cumsum_quadrant(pixels1, False, False)
-    p1_sum[:p1_si,-p1_sj:] = cumsum_quadrant(pixels1, False, True)
-    p1_sum[-p1_si:,:p1_sj] = cumsum_quadrant(pixels1, True, False)
-    p1_sum[-p1_si:,-p1_sj:] = cumsum_quadrant(pixels1, True, True)
+    p1_sum[:p1_si, :p1_sj] = cumsum_quadrant(pixels1, False, False)
+    p1_sum[:p1_si, -p1_sj:] = cumsum_quadrant(pixels1, False, True)
+    p1_sum[-p1_si:, :p1_sj] = cumsum_quadrant(pixels1, True, False)
+    p1_sum[-p1_si:, -p1_sj:] = cumsum_quadrant(pixels1, True, True)
     #
     # Divide the sum over the # of elements summed-over
     #
-    p1_mean = p1_sum / unit
+    p1_mean = old_div(p1_sum, unit)
 
     p2_si = pixels2.shape[0]
     p2_sj = pixels2.shape[1]
     p2_sum = np.zeros(fshape)
-    p2_sum[:p2_si,:p2_sj] = cumsum_quadrant(pixels2, False, False)
-    p2_sum[:p2_si,-p2_sj:] = cumsum_quadrant(pixels2, False, True)
-    p2_sum[-p2_si:,:p2_sj] = cumsum_quadrant(pixels2, True, False)
-    p2_sum[-p2_si:,-p2_sj:] = cumsum_quadrant(pixels2, True, True)
+    p2_sum[:p2_si, :p2_sj] = cumsum_quadrant(pixels2, False, False)
+    p2_sum[:p2_si, -p2_sj:] = cumsum_quadrant(pixels2, False, True)
+    p2_sum[-p2_si:, :p2_sj] = cumsum_quadrant(pixels2, True, False)
+    p2_sum[-p2_si:, -p2_sj:] = cumsum_quadrant(pixels2, True, True)
     p2_sum = np.fliplr(np.flipud(p2_sum))
-    p2_mean = p2_sum / unit
+    p2_mean = old_div(p2_sum, unit)
     #
     # Once we have the means for u,v, we can caluclate the
     # variance-like parts of the equation. We have to multiply
@@ -235,16 +238,16 @@ def cross_correlation_2d(pixels1, pixels2):
     sd = np.sqrt(np.maximum(p1sd * p2sd, 0))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        corrnorm = corr12 / sd
+        corrnorm = old_div(corr12, sd)
     #
     # There's not much information for points where the standard
     # deviation is less than 1/100 of the maximum. We exclude these
     # from consideration.
     #
-    corrnorm[(unit < np.product(s) / 2) &
-             (sd < np.mean(sd) / 100)] = 0
+    corrnorm[(unit < old_div(np.product(s), 2)) &
+             (sd < old_div(np.mean(sd), 100))] = 0
     # Also exclude possibilites with few observed pixels.
-    corrnorm[unit < np.product(s) / 4] = 0
+    corrnorm[unit < old_div(np.product(s), 4)] = 0
     return corrnorm
 
 
@@ -268,8 +271,8 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
     else:
         raise ValueError
 
-    corrnorm = sum(corr(pixels1[..., c], pixels2[..., c])
-                   for c in range(pixels1.shape[-1])) / pixels1.shape[-1]
+    corrnorm = old_div(sum(corr(pixels1[..., c], pixels2[..., c])
+                   for c in range(pixels1.shape[-1])), pixels1.shape[-1])
     offset = fshape - np.array(pixels1.shape[:-1])
     for i in range(corrnorm.ndim):
         corrnorm = np.roll(corrnorm, offset[i], axis=i)
@@ -281,8 +284,8 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
         corrnorm[:, :idx_bounds[0][1]] = -np.Inf
         corrnorm[:, idx_bounds[1][1]:] = -np.Inf
         if idx_bounds.shape[1] == 3:
-            corrnorm[:, :, :idx_bounds[0][2]] = -np.Inf
-            corrnorm[:, :, idx_bounds[1][2]:] = -np.Inf
+            corrnorm[:,:, :idx_bounds[0][2]] = -np.Inf
+            corrnorm[:,:, idx_bounds[1][2]:] = -np.Inf
 
     idx = np.unravel_index(np.argmax(corrnorm), fshape)
     return np.array(idx) - offset, corrnorm[idx]
@@ -303,7 +306,7 @@ def align_mutual_information(pixels1, pixels2, mask1, mask2):
     def mutualinf(x, y, maskx, masky):
         x = x[maskx & masky]
         y = y[maskx & masky]
-        return entropy(x) + entropy(y) - entropy2(x,y)
+        return entropy(x) + entropy(y) - entropy2(x, y)
 
     maxshape = np.maximum(pixels1.shape, pixels2.shape)
     pixels1 = reshape_image(pixels1, maxshape)
@@ -317,11 +320,11 @@ def align_mutual_information(pixels1, pixels2, mask1, mask2):
     while True:
         last_i = i
         last_j = j
-        for new_i in range(last_i-1,last_i+2):
+        for new_i in range(last_i-1, last_i+2):
             for new_j in range(last_j-1, last_j+2):
                 if new_i == 0 and new_j == 0:
                     continue
-                p2, p1 = offset_slice(pixels2,pixels1, new_i, new_j)
+                p2, p1 = offset_slice(pixels2, pixels1, new_i, new_j)
                 m2, m1 = offset_slice(mask2, mask1, new_i, new_j)
                 info = mutualinf(p1, p2, m1, m2)
                 if info > best:
@@ -329,7 +332,7 @@ def align_mutual_information(pixels1, pixels2, mask1, mask2):
                     i = new_i
                     j = new_j
         if i == last_i and j == last_j:
-            return j,i
+            return j, i
 
 def offset_slice(pixels1, pixels2, i, j):
     '''Return two sliced arrays where the first slice is offset by i,j
@@ -357,9 +360,9 @@ def offset_slice(pixels1, pixels2, i, j):
     p1_jmax = p1_jmin + width
     p2_jmax = p2_jmin + width
 
-    p1 = pixels1[p1_imin:p1_imax,p1_jmin:p1_jmax]
-    p2 = pixels2[p2_imin:p2_imax,p2_jmin:p2_jmax]
-    return (p1,p2)
+    p1 = pixels1[p1_imin:p1_imax, p1_jmin:p1_jmax]
+    p2 = pixels2[p2_imin:p2_imax, p2_jmin:p2_jmax]
+    return (p1, p2)
 
 def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     '''Return the cumulative sum going in the i, then j direction
@@ -369,9 +372,9 @@ def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     j_forwards - sum from 0 to end in the j direction if true
     '''
     if i_forwards:
-        x=x.cumsum(0)
+        x = x.cumsum(0)
     else:
-        x=np.flipud(np.flipud(x).cumsum(0))
+        x = np.flipud(np.flipud(x).cumsum(0))
     if j_forwards:
         x = x.cumsum(1)
     else:
@@ -381,19 +384,19 @@ def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     if k_forwards:
         return x.cumsum(2)
     else:
-        return x[:, :, ::-1].cumsum(2)[:, :, ::-1]
+        return x[:,:, ::-1].cumsum(2)[:,:, ::-1]
 
 def entropy(x):
     '''The entropy of x as if x is a probability distribution'''
     histogram = scind.histogram(x.astype(float), np.min(x), np.max(x), 256)
     n = np.sum(histogram)
     if n > 0 and np.max(histogram) > 0:
-        histogram = histogram[histogram!=0]
-        return np.log2(n) - np.sum(histogram * np.log2(histogram))/n
+        histogram = histogram[histogram != 0]
+        return np.log2(n) - old_div(np.sum(histogram * np.log2(histogram)), n)
     else:
         return 0
 
-def entropy2(x,y):
+def entropy2(x, y):
     '''Joint entropy of paired samples X and Y'''
     #
     # Bin each image into 256 gray levels
@@ -407,12 +410,12 @@ def entropy2(x,y):
     xy = 256*x+y
     xy = xy.flatten()
     sparse = scipy.sparse.coo_matrix((np.ones(xy.shape),
-                                      (xy,np.zeros(xy.shape))))
+                                      (xy, np.zeros(xy.shape))))
     histogram = sparse.toarray()
-    n=np.sum(histogram)
+    n = np.sum(histogram)
     if n > 0 and np.max(histogram) > 0:
-        histogram = histogram[histogram>0]
-        return np.log2(n) - np.sum(histogram * np.log2(histogram)) / n
+        histogram = histogram[histogram > 0]
+        return np.log2(n) - old_div(np.sum(histogram * np.log2(histogram)), n)
     else:
         return 0
 
@@ -446,7 +449,7 @@ def stretch(image, mask=None):
                 return np.ones_like(image)
             return image
         else:
-            return (image - minval) / (maxval - minval)
+            return old_div((image - minval), (maxval - minval))
     else:
         significant_pixels = image[mask]
         if significant_pixels.size == 0:
@@ -456,8 +459,8 @@ def stretch(image, mask=None):
         if minval == maxval:
             transformed_image = minval
         else:
-            transformed_image = ((significant_pixels - minval) /
-                                 (maxval - minval))
+            transformed_image = (old_div((significant_pixels - minval),
+                                 (maxval - minval)))
         result = image.copy()
         image[mask] = transformed_image
         return image
