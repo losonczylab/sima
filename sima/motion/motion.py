@@ -147,7 +147,7 @@ class ResonantCorrection(MotionEstimationStrategy):
     base_strategy : sima.motion.MotionEstimationStrategy
         The underlying motion estimation strategy that will be used.
     offset : int
-        Horizontal displacement to be added to even rows. Not the
+        Horizontal displacement to be added to odd rows. Not the
         convention that row 0 (i.e. the "first" row) is considered
         even.
     """
@@ -168,7 +168,7 @@ class ResonantCorrection(MotionEstimationStrategy):
         for d_disps in downsampled_displacements:
             disps = np.repeat(d_disps, 2, axis=2)  # Repeat the displacements
             disps[:, :, :, 0] *= 2  # multiply y-shifts by 2
-            disps[:, :, ::2, -1] += self._offset  # shift even rows by offset
+            disps[:, :, 1::2, -1] += self._offset  # shift even rows by offset
             displacements.append(disps)
         return displacements
 
