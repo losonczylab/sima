@@ -29,6 +29,21 @@ from sima.motion import MotionEstimationStrategy
 np.seterr(invalid='ignore', divide='ignore')
 
 
+def _parse_granularity(granularity):
+    if isinstance(granularity, int):
+        return (granularity, 1)
+    elif isinstance(granularity, str):
+        return {'frame': (0, 1),
+                'plane': (1, 1),
+                'row': (2, 1),
+                'column': (3, 1)}[granularity]
+    elif isinstance(granularity, tuple):
+        return granularity
+    else:
+        raise TypeError(
+            'granularity must be of type str, int, or tuple of int')
+
+
 def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
     """Estimate the distribution of pixel intensities for each channel.
 
@@ -669,6 +684,8 @@ class PositionIterator(object):
     >>> from sima.motion.hmm import PositionIterator
     >>> pi = PositionIterator((100, 5, 128, 256), 'frame')
     >>> positions = next(iter(pi))
+    >>> positions.shape == (163840, 3)
+    True
 
     >>> pi = PositionIterator((100, 5, 128, 256), 'plane')
     >>> positions = next(iter(pi))
@@ -687,18 +704,7 @@ class PositionIterator(object):
     """
 
     def __init__(self, shape, granularity, offset=None):
-        if isinstance(granularity, int):
-            self.granularity = (granularity, 1)
-        elif isinstance(granularity, str):
-            self.granularity = {'frame': (0, 1),
-                                'plane': (1, 1),
-                                'row': (2, 1),
-                                'column': (3, 1)}[granularity]
-        elif isinstance(granularity, tuple):
-            self.granularity = granularity
-        else:
-            raise TypeError('granularity must be of type str, int, or tuple '
-                            'of int')
+        self.granularity = _parse_granularity(granularity)
         self.shape = shape
         if self.shape[self.granularity[0]] % self.granularity[1] != 0:
             raise ValueError('granularity[1] must divide the frame shape '
@@ -709,21 +715,35 @@ class PositionIterator(object):
             self.offset = ([0, 0, 0, 0] + list(offset))[-4:]
 
     def __iter__(self):
-        base_iter = it.product(*[list(range(o, x + o)) for x, o in
-                                 zip(self.shape[:(self.granularity[0] + 1)],
-                                     self.offset[:(self.granularity[0] + 1)])])
-        for group in zip(*[base_iter] * self.granularity[1]):
-            positions = []
-            for base in group:
-                l = [[x] for x in base[1:]] + [
-                    range(o, x + o) for x, o in zip(
-                        self.shape[(self.granularity[0] + 1):],
-                        self.offset[(self.granularity[0] + 1):])]
-                positions.append(np.concatenate(
-                    [a.reshape(-1, 1) for a in np.meshgrid(*l)], axis=1))
-            assert len(positions)
-            assert len(positions[0])
-            yield np.concatenate(positions, axis=0)
+        shape = self.shape
+        granularity = self.granularity
+        offset = self.offset
+
+        def out(group):
+            """Calculate a single iteration output"""
+            return np.array(list(it.chain.from_iterable(
+                (base + s for s in it.product(
+                    *[range(o, o + x) for x, o in
+                      zip(shape[(granularity[0] + 1):],
+                          offset[(granularity[0] + 1):])]))
+                for base in group)))
+
+        if granularity[0] > 0 or granularity[1] == 1:
+            def cycle():
+                """Iterator that produces one period/period of the output."""
+                base_iter = it.product(*[list(range(o, x + o)) for x, o in
+                                         zip(shape[1:(granularity[0] + 1)],
+                                             offset[1:(granularity[0] + 1)])])
+                for group in zip(*[base_iter] * granularity[1]):
+                    yield out(group)
+            for positions in it.cycle(cycle()):
+                yield positions
+        else:
+            base_iter = it.product(*[list(range(o, x + o)) for x, o in
+                                     zip(shape[:(granularity[0] + 1)],
+                                         offset[:(granularity[0] + 1)])])
+            for group in zip(*[base_iter] * granularity[1]):
+                yield out([b[1:] for b in group])
 
 
 def _beam_search(imdata, positions, transitions, references, state_table,
@@ -862,18 +882,7 @@ class NormalizedIterator(object):
         self.gains = gains
         self.pixel_means = pixel_means
         self.pixel_variances = pixel_variances
-        if isinstance(granularity, int):
-            self.granularity = (granularity, 1)
-        elif isinstance(granularity, str):
-            self.granularity = {'frame': (0, 1),
-                                'plane': (1, 1),
-                                'row': (2, 1),
-                                'column': (3, 1)}[granularity]
-        elif isinstance(granularity, tuple):
-            self.granularity = granularity
-        else:
-            raise TypeError('granularity must be of type str, int, or tuple '
-                            'of int')
+        self.granularity = _parse_granularity(granularity)
 
     def __iter__(self):
         means = self.pixel_means / self.gains
