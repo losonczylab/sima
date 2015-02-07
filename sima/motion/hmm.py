@@ -659,7 +659,8 @@ class PositionIterator(object):
     ----------
     shape : tuple of int
         (times, planes, rows, columns)
-    offset : tuple of int
+    granularity
+    ffset : tuple of int
         (z, y, x) or (y, x)
 
     Examples
