@@ -517,4 +517,4 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
     pickle.dump(sig_data,
                 open(signals_filename, 'wb'), pickle.HIGHEST_PROTOCOL)
 
-    return sig_data
+    return sig_data[label]
