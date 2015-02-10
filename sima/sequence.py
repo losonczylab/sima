@@ -943,6 +943,9 @@ class _IndexedSequence(_WrapperSequence):
                 # memory.
                 yield np.copy(self._base._get_frame(t)[self._indices[1:]])
         except NotImplementedError:
+            if self._indices[0].step < 0:
+                raise NotImplementedError(
+                    'Iterating backwards not supported by the base class')
             idx = 0
             for t, frame in enumerate(self._base):
                 try:

@@ -144,7 +144,8 @@ class ImagingDataset(object):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None)
+        return ImagingDataset(
+            sequences, None, channel_names=self.channel_names)
 
     @property
     def sequences(self):
@@ -238,8 +239,8 @@ class ImagingDataset(object):
                     overwrite = strtobool(
                         raw_input("Overwrite existing directory ({})? ".format(
                             savedir)))
-                    # Note: This will overwrite dataset.pkl but will leave
-                    #       all other files in the directory intact
+                    # Note: This will overwrite dataset.pkl and sequences.pkl
+                    # but will leave all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
                     else:
