@@ -30,7 +30,7 @@ def test_extract_rois():
 
 def test_STICA():
     ds = ImagingDataset.load(example_data())
-    method = segment.STICA(components=5)
+    method = segment.STICA(components=5, overlap_per=0.5)
     ds.segment(method)
 
 

@@ -160,18 +160,14 @@ def _remove_overlapping(rois, percent_overlap=0.9):
         for i in xrange(len(rois)):
             for j in [j for j in xrange(len(rois)) if j != i]:
                 if rois[i] is not None and rois[j] is not None:
-                    overlap = np.logical_and(rois[i].mask.toarray(),
-                                             rois[j].mask.toarray())
-                    small_area = np.min(
-                        (rois[i].mask.size, rois[j].mask.size))
+                    overlap = np.logical_and(rois[i], rois[j])
+                    small_area = min(np.size(rois[i]), np.size(rois[j]))
 
                     if len(np.where(overlap)[0]) > \
                             percent_overlap * small_area:
-                        new_shape = np.logical_or(rois[i].mask.toarray(),
-                                                  rois[j].mask.toarray())
+                        new_shape = np.logical_or(rois[i], rois[j])
 
-                        rois[i] = ROI(mask=new_shape.astype('bool'),
-                                      im_shape=rois[i].mask.shape)
+                        rois[i] = ROI(mask=new_shape.astype('bool'))
                         rois[j] = None
     return ROIList(roi for roi in rois if roi is not None)
 
