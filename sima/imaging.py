@@ -617,9 +617,15 @@ class ImagingDataset(object):
             The label of the extracted signal set to use. By default,
             the most recently extracted signals are used.
         """
-        with open(path, 'wb') as csvfile:
-            writer = csv.writer(csvfile, delimiter='\t')
-
+        try:
+            csvfile = open(path, 'w', newline='')
+        except TypeError:  # Python 2
+            csvfile = open(path, 'wb')
+        try:
+            try:
+                writer = csv.writer(csvfile, delimiter='\t')
+            except TypeError:  # Python 2
+                writer = csv.writer(csvfile, delimiter=b'\t')
             signals = self.signals(channel)
             if signals_label is None:
                 signals_label = most_recent_key(signals)
@@ -636,6 +642,8 @@ class ImagingDataset(object):
                     signals[signals_label]['raw']):
                 for frame_idx, frame in enumerate(sequence.T):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
+        finally:
+            csvfile.close()
 
     def extract(self, rois=None, signal_channel=0, label=None,
                 remove_overlap=True, n_processes=1, demix_channel=None,

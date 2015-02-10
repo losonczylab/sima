@@ -20,16 +20,17 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
+import os
+import shutil
 import sima
 import numpy as np
 
 
 def setup():
-    return
-
+    pass
 
 def teardown():
-    return
+    pass
 
 
 class Test_ConstantData(object):
@@ -101,15 +102,26 @@ class Test_ConstantData(object):
 class Test_VaryingData(object):
 
     def setup(self):
+        self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp')
+        try:
+            os.mkdir(self.tmp_dir)
+        except:
+            pass
         pattern = np.tile([0.4, 0.8, 1.2, 1.6], (3, 1))
         data = np.ones((20, 2, 6, 8, 2))
         for t in range(20):
             data[t, 1, 1:4, 2:6, 0] = np.roll(pattern, t, 1) * 1000
 
+        global tmp_dir
+        path = os.path.join(self.tmp_dir, "test_extract.sima")
         seq = sima.Sequence.create('ndarray', data)
-        self.dataset = sima.ImagingDataset([seq], savedir=None)
+        self.dataset = sima.ImagingDataset([seq], savedir=path)
+
+    def teardown(self):
+        shutil.rmtree(self.tmp_dir)
 
     def test_polygon_roi(self):
+        global tmp_dir
         roi = sima.ROI.ROI(
             polygons=[[2, 1, 1], [6, 1, 1], [6, 4, 1], [2, 4, 1]],
             im_shape=(2, 6, 8))
@@ -119,6 +131,8 @@ class Test_VaryingData(object):
             demix_channel=None)
 
         assert_array_equal(signals['raw'][0], 1.)
+        self.dataset.export_signals(
+            os.path.join(self.tmp_dir, "export_signals_test.csv"))
 
     def test_boolean_mask_roi(self):
         mask = np.array([[[False, False, False, False, False, False],
