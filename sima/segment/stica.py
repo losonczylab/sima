@@ -61,7 +61,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
         except IOError:
             pass
         else:
-            if data['st_components'].shape[2] == n_components and \
+            if data['st_components'].shape[-1] == n_components and \
                     data['mu'].item() == mu and \
                     data['num_pcs'] == time_pcs.shape[1]:
                 ret = data['st_components']
@@ -89,23 +89,14 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     st_components = np.real(np.array(ica.fit_transform(y)))
 
     # pull out the spacial portion of the st_components
-    st_components = \
-        st_components[:(space_pcs.shape[0] * space_pcs.shape[1]), :]
-    st_components = st_components.reshape(space_pcs.shape[0],
-                                          space_pcs.shape[1],
-                                          st_components.shape[1])
-
-    # normalize the ica results
-    for i in range(st_components.shape[2]):
-        st_component = st_components[:, :, i]
-        st_component = abs(st_component - np.mean(st_component))
-        st_component = old_div(st_component, np.max(st_component))
-        st_components[:, :, i] = st_component
+    st_components = st_components[:np.prod(space_pcs.shape[:-1]), :]
+    st_components = st_components.reshape(
+        space_pcs.shape[:-1] + (st_components.shape[-1],))
 
     # save the ica components if a path has been provided
     if path is not None:
         np.savez(path, st_components=st_components, mu=mu,
-                 num_pcs=time_pcs.shape[1])
+                 num_pcs=time_pcs.shape[-1])
 
     return st_components
 
