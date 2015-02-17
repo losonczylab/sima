@@ -20,7 +20,7 @@ from .segment import (
     _smooth_roi,
     _check_single_plane,
 )
-from .normcut import _OPCA
+from . import oPCA
 from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
 
@@ -345,14 +345,10 @@ class STICA(SegmentationStrategy):
         components = self._params['components']
         if isinstance(components, int):
             components = list(range(components))
-        _, space_pcs, time_pcs = _OPCA(
+        _, space_pcs, time_pcs = oPCA.dataset_opca(
             dataset, channel, components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
             dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
-        space_pcs = np.array(
-            [space_pcs[:, :, i] for i in components]).transpose((1, 2, 0))
-        time_pcs = np.array([time_pcs[:, i] for i in components]
-                            ).transpose((1, 0))
 
         if self._params['verbose']:
             print('performing ICA...')
