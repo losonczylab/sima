@@ -247,17 +247,19 @@ class CircularityFilter(ROIFilter):
         super(CircularityFilter, self).__init__(f)
 
 
-class RemoveOverlapping(PostProcessingStep):
-    """Postprocessing step to remove overlapping ROIs.
+class MergeOverlapping(PostProcessingStep):
+    """Postprocessing step to merge overlapping ROIs.
 
     Parameters
     ----------
     percent_overlap : float
-        percent of the smaller ROIs total area which must be covered in order
-        for the ROIs to be evaluated as overlapping
+        Minimimum percent of the smaller ROIs total area which must be covered
+        in order for the ROIs to be evaluated as overlapping.
 
     """
     def __init__(self, percent_overlap):
+        if percent_overlap < 0. or percent_overlap > 1.:
+            raise ValueError('percent_overlap must be in the interval [0,1]')
         self.percent_overlap = percent_overlap
 
     def apply(self, rois, dataset=None):
@@ -277,23 +279,175 @@ class RemoveOverlapping(PostProcessingStep):
             A list of sima.ROI ROI objects with the overlapping ROIs combined
         """
 
-        if self.percent_overlap > 0 and self.percent_overlap <= 1:
-            for roi in rois:
-                roi.mask = roi.mask
+        for roi in rois:
+            roi.mask = roi.mask
 
-            for i in range(len(rois)):
-                for j in [j for j in range(len(rois)) if j != i]:
-                    if rois[i] is not None and rois[j] is not None:
-                        overlap = np.logical_and(rois[i], rois[j])
-                        small_area = min(np.size(rois[i]), np.size(rois[j]))
+        for i in range(len(rois)):  # TODO: more efficient strategy
+            for j in [j for j in range(len(rois)) if j != i]:
+                if rois[i] is not None and rois[j] is not None:
+                    overlap = np.logical_and(rois[i], rois[j])
+                    small_area = min(np.size(rois[i]), np.size(rois[j]))
 
-                        if len(np.where(overlap)[0]) > \
-                                self.percent_overlap * small_area:
-                            new_shape = np.logical_or(rois[i], rois[j])
+                    if len(np.where(overlap)[0]) > \
+                            self.percent_overlap * small_area:
+                        new_shape = np.logical_or(rois[i], rois[j])
 
-                            rois[i] = ROI(mask=new_shape.astype('bool'))
-                            rois[j] = None
+                        rois[i] = ROI(mask=new_shape.astype('bool'))
+                        rois[j] = None
         return ROIList(roi for roi in rois if roi is not None)
+
+
+class SparseROIsFromMasks(PostProcessingStep):
+    """PostProcessingStep to extract sparse ROIs from masks.
+
+    Parameters
+    ----------
+    min_area : int
+        The minimum size in number of pixels that an ROI can be.
+    spatial_sep : bool, optional
+        If True, the stICA components will be segmented spatially and
+        non-contiguous poitns will be made into sparate ROIs. Default: True
+    static_threshold : float, optional
+        threhold on the static allowable in an ICA components, eliminating
+        high scoring components speeds the ROI extraction and may improve
+        the results. Default: 0.5
+    x_smoothing : int
+        number of times to apply gaussiian blur smoothing process to
+        each component. Default: 4
+    smooth_size : int, optional
+        number of itereations of static removial and gaussian blur to
+        perform on each stICA component. 0 provides no gaussian blur,
+        larger values produce stICA components with less static but the
+        ROIs loose defination. Default: 4
+    sign_split : bool, optional
+        Whether to split each mask into its positive and negative components.
+
+
+    """
+    def __init__(self, min_size, spatial_sep, static_threshold=0.5,
+                 smooth_size=4, sign_split=True):
+        self.min_size = min_size
+        self.spatial_sep = spatial_sep
+        self.static_threshold = static_threshold
+        self.smooth_size = smooth_size
+        self.sign_split = sign_split
+
+    def apply(self, rois, dataset=None):
+        smoothed, _, _ = SparseROIsFromMasks._find_and_smooth(
+            rois, self.static_threshold, self.smooth_size, self.sign_split)
+
+        return ROIList(SparseROIsFromMasks._extract_st_rois(smoothed,
+                                                            self.min_size,
+                                                            self.spatial_sep))
+
+    @staticmethod
+    def _extract_st_rois(input_rois, min_area, spatial_sep):
+        """ Extract ROIs from the spatio-temporal components
+
+        Parameters
+        ----------
+        input_rois : ROIList
+            list of ROIs
+        min_area : int
+            The minimum size in number of pixels that an ROI can be.
+        spatial_sep : bool
+            If True, the stICA components will be segmented spatially and
+            non-contiguous poitns will be made into sparate ROIs.
+
+        Returns
+        -------
+        rois : list
+            A list of sima.ROI ROI objects
+        """
+        rois = []
+        for frame in input_rois:
+            img = np.array(frame)
+            img[np.where(img > 0)] = 1
+            img, seg_count = ndimage.measurements.label(img)
+            component_mask = np.zeros(img.shape, 'bool')
+            for i in range(seg_count):
+                segment = np.where(img == i + 1)
+                if segment[0].size >= min_area:
+                    if spatial_sep:
+                        thisroi = np.zeros(img.shape, 'bool')
+                        thisroi[segment] = True
+                        rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
+                    else:
+                        component_mask[segment] = True
+            if not spatial_sep and np.any(component_mask):
+                rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
+        return rois
+
+    @staticmethod
+    def _find_and_smooth(rois, threshold, x_smoothing=4, sign_split=True):
+        """ finds ICA components with axons and brings them to the foreground
+
+        Parameters
+        ----------
+        rois : ROIList
+        threshold : float
+            threshold on gradient measures to cut off
+        x_smoothing : int
+            number of times to apply gaussiian blur smoothing process to
+            each component. Default: 4
+        sign_split : bool, optional
+            Whether to split each mask into its positive and negative
+            components.
+
+        Returns
+        -------
+        accepted : list
+            ROIs which contain axons have been processed.
+        accepted_components : list
+            ROIs found to contain axons but without image processing applied
+        rejected : list
+            ROIs that are determined to have no axon information in them
+        """
+
+        accepted = []
+        accepted_components = []
+        rejected = []
+        for roi in rois:
+            # copy the component, remove pixels with low weights
+            if len(roi.mask) > 1:
+                raise ValueError('This PostProcessingStep is only intended '
+                                 'for ROIs from 2D datasets.')
+            frame = np.array(roi)[0]
+            frame[frame < 2 * np.std(frame)] = 0
+
+            # smooth the component via static removal and gaussian blur
+            for _ in range(x_smoothing):
+                check = frame[1:-1, :-2] + frame[1:-1, 2:] + \
+                    frame[:-2, 1:-1] + frame[2, 1:-1]
+                z = np.zeros(frame.shape)
+                z[1:-1, 1:-1] = check
+                frame[np.logical_not(z)] = 0
+
+                blurred = ndimage.gaussian_filter(frame, sigma=1)
+                frame = blurred + frame
+
+                frame = frame / np.max(frame)
+                frame[frame < 2 * np.std(frame)] = 0
+
+            # calculate the remaining static in the component
+            static = np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 1:-1])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 1:-1])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, :-2])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, :-2])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, :-2]))
+
+            static = static * 2.0 / (frame.shape[0] * frame.shape[1])
+
+            # decide if the component should be accepted or rejected
+            if np.sum(static) < threshold:
+                accepted.append(ROI(mask=np.expand_dims(frame, 0)))
+                accepted_components.append(roi)
+            else:
+                rejected.append(ROI(mask=np.expand_dims(frame, 0)))
+        return accepted, accepted_components, rejected
 
 
 class SmoothROIBoundaries(PostProcessingStep):
@@ -309,7 +463,7 @@ class SmoothROIBoundaries(PostProcessingStep):
     """
 
     def __init__(self, radius=3):
-        self.radius = 3
+        self.radius = radius
 
     def apply(self, rois, dataset=None):
         if not all(len(r.mask) == 1 for r in rois):
@@ -319,8 +473,8 @@ class SmoothROIBoundaries(PostProcessingStep):
 
     @staticmethod
     def _smooth_roi(roi, radius=3):
-        """ Smooth out the ROI boundaries and reduce the number of points in the
-        ROI polygons.
+        """ Smooth out the ROI boundaries and reduce the number of points in
+        the ROI polygons.
 
         Parameters
         ----------
@@ -331,8 +485,8 @@ class SmoothROIBoundaries(PostProcessingStep):
         Returns
         -------
         roi : sima.ROI
-            If successful, an ROI object which have been smoothed, otherwise, the
-            original ROI is returned
+            If successful, an ROI object which have been smoothed, otherwise,
+            the original ROI is returned
         success : bool
             True if the smoothing has been successful, False otherwise
         """
@@ -352,20 +506,22 @@ class SmoothROIBoundaries(PostProcessingStep):
         p = [cols[0], rows[0]]
         base = p
 
-        # establish an iteration limit to ensue the loop terminates if smoothing
-        # is unsuccessful
+        # establish an iteration limit to ensue the loop terminates if
+        # smoothing is unsuccessful
         limit = 1500
 
-        # store wether the radius of search is increased aboved the initial value
+        # store wether the radius of search is increased aboved the initial
+        # value
         tmp_rad = False
-        for i in range(limit - 1):
+        for _ in range(limit - 1):
             b.append(p)
-            # find the ist of all points at the given radius and adjust to be lined
-            # up for clockwise traversal
-            x = np.roll(np.array(list(p[0] + list(range(-radius, radius))) +
-                                 [p[0] + radius] * (2 * radius + 1) +
-                                 list(p[0] + list(range(-radius, radius))[::-1]) +
-                                 [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
+            # find the ist of all points at the given radius and adjust to be
+            # lined up for clockwise traversal
+            x = np.roll(
+                np.array(list(p[0] + list(range(-radius, radius))) +
+                         [p[0] + radius] * (2 * radius + 1) +
+                         list(p[0] + list(range(-radius, radius))[::-1]) +
+                         [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
             y = np.roll(np.array([p[1] - radius] * (2 * radius) +
                                  list(p[1] + list(range(-radius, radius))) +
                                  [p[1] + radius] * (2 * radius + 1) +
@@ -392,9 +548,9 @@ class SmoothROIBoundaries(PostProcessingStep):
                                  np.where(np.roll(vals, 1) == 0)[0])[0]
             p = [x[idx], y[idx]]
 
-            # check if the traveral is near to the starting point indicating that
-            # the algirthm has completed. If less then 3 points are found this is
-            # not yet a valid ROI
+            # check if the traveral is near to the starting point indicating
+            # that the algirthm has completed. If less then 3 points are found
+            # this is not yet a valid ROI
             if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
                     1.5 * radius and len(b) > 3:
                 new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
@@ -402,9 +558,9 @@ class SmoothROIBoundaries(PostProcessingStep):
                     # "well formed ROI"
                     return new_roi, True
 
-            # if p is already in the list of polygon points, increase the radius of
-            # search. if radius is already larger then 6, blur the mask and try
-            # again
+            # if p is already in the list of polygon points, increase the
+            # radius of search. if radius is already larger then 6, blur the
+            # mask and try again
             if p in b:
                 if radius > 6:
                     radius = 3
@@ -427,6 +583,6 @@ class SmoothROIBoundaries(PostProcessingStep):
                 tmp_rad = False
                 radius = 3
 
-        # The maximum number of cycles has completed and no suitable smoothed ROI
-        # has been determined
+        # The maximum number of cycles has completed and no suitable smoothed
+        # ROI has been determined
         return roi, False

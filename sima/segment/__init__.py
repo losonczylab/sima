@@ -5,7 +5,8 @@ from .segment import (
     ROIFilter,
     PostProcessingStep,
     SmoothROIBoundaries,
-    RemoveOverlapping,
+    MergeOverlapping,
+    SparseROIsFromMasks,
 )
 from .stica import STICA
 from .ca1pc import (
