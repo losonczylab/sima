@@ -2,7 +2,6 @@ from __future__ import print_function
 from __future__ import division
 from builtins import str
 from builtins import range
-from past.utils import old_div
 import os
 
 import numpy as np
@@ -16,8 +15,6 @@ except ImportError:
 import sima.misc
 from .segment import (
     SegmentationStrategy,
-    _remove_overlapping,
-    _smooth_roi,
     _check_single_plane,
 )
 from . import oPCA
@@ -134,7 +131,7 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
     for i in range(st_components.shape[2]):
 
         # copy the component, remove pixels with low weights
-        frame = st_components[:, :, i].copy()
+        frame = st_components[..., i].copy()
         frame[frame < 2 * np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
@@ -148,7 +145,7 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
             blurred = ndimage.gaussian_filter(frame, sigma=1)
             frame = blurred + frame
 
-            frame = old_div(frame, np.max(frame))
+            frame = frame / np.max(frame)
             frame[frame < 2 * np.std(frame)] = 0
 
         # calculate the remaining static in the component
@@ -247,10 +244,6 @@ class STICA(SegmentationStrategy):
         percentage of an ROI that must be covered in order to combine the
         two segments. Values outside of (0,1] will result in no removal of
         overlapping ROIs. Requires x_smoothing to be > 0. Default: 0
-    smooth_rois : bool, optional
-        Set to True in order to translate the ROIs into polygons and
-        execute smoothing algorithm. Requires x_smoothing to be > 0.
-        Default: True
     spatial_sep : bool, optional
         If True, the stICA components will be segmented spatially and
         non-contiguous points will be made into sparate ROIs. Requires
@@ -308,8 +301,7 @@ class STICA(SegmentationStrategy):
 
     def __init__(
             self, channel=0, mu=0.01, components=75, static_threshold=0.5,
-            min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
-            spatial_sep=True, verbose=False):
+            min_area=50, x_smoothing=4, spatial_sep=True, verbose=False):
         super(STICA, self).__init__()
         self._params = dict(locals())
         self._params.pop('self')
@@ -357,16 +349,6 @@ class STICA(SegmentationStrategy):
                 rois = _extract_st_rois(
                     accepted, min_area=self._params['min_area'],
                     spatial_sep=self._params['spatial_sep'])
-
-            if self._params['smooth_rois']:
-                if self._params['verbose']:
-                    print('smoothing ROIs...')
-                rois = [_smooth_roi(roi)[0] for roi in rois]
-
-            if self._params['verbose']:
-                print('removing overlapping ROIs...')
-            rois = _remove_overlapping(
-                rois, percent_overlap=self._params['overlap_per'])
         else:
             rois = [ROI(st_components[:, :, i]) for i in
                     range(st_components.shape[2])]

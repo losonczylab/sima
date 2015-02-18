@@ -37,7 +37,9 @@ def test_extract_rois():
     LooseVersion(numpy.__version__) < LooseVersion('1.9.0'))
 def test_STICA():
     ds = ImagingDataset.load(example_data())
-    method = segment.STICA(components=5, overlap_per=0.5)
+    method = segment.STICA(components=5)
+    method.append(segment.SmoothROIBoundaries(radius=3))
+    method.append(segment.RemoveOverlapping(0.))
     ds.segment(method)
 
 

@@ -145,42 +145,6 @@ class PlaneWiseSegmentation(SegmentationStrategy):
         return rois
 
 
-def _remove_overlapping(rois, percent_overlap=0.9):
-    """ Remove overlapping ROIs
-
-    Parameters
-    ----------
-    rois : list
-        list of sima.ROI ROIs
-    percent_overlap : float
-        percent of the smaller ROIs total area which must be covered in order
-        for the ROIs to be evaluated as overlapping
-
-    Returns
-    -------
-    rois : list
-        A list of sima.ROI ROI objects with the overlapping ROIs combined
-    """
-
-    if percent_overlap > 0 and percent_overlap <= 1:
-        for roi in rois:
-            roi.mask = roi.mask
-
-        for i in range(len(rois)):
-            for j in [j for j in range(len(rois)) if j != i]:
-                if rois[i] is not None and rois[j] is not None:
-                    overlap = np.logical_and(rois[i], rois[j])
-                    small_area = min(np.size(rois[i]), np.size(rois[j]))
-
-                    if len(np.where(overlap)[0]) > \
-                            percent_overlap * small_area:
-                        new_shape = np.logical_or(rois[i], rois[j])
-
-                        rois[i] = ROI(mask=new_shape.astype('bool'))
-                        rois[j] = None
-    return ROIList(roi for roi in rois if roi is not None)
-
-
 class PostProcessingStep(with_metaclass(abc.ABCMeta, object)):
 
     """Abstract class representing the interface for post processing
@@ -283,115 +247,186 @@ class CircularityFilter(ROIFilter):
         super(CircularityFilter, self).__init__(f)
 
 
-def _smooth_roi(roi, radius=3):
-    """ Smooth out the ROI boundaries and reduce the number of points in the
-    ROI polygons.
+class RemoveOverlapping(PostProcessingStep):
+    """Postprocessing step to remove overlapping ROIs.
 
     Parameters
     ----------
-    roi : sima.ROI
-        ROI object to be smoothed
-    radius : initial radius of the smoothing
+    percent_overlap : float
+        percent of the smaller ROIs total area which must be covered in order
+        for the ROIs to be evaluated as overlapping
 
-    Returns
-    -------
-    roi : sima.ROI
-        If successful, an ROI object which have been smoothed, otherwise, the
-        original ROI is returned
-    success : bool
-        True if the smoothing has been successful, False otherwise
+    """
+    def __init__(self, percent_overlap):
+        self.percent_overlap = percent_overlap
+
+    def apply(self, rois, dataset=None):
+        """ Remove overlapping ROIs
+
+        Parameters
+        ----------
+        rois : list
+            list of sima.ROI ROIs
+        percent_overlap : float
+            percent of the smaller ROIs total area which must be covered in
+            order for the ROIs to be evaluated as overlapping
+
+        Returns
+        -------
+        rois : list
+            A list of sima.ROI ROI objects with the overlapping ROIs combined
+        """
+
+        if self.percent_overlap > 0 and self.percent_overlap <= 1:
+            for roi in rois:
+                roi.mask = roi.mask
+
+            for i in range(len(rois)):
+                for j in [j for j in range(len(rois)) if j != i]:
+                    if rois[i] is not None and rois[j] is not None:
+                        overlap = np.logical_and(rois[i], rois[j])
+                        small_area = min(np.size(rois[i]), np.size(rois[j]))
+
+                        if len(np.where(overlap)[0]) > \
+                                self.percent_overlap * small_area:
+                            new_shape = np.logical_or(rois[i], rois[j])
+
+                            rois[i] = ROI(mask=new_shape.astype('bool'))
+                            rois[j] = None
+        return ROIList(roi for roi in rois if roi is not None)
+
+
+class SmoothROIBoundaries(PostProcessingStep):
+    """
+    Post-processing step to smooth ROI boundaries.
+
+    Reduces the number of points in the ROI polygons.
+
+    Parameters
+    ----------
+    radius : int
+        The smoothing radius, in pixels.
     """
 
-    frame = roi.mask[0].todense().copy()
+    def __init__(self, radius=3):
+        self.radius = 3
 
-    frame[frame > 0] = 1
-    check = frame[:-2, :-2] + frame[1:-1, :-2] + frame[2:, :-2] + \
-        frame[:-2, 1:-1] + frame[2:, 1:-1] + frame[:-2:, 2:] + \
-        frame[1:-1, 2:] + frame[2:, 2:]
-    z = np.zeros(frame.shape)
-    z[1:-1, 1:-1] = check
+    def apply(self, rois, dataset=None):
+        if not all(len(r.mask) == 1 for r in rois):
+            raise ValueError('SmoothROIBoundaries applies only to 2D ROIs.')
+        return ROIList([SmoothROIBoundaries._smooth_roi(roi, self.radius)[0]
+                        for roi in rois])
 
-    # initialize and array to hold the new polygon and find the first point
-    b = []
-    rows, cols = np.where(z > 0)
-    p = [cols[0], rows[0]]
-    base = p
+    @staticmethod
+    def _smooth_roi(roi, radius=3):
+        """ Smooth out the ROI boundaries and reduce the number of points in the
+        ROI polygons.
 
-    # establish an iteration limit to ensue the loop terminates if smoothing
-    # is unsuccessful
-    limit = 1500
+        Parameters
+        ----------
+        roi : sima.ROI
+            ROI object to be smoothed
+        radius : initial radius of the smoothing
 
-    # store wether the radius of search is increased aboved the initial value
-    tmp_rad = False
-    for i in range(limit - 1):
-        b.append(p)
-        # find the ist of all points at the given radius and adjust to be lined
-        # up for clockwise traversal
-        x = np.roll(np.array(list(p[0] + list(range(-radius, radius))) +
-                             [p[0] + radius] * (2 * radius + 1) +
-                             list(p[0] + list(range(-radius, radius))[::-1]) +
-                             [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
-        y = np.roll(np.array([p[1] - radius] * (2 * radius) +
-                             list(p[1] + list(range(-radius, radius))) +
-                             [p[1] + radius] * (2 * radius + 1) +
-                             list(
-                                 p[1] + list(
-                                     range(-radius, (radius + 1)))[::-1])),
-                    -radius)
+        Returns
+        -------
+        roi : sima.ROI
+            If successful, an ROI object which have been smoothed, otherwise, the
+            original ROI is returned
+        success : bool
+            True if the smoothing has been successful, False otherwise
+        """
 
-        # insure that the x and y points are within the image
-        x[x < 0] = 0
-        y[y < 0] = 0
-        x[x >= z.shape[1]] = z.shape[1] - 1
-        y[y >= z.shape[0]] = z.shape[0] - 1
+        frame = roi.mask[0].todense().copy()
 
-        vals = z[y, x]
+        frame[frame > 0] = 1
+        check = frame[:-2, :-2] + frame[1:-1, :-2] + frame[2:, :-2] + \
+            frame[:-2, 1:-1] + frame[2:, 1:-1] + frame[:-2:, 2:] + \
+            frame[1:-1, 2:] + frame[2:, 2:]
+        z = np.zeros(frame.shape)
+        z[1:-1, 1:-1] = check
 
-        # ensure that the vals array has a valid transition from 0 to 1
-        # otherwise the algorithm has failed
-        if len(np.where(np.roll(vals, 1) == 0)[0]) == 0 or \
-                len(np.where(vals > 0)[0]) == 0:
-            return roi, False
+        # initialize and array to hold the new polygon and find the first point
+        b = []
+        rows, cols = np.where(z > 0)
+        p = [cols[0], rows[0]]
+        base = p
 
-        idx = np.intersect1d(np.where(vals > 0)[0],
-                             np.where(np.roll(vals, 1) == 0)[0])[0]
-        p = [x[idx], y[idx]]
+        # establish an iteration limit to ensue the loop terminates if smoothing
+        # is unsuccessful
+        limit = 1500
 
-        # check if the traveral is near to the starting point indicating that
-        # the algirthm has completed. If less then 3 points are found this is
-        # not yet a valid ROI
-        if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
-                1.5 * radius and len(b) > 3:
-            new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
-            if new_roi.mask[0].size != 0:
-                # "well formed ROI"
-                return new_roi, True
+        # store wether the radius of search is increased aboved the initial value
+        tmp_rad = False
+        for i in range(limit - 1):
+            b.append(p)
+            # find the ist of all points at the given radius and adjust to be lined
+            # up for clockwise traversal
+            x = np.roll(np.array(list(p[0] + list(range(-radius, radius))) +
+                                 [p[0] + radius] * (2 * radius + 1) +
+                                 list(p[0] + list(range(-radius, radius))[::-1]) +
+                                 [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
+            y = np.roll(np.array([p[1] - radius] * (2 * radius) +
+                                 list(p[1] + list(range(-radius, radius))) +
+                                 [p[1] + radius] * (2 * radius + 1) +
+                                 list(
+                                     p[1] + list(
+                                         range(-radius, (radius + 1)))[::-1])),
+                        -radius)
 
-        # if p is already in the list of polygon points, increase the radius of
-        # search. if radius is already larger then 6, blur the mask and try
-        # again
-        if p in b:
-            if radius > 6:
-                radius = 3
-                z = ndimage.gaussian_filter(z, sigma=1)
+            # insure that the x and y points are within the image
+            x[x < 0] = 0
+            y[y < 0] = 0
+            x[x >= z.shape[1]] = z.shape[1] - 1
+            y[y >= z.shape[0]] = z.shape[0] - 1
 
-                b = []
-                rows, cols = np.where(z > 0)
-                p = [cols[0], rows[0]]
-                base = p
+            vals = z[y, x]
+
+            # ensure that the vals array has a valid transition from 0 to 1
+            # otherwise the algorithm has failed
+            if len(np.where(np.roll(vals, 1) == 0)[0]) == 0 or \
+                    len(np.where(vals > 0)[0]) == 0:
+                return roi, False
+
+            idx = np.intersect1d(np.where(vals > 0)[0],
+                                 np.where(np.roll(vals, 1) == 0)[0])[0]
+            p = [x[idx], y[idx]]
+
+            # check if the traveral is near to the starting point indicating that
+            # the algirthm has completed. If less then 3 points are found this is
+            # not yet a valid ROI
+            if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
+                    1.5 * radius and len(b) > 3:
+                new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
+                if new_roi.mask[0].size != 0:
+                    # "well formed ROI"
+                    return new_roi, True
+
+            # if p is already in the list of polygon points, increase the radius of
+            # search. if radius is already larger then 6, blur the mask and try
+            # again
+            if p in b:
+                if radius > 6:
+                    radius = 3
+                    z = ndimage.gaussian_filter(z, sigma=1)
+
+                    b = []
+                    rows, cols = np.where(z > 0)
+                    p = [cols[0], rows[0]]
+                    base = p
+                    tmp_rad = False
+
+                else:
+                    radius = radius + 1
+                    tmp_rad = True
+                    if len(b) > 3:
+                        p = b[-3]
+                        del b[-3:]
+
+            elif tmp_rad:
                 tmp_rad = False
+                radius = 3
 
-            else:
-                radius = radius + 1
-                tmp_rad = True
-                if len(b) > 3:
-                    p = b[-3]
-                    del b[-3:]
-
-        elif tmp_rad:
-            tmp_rad = False
-            radius = 3
-
-    # The maximum number of cycles has completed and no suitable smoothed ROI
-    # has been determined
-    return roi, False
+        # The maximum number of cycles has completed and no suitable smoothed ROI
+        # has been determined
+        return roi, False

@@ -4,6 +4,8 @@ from .segment import (
     PlaneWiseSegmentation,
     ROIFilter,
     PostProcessingStep,
+    SmoothROIBoundaries,
+    RemoveOverlapping,
 )
 from .stica import STICA
 from .ca1pc import (
