@@ -66,18 +66,20 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
         return ret
 
     # preprocess the PCA data
-    for i in range(space_pcs.shape[2]):
-        space_pcs[:, :, i] = mu * \
-            (space_pcs[:, :, i] -
-             nanmean(space_pcs[:, :, i])) / np.max(space_pcs)
+    space_factor = mu / np.max(space_pcs)
+    time_factor = (1 - mu) / np.max(time_pcs)
+    for i in range(space_pcs.shape[-1]):
+        space_pcs[..., i] = space_factor * (
+            space_pcs[..., i] - nanmean(space_pcs[..., i]))
     for i in range(time_pcs.shape[1]):
-        time_pcs[:, i] = (1 - mu) * \
-            (time_pcs[:, i] - nanmean(time_pcs[:, i])) / np.max(time_pcs)
+        time_pcs[:, i] = time_factor * (
+            time_pcs[:, i] - nanmean(time_pcs[:, i]))
 
     # concatenate the space and time PCs
-    y = np.concatenate((space_pcs.reshape(
-        space_pcs.shape[0] * space_pcs.shape[1],
-        space_pcs.shape[2]), time_pcs))
+    y = np.concatenate((
+        space_pcs.reshape(
+            np.prod(space_pcs.shape[:-1]), space_pcs.shape[-1]),
+        time_pcs))
 
     # execute the FastICA algorithm
     ica = FastICA(n_components=n_components, max_iter=1500)
@@ -96,7 +98,6 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     return st_components
 
 
-
 class STICA(SegmentationStrategy):
 
     """
@@ -113,11 +114,6 @@ class STICA(SegmentationStrategy):
     components : int or list, optional
         Number of principal components to use. If list is given, then use
         only the principcal componenets indexed by the list Default: 75
-    overlap_per : float, optional
-    spatial_sep : bool, optional
-        If True, the stICA components will be segmented spatially and
-        non-contiguous points will be made into sparate ROIs. Requires
-        x_smoothing to be > 0. Default: True
     verbose : bool, optional
         Whether to print progress updates.
 
@@ -170,13 +166,11 @@ class STICA(SegmentationStrategy):
     """
 
     def __init__(
-            self, channel=0, mu=0.01, components=75, static_threshold=0.5,
-            min_area=50, x_smoothing=4, spatial_sep=True, verbose=False):
+            self, channel=0, mu=0.01, components=75, verbose=False):
         super(STICA, self).__init__()
         self._params = dict(locals())
         self._params.pop('self')
 
-    @_check_single_plane
     def _segment(self, dataset):
 
         channel = sima.misc.resolve_channels(self._params['channel'],
@@ -200,14 +194,13 @@ class STICA(SegmentationStrategy):
             components = list(range(components))
         _, space_pcs, time_pcs = oPCA.dataset_opca(
             dataset, channel, components[-1] + 1, path=pca_path)
-        space_pcs = np.real(space_pcs.reshape(
-            dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
+        space_pcs = np.real(space_pcs)
 
         if self._params['verbose']:
             print('performing ICA...')
         st_components = _stica(
             space_pcs, time_pcs, mu=self._params['mu'], path=ica_path,
-            n_components=space_pcs.shape[2])
+            n_components=space_pcs.shape[-1])
 
         return ROIList([ROI(st_components[..., i]) for i in
-                        range(st_components.shape[2])])
+                        range(st_components.shape[-1])])

@@ -249,7 +249,7 @@ def _direction(vects, weights=None):
         vects_ = vects
     else:
         vects_ = vects * weights
-    return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=2).T)).T
+    return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=-1).T)).T
 
 
 def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
@@ -293,7 +293,7 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
         oPC_vars, oPCs, _ = oPCA.dataset_opca(dataset, channel, num_pcs, path,
                                               verbose=verbose)
         weights = np.sqrt(np.maximum(0, oPC_vars))
-        D = _direction(oPCs, weights)
+        D = _direction(oPCs[0], weights)  # TODO: Generalize to 3D datasets
         return {
             ((u, v), (w, x)): np.dot(D[u, v, :], D[w, x, :])
             for u, v, w, x in pixel_pairs

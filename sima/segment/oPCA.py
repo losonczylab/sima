@@ -286,10 +286,9 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
             data.close()
     if ret is not None:
         return ret
-    shape = dataset.frame_shape[1:3]
     oPC_vars, oPCs, oPC_signals = EM_oPCA(
         DatasetIterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
-    oPCs = oPCs.reshape(shape + (-1,))
+    oPCs = oPCs.reshape(dataset.frame_shape[:3] + (-1,))
     if path is not None:
         np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
     return oPC_vars, oPCs, oPC_signals
