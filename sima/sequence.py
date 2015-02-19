@@ -381,9 +381,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
         """
-        depth = lambda L: \
-            isinstance(L, collections.Sequence) and \
-            (not isinstance(L, str)) and max(list(map(depth, L))) + 1
+        def depth(L):
+            return isinstance(L, collections.Sequence) and \
+                (not isinstance(L, str)) and max(list(map(depth, L))) + 1
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
         if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 2:

@@ -12,8 +12,6 @@ ROI.ROIList object are a list-like container for storing multiple ROIs and
 includes methods for saving, sorting, and sub-grouping.
 
 """
-from future import standard_library
-standard_library.install_aliases()
 from builtins import filter
 from builtins import str
 from builtins import zip
@@ -38,6 +36,9 @@ import os
 import glob
 import re
 import scipy.io
+
+from future import standard_library
+standard_library.install_aliases()
 
 
 class NonBooleanMask(Exception):

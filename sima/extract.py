@@ -1,7 +1,5 @@
 """Methods used to extract signals from an ImagingDataset."""
 from __future__ import division
-from future import standard_library
-standard_library.install_aliases()
 from builtins import zip
 from builtins import map
 from builtins import str
@@ -19,6 +17,9 @@ import warnings
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
+
+from future import standard_library
+standard_library.install_aliases()
 
 # import multiprocessing.util as util
 # util.log_to_stderr(util.SUBDEBUG)
@@ -330,8 +331,8 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
     if n_rois != original_n_rois:
-        warnings.warn("Empty ROIs will return all NaN values: "
-                      + "{} empty ROIs found".format(original_n_rois - n_rois))
+        warnings.warn("Empty ROIs will return all NaN values: " +
+                      "{} empty ROIs found".format(original_n_rois - n_rois))
 
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()
