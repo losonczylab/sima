@@ -177,4 +177,7 @@ def _0_to_1(source, target=None):
         target = source
 
     ds = _load_version0(source)
+    # Load the time_averages to force a check for an old version and re-calc if
+    # necessary
+    ds.time_averages
     ds.save(target)
