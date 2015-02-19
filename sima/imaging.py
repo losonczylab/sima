@@ -157,7 +157,8 @@ class ImagingDataset(object):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None)
+        return ImagingDataset(
+            sequences, None, channel_names=self.channel_names)
 
     @property
     def sequences(self):
@@ -251,8 +252,8 @@ class ImagingDataset(object):
                     overwrite = strtobool(
                         input("Overwrite existing directory ({})? ".format(
                             savedir)))
-                    # Note: This will overwrite dataset.pkl but will leave
-                    #       all other files in the directory intact
+                    # Note: This will overwrite dataset.pkl and sequences.pkl
+                    # but will leave all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
                     else:
@@ -640,9 +641,15 @@ class ImagingDataset(object):
             The label of the extracted signal set to use. By default,
             the most recently extracted signals are used.
         """
-        with open(path, 'wb') as csvfile:
-            writer = csv.writer(csvfile, delimiter='\t')
-
+        try:
+            csvfile = open(path, 'w', newline='')
+        except TypeError:  # Python 2
+            csvfile = open(path, 'wb')
+        try:
+            try:
+                writer = csv.writer(csvfile, delimiter='\t')
+            except TypeError:  # Python 2
+                writer = csv.writer(csvfile, delimiter=b'\t')
             signals = self.signals(channel)
             if signals_label is None:
                 signals_label = most_recent_key(signals)
@@ -659,6 +666,8 @@ class ImagingDataset(object):
                     signals[signals_label]['raw']):
                 for frame_idx, frame in enumerate(sequence.T):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
+        finally:
+            csvfile.close()
 
     def extract(self, rois=None, signal_channel=0, label=None,
                 remove_overlap=True, n_processes=1, demix_channel=None,
