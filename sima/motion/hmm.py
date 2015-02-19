@@ -610,9 +610,10 @@ class MovementModel(object):
         """
         cov_matrix = self.cov_matrix(dt)
         assert np.linalg.det(cov_matrix) > 0
-        log_transition_probs = lambda x: -0.5 * (
-            np.log(2 * np.pi * np.linalg.det(cov_matrix)) +
-            np.dot(x, np.linalg.solve(cov_matrix, x)))
+
+        def log_transition_probs(x):
+            return -0.5 * (np.log(2 * np.pi * np.linalg.det(cov_matrix)) +
+                           np.dot(x, np.linalg.solve(cov_matrix, x)))
         log_transition_matrix = -np.inf * np.ones(
             [max_distance + 1] * len(cov_matrix))
         for disp in it.product(
