@@ -403,16 +403,23 @@ class SparseROIsFromMasks(PostProcessingStep):
         rejected : list
             ROIs that are determined to have no axon information in them
         """
+        def split_by_sign(roi):
+            arr = np.array(roi)
+            return [np.maximum(arr, 0), np.maximum(-arr, 0)]
 
+        if sign_split:
+            rois = sum((split_by_sign(r) for r in rois), [])
+        else:
+            rois = [np.abs(r) for r in rois]
         accepted = []
         accepted_components = []
         rejected = []
         for roi in rois:
             # copy the component, remove pixels with low weights
-            if len(roi.mask) > 1:
+            if len(roi) > 1:
                 raise ValueError('This PostProcessingStep is only intended '
                                  'for ROIs from 2D datasets.')
-            frame = np.array(roi)[0]
+            frame = roi[0]
             frame[frame < 2 * np.std(frame)] = 0
 
             # smooth the component via static removal and gaussian blur
@@ -444,7 +451,7 @@ class SparseROIsFromMasks(PostProcessingStep):
             # decide if the component should be accepted or rejected
             if np.sum(static) < threshold:
                 accepted.append(ROI(mask=np.expand_dims(frame, 0)))
-                accepted_components.append(roi)
+                accepted_components.append(ROI(mask=roi))
             else:
                 rejected.append(ROI(mask=np.expand_dims(frame, 0)))
         return accepted, accepted_components, rejected
