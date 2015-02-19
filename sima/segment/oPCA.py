@@ -228,6 +228,7 @@ def offsetPCA(data, num_pcs=None):
 BELOW IS CODE FOR RUNNING OPCA ON A SIMA DATASET
 """
 
+
 class DatasetIterable(object):
 
     def __init__(self, dataset, channel):

@@ -11,10 +11,7 @@ except ImportError:
     from numpy import nanmean
 
 import sima.misc
-from .segment import (
-    SegmentationStrategy,
-    _check_single_plane,
-)
+from .segment import SegmentationStrategy
 from . import oPCA
 from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
