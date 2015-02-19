@@ -1,6 +1,4 @@
 from __future__ import unicode_literals
-from future import standard_library
-standard_library.install_aliases()
 from builtins import input
 from builtins import zip
 from builtins import str
@@ -15,6 +13,9 @@ import numpy as np
 
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
+
+from future import standard_library
+standard_library.install_aliases()
 
 
 class Unpickler(_Unpickler):
