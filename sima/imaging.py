@@ -426,7 +426,6 @@ class ImagingDataset(object):
                 return
         else:
             # Assume one ROI per plane
-            # assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
             transforms = []
             for plane_idx in range(self.frame_shape[0]):
                 trg_coords = None
