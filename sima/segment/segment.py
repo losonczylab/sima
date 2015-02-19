@@ -252,15 +252,15 @@ class MergeOverlapping(PostProcessingStep):
 
     Parameters
     ----------
-    percent_overlap : float
+    threshold : float
         Minimimum percent of the smaller ROIs total area which must be covered
         in order for the ROIs to be evaluated as overlapping.
 
     """
-    def __init__(self, percent_overlap):
-        if percent_overlap < 0. or percent_overlap > 1.:
+    def __init__(self, threshold):
+        if threshold < 0. or threshold > 1.:
             raise ValueError('percent_overlap must be in the interval [0,1]')
-        self.percent_overlap = percent_overlap
+        self.percent_overlap = threshold
 
     def apply(self, rois, dataset=None):
         """ Remove overlapping ROIs
@@ -302,18 +302,12 @@ class SparseROIsFromMasks(PostProcessingStep):
 
     Parameters
     ----------
-    min_area : int
-        The minimum size in number of pixels that an ROI can be.
-    spatial_sep : bool, optional
-        If True, the stICA components will be segmented spatially and
-        non-contiguous poitns will be made into sparate ROIs. Default: True
+    min_size : int, optional
+        The minimum size in number of pixels that an ROI can be. Default: 50.
     static_threshold : float, optional
         threhold on the static allowable in an ICA components, eliminating
         high scoring components speeds the ROI extraction and may improve
         the results. Default: 0.5
-    x_smoothing : int
-        number of times to apply gaussiian blur smoothing process to
-        each component. Default: 4
     smooth_size : int, optional
         number of itereations of static removial and gaussian blur to
         perform on each stICA component. 0 provides no gaussian blur,
@@ -324,10 +318,9 @@ class SparseROIsFromMasks(PostProcessingStep):
 
 
     """
-    def __init__(self, min_size, spatial_sep, static_threshold=0.5,
-                 smooth_size=4, sign_split=True):
+    def __init__(self, min_size=50, static_threshold=0.5, smooth_size=4,
+                 sign_split=True):
         self.min_size = min_size
-        self.spatial_sep = spatial_sep
         self.static_threshold = static_threshold
         self.smooth_size = smooth_size
         self.sign_split = sign_split
@@ -337,11 +330,10 @@ class SparseROIsFromMasks(PostProcessingStep):
             rois, self.static_threshold, self.smooth_size, self.sign_split)
 
         return ROIList(SparseROIsFromMasks._extract_st_rois(smoothed,
-                                                            self.min_size,
-                                                            self.spatial_sep))
+                                                            self.min_size))
 
     @staticmethod
-    def _extract_st_rois(input_rois, min_area, spatial_sep):
+    def _extract_st_rois(input_rois, min_area):
         """ Extract ROIs from the spatio-temporal components
 
         Parameters
@@ -350,9 +342,6 @@ class SparseROIsFromMasks(PostProcessingStep):
             list of ROIs
         min_area : int
             The minimum size in number of pixels that an ROI can be.
-        spatial_sep : bool
-            If True, the stICA components will be segmented spatially and
-            non-contiguous poitns will be made into sparate ROIs.
 
         Returns
         -------
@@ -364,18 +353,12 @@ class SparseROIsFromMasks(PostProcessingStep):
             img = np.array(frame)
             img[np.where(img > 0)] = 1
             img, seg_count = ndimage.measurements.label(img)
-            component_mask = np.zeros(img.shape, 'bool')
             for i in range(seg_count):
                 segment = np.where(img == i + 1)
                 if segment[0].size >= min_area:
-                    if spatial_sep:
-                        thisroi = np.zeros(img.shape, 'bool')
-                        thisroi[segment] = True
-                        rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
-                    else:
-                        component_mask[segment] = True
-            if not spatial_sep and np.any(component_mask):
-                rois.append(ROI(mask=component_mask, im_shape=thisroi.shape))
+                    thisroi = np.zeros(img.shape, 'bool')
+                    thisroi[segment] = True
+                    rois.append(ROI(mask=thisroi, im_shape=thisroi.shape))
         return rois
 
     @staticmethod
