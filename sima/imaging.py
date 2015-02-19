@@ -429,19 +429,28 @@ class ImagingDataset(object):
                 return
         else:
             # Assume one ROI per plane
-            assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
             transforms = []
             for plane_idx in range(self.frame_shape[0]):
+                trg_coords = None
                 for roi in self.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
                         # Coords is a closed polygon, so the last coord and the
                         # first coord are identical, remove one copy
                         trg_coords = roi.coords[0][:-1, :2]
-                    else:
-                        pass
+                        break
+                if trg_coords is None:
+                    transforms.append(None)
+                    break
+
+                src_coords = None
                 for roi in source_dataset.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
                         src_coords = roi.coords[0][:-1, :2]
+                        break
+                if src_coords is None:
+                    transforms.append(None)
+                    break
+
                 assert len(src_coords) == len(trg_coords)
 
                 mean_dists = []
@@ -473,6 +482,21 @@ class ImagingDataset(object):
 
                 transforms.append(estimate_coordinate_transform(
                     src_coords, trg_coords, method, **method_kwargs))
+
+            transform_check = [t is None for t in transforms]
+            assert not all(transform_check)
+
+            if any(transform_check):
+                warnings.warn("Z-plane missing transform. Copying from " +
+                              "adjacent plane, accuracy not guaranteed")
+                # If any planes were missing an anchor set, copy transforms
+                # from adjacent planes
+                for idx in range(len(transforms) - 1):
+                    if transforms[idx + 1] is None:
+                        transforms[idx + 1] = transforms[idx]
+                for idx in reversed(range(len(transforms) - 1)):
+                    if transforms[idx] is None:
+                        transforms[idx] = transforms[idx + 1]
 
         src_rois = source_dataset.ROIs
         if source_label is None:
