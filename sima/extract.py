@@ -1,7 +1,5 @@
 """Methods used to extract signals from an ImagingDataset."""
 from __future__ import division
-from future import standard_library
-standard_library.install_aliases()
 from builtins import zip
 from builtins import map
 from builtins import str
@@ -19,6 +17,9 @@ import warnings
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
+
+from future import standard_library
+standard_library.install_aliases()
 
 # import multiprocessing.util as util
 # util.log_to_stderr(util.SUBDEBUG)

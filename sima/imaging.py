@@ -2,8 +2,6 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
-from future import standard_library
-standard_library.install_aliases()
 from builtins import str
 from builtins import map
 from builtins import input
@@ -37,6 +35,10 @@ from sima.misc import mkdir_p, most_recent_key, estimate_array_transform, \
     estimate_coordinate_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
+
+from future import standard_library
+standard_library.install_aliases()
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from sima.misc.tifffile import imsave

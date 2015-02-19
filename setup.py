@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import numpy
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -10,7 +11,6 @@ else:  # special case for runtests.py
     from distutils.core import setup as setup
     from distutils.extension import Extension
 
-import numpy
 try:
     from Cython.Build import cythonize
     USE_CYTHON = True
