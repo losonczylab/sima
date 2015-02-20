@@ -22,6 +22,8 @@ Testing / Bug Fixes
 * Ran Rubin
 * Gokhan Ordek
 * Nathan Kern
+* Masatoshi Kasai
+* Yoshiyuki Yamada
 
 
 External code
