@@ -98,7 +98,12 @@ def _roi_extract(inputs):
     masked_frame = frame[constants['masked_pixels']]
 
     # Determine which pixels and ROIs were imaged this frame
+    # If none were, just return with all NaNs
     imaged_pixels = np.isfinite(masked_frame)
+    if not np.any(imaged_pixels):
+        nan_result = np.empty((n_rois, 1))
+        nan_result.fill(np.nan)
+        return (frame_idx, nan_result, nan_result)
 
     # If there is overlapping pixels between the ROIs calculate the full
     # pseudoinverse of A, if not use a shortcut
@@ -320,8 +325,11 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
     if n_rois != original_n_rois:
-        warnings.warn("Empty ROIs will return all NaN values: "
-                      + "{} empty ROIs found".format(original_n_rois - n_rois))
+        warnings.warn("Empty ROIs will return all NaN values: " +
+                      "{} empty ROIs found".format(original_n_rois - n_rois))
+    if not n_rois:
+        raise ValueError('No valid ROIs found.')
+
 
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()

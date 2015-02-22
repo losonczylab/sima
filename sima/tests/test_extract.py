@@ -200,17 +200,90 @@ class Test_VaryingData(object):
             overlap_signals['raw'][0][1], roi2_expected_overlap)
 
 
-# class Test_MissingData(object):
-#     def setup(self):
-#         return
+class Test_MissingData(object):
+    def setup(self):
+        self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp')
+        try:
+            os.mkdir(self.tmp_dir)
+        except:
+            pass
 
-#     @dec.knownfailureif(True)
-#     def test_empty_roi(self):
-#         raise NotImplemented
+    def teardown(self):
+        shutil.rmtree(self.tmp_dir)
 
-#     @dec.knownfailureif(True)
-#     def test_missing_frame(self):
-#         raise NotImplemented
+    def test_empty_roi(self):
+        data = np.ones((10, 2, 6, 8, 2))
+        data[:, 0, 1:4, 2:6, 1] = 1000
+        path = os.path.join(self.tmp_dir, "test_extract.sima")
+        seq = sima.Sequence.create('ndarray', data)
+        dataset = sima.ImagingDataset([seq], savedir=path)
+
+        mask1 = np.array([[[False, False, False, False, False, False],
+                          [False, False, False, False, False, False],
+                          [False, False, False, False, False, False],
+                          [False, False, False, False, False, False]]])
+        roi1 = sima.ROI.ROI(mask=mask1)
+        mask2 = np.array([[[False, False, False, False, False, False],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True]]])
+        roi2 = sima.ROI.ROI(mask=mask2)
+        rois = sima.ROI.ROIList([roi1, roi2])
+        signals = dataset.extract(
+            rois=rois, signal_channel=1, remove_overlap=True, n_processes=1,
+            demix_channel=None)
+
+        assert_array_equal(signals['raw'][0][0, :], np.nan)
+
+    def test_missing_frame(self):
+        data = np.ones((10, 2, 6, 8, 2))
+        data[:, 0, 1:4, 2:6, 1] = 1000
+        data[3:5, ...] = np.nan
+        path = os.path.join(self.tmp_dir, "test_extract.sima")
+        seq = sima.Sequence.create('ndarray', data)
+        dataset = sima.ImagingDataset([seq], savedir=path)
+
+        mask1 = np.array([[[False, False, False, False, False, False],
+                          [False, True, True, False, False, False],
+                          [False, True, True, False, False, False],
+                          [False, False, False, False, False, False]]])
+        roi1 = sima.ROI.ROI(mask=mask1)
+        mask2 = np.array([[[False, False, False, False, False, False],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True]]])
+        roi2 = sima.ROI.ROI(mask=mask2)
+        rois = sima.ROI.ROIList([roi1, roi2])
+        signals = dataset.extract(
+            rois=rois, signal_channel=1, remove_overlap=True, n_processes=1,
+            demix_channel=None)
+
+        assert_array_equal(signals['raw'][0][:, 3:5], np.nan)
+
+    def test_missing_frame_overlapping_rois(self):
+        data = np.ones((10, 2, 6, 8, 2))
+        data[:, 0, 1:4, 2:6, 1] = 1000
+        data[3:5, ...] = np.nan
+        path = os.path.join(self.tmp_dir, "test_extract.sima")
+        seq = sima.Sequence.create('ndarray', data)
+        dataset = sima.ImagingDataset([seq], savedir=path)
+
+        mask1 = np.array([[[False, False, False, False, False, False],
+                          [False, True, True, False, False, False],
+                          [False, True, True, False, False, False],
+                          [False, False, False, False, False, False]]])
+        roi1 = sima.ROI.ROI(mask=mask1)
+        mask2 = np.array([[[False, False, False, False, False, False],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True],
+                          [False, False, True, True, True, True]]])
+        roi2 = sima.ROI.ROI(mask=mask2)
+        rois = sima.ROI.ROIList([roi1, roi2])
+        signals = dataset.extract(
+            rois=rois, signal_channel=1, remove_overlap=False, n_processes=1,
+            demix_channel=None)
+
+        assert_array_equal(signals['raw'][0][:, 3:5], np.nan)
 
 #     @dec.knownfailureif(True)
 #     def test_partial_missing_data(self):
