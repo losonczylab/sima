@@ -29,7 +29,7 @@ def prairie_imaging_parameters(filepath):
                         k = key.get('key')
                         params[k] = {}
                         for indexedValue in key.findall('IndexedValue'):
-                            field = indexedValue.get('key')
+                            field = indexedValue.get('index')
                             value = indexedValue.get('value')
                             try:
                                 params[k][field] = float(value)
