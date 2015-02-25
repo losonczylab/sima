@@ -1062,7 +1062,7 @@ def _resolve_paths(d, savedir):
                     ''.join('  ' + p + '\n' for p in paths)
         if len(valid_paths) is not 1:
             while True:
-                input_path = eval(input(error_msg))
+                input_path = input(error_msg)
                 if isfile(input_path):
                     valid_paths = [input_path]
                     break
