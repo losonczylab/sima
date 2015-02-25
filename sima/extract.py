@@ -330,7 +330,6 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     if not n_rois:
         raise ValueError('No valid ROIs found.')
 
-
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()
 

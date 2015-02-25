@@ -219,8 +219,8 @@ def _align_frame(inputs):
                         np.array(max_displacement) >= 0):
                     displacement_bounds = offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
-                         np.maximum(min_shift + max_displacement, max_shift)
-                         + 1])
+                         np.maximum(min_shift + max_displacement, max_shift) +
+                         1])
                 else:
                     displacement_bounds = None
                 shift = pyramid_align(np.expand_dims(reference, 0),
@@ -239,7 +239,7 @@ def _align_frame(inputs):
                 s = namespace.shifts
                 if shift is None:  # if no shift could be calculated
                     try:
-                        shift = s[cycle_idx][frame_idx-1][p] + offset
+                        shift = s[cycle_idx][frame_idx - 1][p] + offset
                     except IndexError:
                         shift = s[cycle_idx][frame_idx][p] + offset
                 s[cycle_idx][frame_idx][p][:] = shift - offset

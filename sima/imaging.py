@@ -576,9 +576,10 @@ class ImagingDataset(object):
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        depth = lambda L: \
-            isinstance(L, collections.Sequence) and \
-            (not isinstance(L, str)) and max(map(depth, L)) + 1
+        def depth(L):
+            return isinstance(L, collections.Sequence) and \
+                (not isinstance(L, str)) and max(map(depth, L)) + 1
+
         if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 3:
             raise ValueError
         if fmt == 'HDF5' and not depth(filenames) == 1:
