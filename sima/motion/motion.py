@@ -169,7 +169,12 @@ class ResonantCorrection(MotionEstimationStrategy):
             raise ValueError(
                 'Resonant motion correction requires an even number of rows')
         downsampled_dataset = sima.ImagingDataset(
-            [seq[:, :, ::2] for seq in dataset], None)
+            [sima.Sequence.join(
+                *it.chain.from_iterable(
+                    (seq[:, :, ::2, :, c], seq[:, :, 1::2, :, c])
+                    for c in range(seq.shape[4])))
+             for seq in dataset],
+            None)
         downsampled_displacements = self._base_strategy.estimate(
             downsampled_dataset)
         displacements = []
