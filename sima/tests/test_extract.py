@@ -29,6 +29,7 @@ import numpy as np
 def setup():
     pass
 
+
 def teardown():
     pass
 
@@ -199,12 +200,12 @@ class Test_VaryingData(object):
              * np.roll(np.array([0.0, 0.25, 0.25, 0.5]), -t, 0)) + 1.
              for t in range(20)])
         roi1_expected_overlap = np.array(
-            [sum(np.array([-0.6, -0.2, 0.2, 0.6])
-             * np.roll(np.array([old_div(1, 3.), old_div(1, 3.), old_div(1, 3.), 0.0]), -t, 0)) + 1.
+            [sum(np.array([-0.6, -0.2, 0.2, 0.6]) *
+             np.roll(np.array([old_div(1, 3.), old_div(1, 3.), old_div(1, 3.), 0.0]), -t, 0)) + 1.
              for t in range(20)])
         roi2_expected_overlap = np.array(
-            [sum(np.array([-0.6, -0.2, 0.2, 0.6])
-             * np.roll(np.array([0.0, old_div(1, 3.), old_div(1, 3.), old_div(1, 3.)]), -t, 0)) + 1.
+            [sum(np.array([-0.6, -0.2, 0.2, 0.6]) *
+             np.roll(np.array([0.0, old_div(1, 3.), old_div(1, 3.), old_div(1, 3.)]), -t, 0)) + 1.
              for t in range(20)])
 
         assert_array_almost_equal(
@@ -251,14 +252,15 @@ class Test_MissingData(object):
             demix_channel=None)
 
         assert_array_equal(signals['raw'][0][0, :], np.nan)
+        assert_(np.all(np.isfinite(signals['raw'][0][1, :])))
 
     def test_missing_frame(self):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
         data[3:5, ...] = np.nan
-        path = os.path.join(self.tmp_dir, "test_extract.sima")
+
         seq = sima.Sequence.create('ndarray', data)
-        dataset = sima.ImagingDataset([seq], savedir=path)
+        dataset = sima.ImagingDataset([seq], savedir=None)
 
         mask1 = np.array([[[False, False, False, False, False, False],
                           [False, True, True, False, False, False],
@@ -276,14 +278,16 @@ class Test_MissingData(object):
             demix_channel=None)
 
         assert_array_equal(signals['raw'][0][:, 3:5], np.nan)
+        assert_(np.all(np.isfinite(signals['raw'][0][:, :3])))
+        assert_(np.all(np.isfinite(signals['raw'][0][:, 5:])))
 
     def test_missing_frame_overlapping_rois(self):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
         data[3:5, ...] = np.nan
-        path = os.path.join(self.tmp_dir, "test_extract.sima")
+
         seq = sima.Sequence.create('ndarray', data)
-        dataset = sima.ImagingDataset([seq], savedir=path)
+        dataset = sima.ImagingDataset([seq], savedir=None)
 
         mask1 = np.array([[[False, False, False, False, False, False],
                           [False, True, True, False, False, False],
@@ -301,6 +305,8 @@ class Test_MissingData(object):
             demix_channel=None)
 
         assert_array_equal(signals['raw'][0][:, 3:5], np.nan)
+        assert_(np.all(np.isfinite(signals['raw'][0][:, :3])))
+        assert_(np.all(np.isfinite(signals['raw'][0][:, 5:])))
 
 #     @dec.knownfailureif(True)
 #     def test_partial_missing_data(self):
