@@ -202,21 +202,17 @@ class Test_VaryingData(object):
 
 class Test_MissingData(object):
     def setup(self):
-        self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp')
-        try:
-            os.mkdir(self.tmp_dir)
-        except:
-            pass
+        pass
 
     def teardown(self):
-        shutil.rmtree(self.tmp_dir)
+        pass
 
     def test_empty_roi(self):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
-        path = os.path.join(self.tmp_dir, "test_extract.sima")
+
         seq = sima.Sequence.create('ndarray', data)
-        dataset = sima.ImagingDataset([seq], savedir=path)
+        dataset = sima.ImagingDataset([seq], savedir=None)
 
         mask1 = np.array([[[False, False, False, False, False, False],
                           [False, False, False, False, False, False],
@@ -239,9 +235,9 @@ class Test_MissingData(object):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
         data[3:5, ...] = np.nan
-        path = os.path.join(self.tmp_dir, "test_extract.sima")
+
         seq = sima.Sequence.create('ndarray', data)
-        dataset = sima.ImagingDataset([seq], savedir=path)
+        dataset = sima.ImagingDataset([seq], savedir=None)
 
         mask1 = np.array([[[False, False, False, False, False, False],
                           [False, True, True, False, False, False],
@@ -264,9 +260,9 @@ class Test_MissingData(object):
         data = np.ones((10, 2, 6, 8, 2))
         data[:, 0, 1:4, 2:6, 1] = 1000
         data[3:5, ...] = np.nan
-        path = os.path.join(self.tmp_dir, "test_extract.sima")
+
         seq = sima.Sequence.create('ndarray', data)
-        dataset = sima.ImagingDataset([seq], savedir=path)
+        dataset = sima.ImagingDataset([seq], savedir=None)
 
         mask1 = np.array([[[False, False, False, False, False, False],
                           [False, True, True, False, False, False],
