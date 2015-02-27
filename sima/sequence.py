@@ -875,18 +875,47 @@ class _MaskedSequence(_WrapperSequence):
         for i in masks:
             outer = self._outers[i][1:]
             if len(outer) == 2:  # (zyx, channels)
-                if outer[0] is None:
-                    frame[:, :, :, outer[1]] = np.nan
+                mask, channels = outer
+                if channels is None:
+                    channels = range(frame.shape[-1])
                 else:
-                    frame[:, :, :, outer[1]][outer[0]] = np.nan
-            elif len(outer) == 3:  # (planes, yx, channels)
-                planes = \
-                    range(frame.shape[-1]) if outer[0] is None else outer[0]
-                for p in planes:
-                    if outer[1] is None:
-                        frame[p][:, :, outer[2]] = np.nan
+                    try:
+                        int(channels)
+                    except TypeError:
+                        pass
                     else:
-                        frame[p][:, :, outer[2]][outer[1]] = np.nan
+                        channels = [channels]
+                for c in channels:
+                    if mask is None:
+                        frame[:, :, :, c] = np.nan
+                    else:
+                        frame[mask, c] = np.nan
+            elif len(outer) == 3:  # (planes, yx, channels)
+                planes, mask, channels = outer
+                if planes is None:
+                    planes = range(frame.shape[0])
+                else:
+                    try:
+                        int(planes)
+                    except TypeError:
+                        pass
+                    else:
+                        planes = [planes]
+                if channels is None:
+                    channels = range(frame.shape[-1])
+                else:
+                    try:
+                        int(channels)
+                    except TypeError:
+                        pass
+                    else:
+                        channels = [channels]
+                for p in planes:
+                    for c in channels:
+                        if mask is None:
+                            frame[p, :, :, c] = np.nan
+                        else:
+                            frame[p, mask, c] = np.nan
             else:
                 raise Exception
 
