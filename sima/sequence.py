@@ -36,7 +36,6 @@ except NameError:  # Python 3
 import itertools as it
 import glob
 import warnings
-import collections
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
@@ -378,13 +377,10 @@ class Sequence(object):
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
         """
-        def depth(L):
-            return isinstance(L, collections.Sequence) and \
-                (not isinstance(L, str)) and max(map(depth, L)) + 1
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
-        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 2:
-            raise ValueError
+        if (fmt in ['TIFF16', 'TIFF8']) and not np.array(filenames).ndim == 2:
+            raise TypeError('Improperly formatted filenames')
 
         # Make directories necessary for saving the files.
         try:  # HDF5 case

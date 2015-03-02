@@ -1,6 +1,5 @@
 """Base classes for multiframe imaging data."""
 import warnings
-import collections
 import itertools as it
 import os
 import errno
@@ -576,15 +575,15 @@ class ImagingDataset(object):
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        def depth(L):
-            return isinstance(L, collections.Sequence) and \
-                (not isinstance(L, str)) and max(map(depth, L)) + 1
-
-        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 3:
-            raise ValueError
-        if fmt == 'HDF5' and not depth(filenames) == 1:
-            raise ValueError
-        for sequence, fns in it.izip(self, filenames):
+        try:
+            depth = np.array(filenames).ndim
+        except:
+            raise TypeError('Improperly formatted filenames')
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth == 3:
+            raise TypeError('Improperly formatted filenames')
+        if fmt == 'HDF5' and not np.array(filenames).ndim == 1:
+            raise TypeError('Improperly formatted filenames')
+        for sequence, fns in zip(self, filenames):
             sequence.export(fns, fmt, fill_gaps, self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
