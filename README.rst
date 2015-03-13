@@ -7,8 +7,13 @@
 .. image:: https://coveralls.io/repos/losonczylab/sima/badge.png 
    :target: https://coveralls.io/r/losonczylab/sima 
 
+.. image:: https://badges.gitter.im/Join%20Chat.svg
+   :alt: Join the chat at https://gitter.im/losonczylab/sima
+   :target: https://gitter.im/losonczylab/sima?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
+
 Overview
 --------
+
 SIMA (Sequential IMage Analysis) is an Open Source package for 
 analysis of time-series imaging data arising from fluorescence
 microscopy.  The functionality of this package includes:
@@ -38,8 +43,9 @@ Dependencies
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
-* `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14
+* `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14 (**Windows users**: be sure to install from `Christophe Gohlke's built wheels <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>`__)
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
+* `future <https://pypi.python.org/pypi/future>`_
 
 Optional dependencies
 ---------------------

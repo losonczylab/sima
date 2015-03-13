@@ -1,3 +1,8 @@
+from __future__ import division
+from builtins import zip
+from builtins import range
+from past.utils import old_div
+from builtins import object
 import abc
 import itertools as it
 
@@ -5,9 +10,11 @@ import numpy as np
 from scipy import sparse, ndimage
 
 from sima.ROI import ROI, ROIList, mask2poly
+from future.utils import with_metaclass
 
 
-class SegmentationStrategy(object):
+class SegmentationStrategy(with_metaclass(abc.ABCMeta, object)):
+
     """Abstract class implementing the inteface for segmentation strategies.
 
     This class can be subclassed to create a concreate segmentation
@@ -16,7 +23,6 @@ class SegmentationStrategy(object):
     :class:`PostProcessingStep` with the :func:`append` method.
 
     """
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self):
         self._post_processing_steps = []
@@ -72,6 +78,7 @@ class SegmentationStrategy(object):
 
 def _check_single_plane(func):
     """Decorator to check that dataset has a single plane"""
+
     def checked_func(self, dataset):
         if dataset.frame_shape[0] != 1:
             raise ValueError('This segmentation strategy requires a '
@@ -81,6 +88,7 @@ def _check_single_plane(func):
 
 
 class PlaneWiseSegmentation(SegmentationStrategy):
+
     """Segmentation approach with each plane segmented separately.
 
     Parameters
@@ -123,10 +131,11 @@ class PlaneWiseSegmentation(SegmentationStrategy):
         if isinstance(self.strategy, list):
             if len(self.strategy) != dataset.frame_shape[0]:
                 raise Exception('There is not exactly one strategy per plane.')
-            iterator = zip(self.strategy, range(dataset.frame_shape[0]))
+            iterator = list(
+                zip(self.strategy, list(range(dataset.frame_shape[0]))))
         elif isinstance(self.strategy, SegmentationStrategy):
-            iterator = zip(it.repeat(self.strategy),
-                           range(dataset.frame_shape[0]))
+            iterator = list(zip(it.repeat(self.strategy),
+                                list(range(dataset.frame_shape[0]))))
 
         for strategy, plane_idx in iterator:
             plane_rois = strategy.segment(dataset[:, :, plane_idx])
@@ -157,26 +166,23 @@ def _remove_overlapping(rois, percent_overlap=0.9):
         for roi in rois:
             roi.mask = roi.mask
 
-        for i in xrange(len(rois)):
-            for j in [j for j in xrange(len(rois)) if j != i]:
+        for i in range(len(rois)):
+            for j in [j for j in range(len(rois)) if j != i]:
                 if rois[i] is not None and rois[j] is not None:
-                    overlap = np.logical_and(rois[i].mask.toarray(),
-                                             rois[j].mask.toarray())
-                    small_area = np.min(
-                        (rois[i].mask.size, rois[j].mask.size))
+                    overlap = np.logical_and(rois[i], rois[j])
+                    small_area = min(np.size(rois[i]), np.size(rois[j]))
 
                     if len(np.where(overlap)[0]) > \
                             percent_overlap * small_area:
-                        new_shape = np.logical_or(rois[i].mask.toarray(),
-                                                  rois[j].mask.toarray())
+                        new_shape = np.logical_or(rois[i], rois[j])
 
-                        rois[i] = ROI(mask=new_shape.astype('bool'),
-                                      im_shape=rois[i].mask.shape)
+                        rois[i] = ROI(mask=new_shape.astype('bool'))
                         rois[j] = None
     return ROIList(roi for roi in rois if roi is not None)
 
 
-class PostProcessingStep(object):
+class PostProcessingStep(with_metaclass(abc.ABCMeta, object)):
+
     """Abstract class representing the interface for post processing
     steps that can be appended to a segmentation method to modify the
     the segmented ROIs.
@@ -200,7 +206,6 @@ class PostProcessingStep(object):
     >>> strategy.append(BinaryOpening())
 
     """
-    __metaclass__ = abc.ABCMeta
     # TODO: method for clearing memory after the step is applied
 
     @abc.abstractmethod
@@ -223,6 +228,7 @@ class PostProcessingStep(object):
 
 
 class ROIFilter(PostProcessingStep):
+
     """Postprocessing step for generic filtering of ROIs.
 
     ROIs produced by the segmentation are filtered to retain
@@ -254,6 +260,7 @@ class ROIFilter(PostProcessingStep):
 
 
 class CircularityFilter(ROIFilter):
+
     """Postprocessing step to filter ROIs based on circularity.
 
     Parameters
@@ -262,6 +269,7 @@ class CircularityFilter(ROIFilter):
         ROIs with circularity below threshold are discarded. Default: 0.5.
         Range: 0 to 1.
     """
+
     def __init__(self, circularity_threhold=0.5):
         def f(roi, dataset=None):
             mask = roi.mask[0].todense()
@@ -270,8 +278,8 @@ class CircularityFilter(ROIFilter):
             for x in range(len(poly_pts) - 1):
                 p += np.linalg.norm(poly_pts[x] - poly_pts[x + 1])
             shape_area = np.count_nonzero(mask)
-            circle_area = np.square(p) / (4 * np.pi)
-            return shape_area / circle_area > circularity_threhold
+            circle_area = old_div(np.square(p), (4 * np.pi))
+            return old_div(shape_area, circle_area) > circularity_threhold
         super(CircularityFilter, self).__init__(f)
 
 
@@ -319,14 +327,16 @@ def _smooth_roi(roi, radius=3):
         b.append(p)
         # find the ist of all points at the given radius and adjust to be lined
         # up for clockwise traversal
-        x = np.roll(np.array(list(p[0] + range(-radius, radius)) +
+        x = np.roll(np.array(list(p[0] + list(range(-radius, radius))) +
                              [p[0] + radius] * (2 * radius + 1) +
-                             list(p[0] + range(-radius, radius)[::-1]) +
+                             list(p[0] + list(range(-radius, radius))[::-1]) +
                              [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
         y = np.roll(np.array([p[1] - radius] * (2 * radius) +
-                             list(p[1] + range(-radius, radius)) +
+                             list(p[1] + list(range(-radius, radius))) +
                              [p[1] + radius] * (2 * radius + 1) +
-                             list(p[1] + range(-radius, (radius + 1))[::-1])),
+                             list(
+                                 p[1] + list(
+                                     range(-radius, (radius + 1)))[::-1])),
                     -radius)
 
         # insure that the x and y points are within the image
@@ -385,8 +395,3 @@ def _smooth_roi(roi, radius=3):
     # The maximum number of cycles has completed and no suitable smoothed ROI
     # has been determined
     return roi, False
-
-
-class Struct:
-    def __init__(self, **entries):
-        self.__dict__.update(entries)

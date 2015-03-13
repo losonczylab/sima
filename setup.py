@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 import sys
+import os
+
+import numpy
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -10,11 +13,13 @@ else:  # special case for runtests.py
     from distutils.core import setup as setup
     from distutils.extension import Extension
 
-import numpy
 try:
     from Cython.Build import cythonize
     USE_CYTHON = True
 except ImportError:
+    USE_CYTHON = False
+# Don't use cython if this is a distributed release without .pyx files
+if not os.path.isfile('sima/motion/_motion.pyx'):
     USE_CYTHON = False
 
 
@@ -48,7 +53,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.0.0-dev",
+    version="1.0.3",
     packages=['sima',
               'sima.misc',
               'sima.motion',
@@ -67,6 +72,7 @@ setup(
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
         'pillow>=2.6.1',
+        'future',
     ],
     package_data={
         'sima': [

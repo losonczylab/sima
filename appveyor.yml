@@ -1,15 +1,15 @@
 ###Appveyor CI build script
 
 # version format
-version: 0.3.x{build}
+version: 1.0.x{build}
 
 # branches to build
 branches:
   # whitelist
   only:
     - master
-    - 0.2.x
     - 0.3.x
+    - 1.0.x
 
 #---------------------------------#
 #    environment configuration    #
@@ -45,7 +45,7 @@ install:
   - conda info -a
   - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
   - activate test-environment
-  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip
+  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip future
   - conda install -q --yes -c https://conda.binstar.org/rsignell shapely
   - conda install -q --yes -c https://conda.binstar.org/menpo opencv
   - pip install wheel

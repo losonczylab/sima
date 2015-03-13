@@ -1,11 +1,12 @@
+from __future__ import unicode_literals
+from builtins import input
+from builtins import zip
+from builtins import str
+from builtins import range
 import os
 import sys
 from pickle import Unpickler as _Unpickler
-import cPickle as pkl
-try:
-    from future_builtins import zip
-except ImportError:  # Python 3.x
-    pass
+import pickle as pkl
 from distutils.util import strtobool
 
 import numpy as np
@@ -13,16 +14,21 @@ import numpy as np
 from sima import ImagingDataset, Sequence
 from sima.sequence import _resolve_paths
 
+from future import standard_library
+standard_library.install_aliases()
+
 
 class Unpickler(_Unpickler):
+
     """A modified Unpickler for loading classes that are not present."""
 
     def find_class(self, module, name):
         # Subclasses may override this
         try:
             __import__(module)
-        except ImportError as err:
-            if err.args[0] == 'No module named iterables':
+        except ImportError as error:
+            if (error.args[0].endswith('iterables') or
+                    error.args[0].endswith("iterables'")):
                 return module + '.' + name
             else:
                 raise
@@ -165,11 +171,14 @@ def _0_to_1(source, target=None):
     >>> ds = ImagingDataset.load('v1_dataset.sima')
     """
     if target is None:
-        overwrite = strtobool(raw_input("Source dataset path = target path. " +
-                                        "Overwrite existing?"))
+        overwrite = strtobool(input("Source dataset path = target path. " +
+                                    "Overwrite existing?"))
         if not overwrite:
             return
         target = source
 
     ds = _load_version0(source)
+    # Load the time_averages to force a check for an old version and re-calc if
+    # necessary
+    ds.time_averages
     ds.save(target)

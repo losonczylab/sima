@@ -1,3 +1,10 @@
+from __future__ import division
+from future import standard_library
+standard_library.install_aliases()
+from builtins import zip
+from builtins import range
+from builtins import object
+from past.utils import old_div
 # Unit tests for sima/motion/_hmm.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
@@ -24,9 +31,8 @@ from sima import Sequence
 from sima.misc import example_hdf5, example_tiff
 
 import warnings
-import cPickle as pickle
+import pickle as pickle
 
-from scipy.weave import build_tools
 import os
 import tempfile
 import numpy as np
@@ -46,8 +52,6 @@ def setup():
         os.mkdir(tmp_dir)
     except:
         pass
-
-    tmp_dir = build_tools.configure_temp_dir(tmp_dir)
 
 
 def teardown():
@@ -119,15 +123,16 @@ def test_lookup_tables():
     position_tbl, transition_tbl, log_markov_tbl = hmm._lookup_tables(
         [min_displacements, max_displacements + 1], log_markov_matrix)
 
-    pos_tbl = [[0, int(i / 3) - 1, i % 3 - 1] for i in range(9)]
+    pos_tbl = [[0, int(old_div(i, 3)) - 1, i % 3 - 1] for i in range(9)]
     assert_array_equal(position_tbl, pos_tbl)
-    assert_(all(transition_tbl[range(9), range(8, -1, -1)] == 4))
+    assert_(all(transition_tbl[list(range(9)), list(range(8, -1, -1))] == 4))
     assert_(all(log_markov_tbl == 1))
 
 
 def test_backtrace():
     states = [i * 10 + np.arange(5) for i in range(3)]
-    position_tbl = np.array([[i % 5 - 2, int(i / 5) - 2] for i in range(25)])
+    position_tbl = np.array(
+        [[i % 5 - 2, int(old_div(i, 5)) - 2] for i in range(25)])
     backpointer = [np.arange(5) for i in range(2)]
 
     traj = hmm._backtrace(2, backpointer, states, position_tbl)

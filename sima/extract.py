@@ -1,8 +1,15 @@
 """Methods used to extract signals from an ImagingDataset."""
+from __future__ import division
+from builtins import zip
+from builtins import map
+from builtins import str
+from builtins import next
+from builtins import range
+from past.utils import old_div
 
 import os
 from datetime import datetime
-import cPickle as pickle
+import pickle as pickle
 import itertools as it
 from multiprocessing import Pool
 import warnings
@@ -10,6 +17,9 @@ import warnings
 import numpy as np
 from scipy.sparse import hstack, vstack, diags, csc_matrix
 from scipy.sparse.linalg import inv
+
+from future import standard_library
+standard_library.install_aliases()
 
 # import multiprocessing.util as util
 # util.log_to_stderr(util.SUBDEBUG)
@@ -41,7 +51,7 @@ def _demixing_matrix(dataset):
 
     # Reorder and normalize the rows so that the diagonal coefficients
     # are 1 and the off diagonals have minimal magnitude.
-    if abs(W[0, 0] / W[0, 1]) < abs(W[1, 0] / W[1, 1]):
+    if abs(old_div(W[0, 0], W[0, 1])) < abs(old_div(W[1, 0], W[1, 1])):
         W = W[::-1]
     W[0] /= W[0, 0]
     W[1] /= W[1, 1]
@@ -98,7 +108,12 @@ def _roi_extract(inputs):
     masked_frame = frame[constants['masked_pixels']]
 
     # Determine which pixels and ROIs were imaged this frame
+    # If none were, just return with all NaNs
     imaged_pixels = np.isfinite(masked_frame)
+    if not np.any(imaged_pixels):
+        nan_result = np.empty((n_rois, 1))
+        nan_result.fill(np.nan)
+        return (frame_idx, nan_result, nan_result)
 
     # If there is overlapping pixels between the ROIs calculate the full
     # pseudoinverse of A, if not use a shortcut
@@ -123,7 +138,8 @@ def _roi_extract(inputs):
             imaged_masks = imaged_masks.tocsr()[imaged_rois, :].tocsc()
         orig_masks.data **= 2
         imaged_masks.data **= 2
-        scale_factor = orig_masks.sum(axis=1) / imaged_masks.sum(axis=1)
+        scale_factor = old_div(
+            orig_masks.sum(axis=1), imaged_masks.sum(axis=1))
         scale_factor = np.array(scale_factor).flatten()
         weights = diags(scale_factor, 0) \
             * constants['mask_stack'][imaged_rois][:, imaged_pixels]
@@ -160,7 +176,7 @@ def _save_extract_summary(signals, save_directory, rois):
     mean_frame = signals['mean_frame']
 
     figs = []
-    for plane_idx in xrange(mean_frame.shape[0]):
+    for plane_idx in range(mean_frame.shape[0]):
         fig = plt.figure(figsize=(11, 8))
         ax = fig.add_subplot(111, rasterized=False)
 
@@ -310,9 +326,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     # If mask is boolean convert to float and normalize values such that
     # the sum of the weights in each ROI is 1
-    for mask_idx, mask in it.izip(it.count(), masks):
+    for mask_idx, mask in zip(it.count(), masks):
         if mask.dtype == bool and mask.nnz:
-            masks[mask_idx] = mask.astype('float') / mask.nnz
+            masks[mask_idx] = old_div(mask.astype('float'), mask.nnz)
 
     # Identify non-empty ROIs
     original_n_rois = len(masks)
@@ -320,8 +336,10 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
     if n_rois != original_n_rois:
-        warnings.warn("Empty ROIs will return all NaN values: "
-                      + "{} empty ROIs found".format(original_n_rois - n_rois))
+        warnings.warn("Empty ROIs will return all NaN values: " +
+                      "{} empty ROIs found".format(original_n_rois - n_rois))
+    if not n_rois:
+        raise ValueError('No valid ROIs found.')
 
     # Stack masks to a 2-d array
     mask_stack = vstack([masks[idx] for idx in rois_to_include]).tocsc()
@@ -338,7 +356,7 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
             A = csc_matrix(np.linalg.pinv(mask_stack.todense()))
     else:
         mask_mask_t = mask_stack * mask_stack.T
-        mask_mask_t.data = 1 / mask_mask_t.data
+        mask_mask_t.data = old_div(1, mask_mask_t.data)
         A = mask_stack.T * mask_mask_t.tocsc()
 
     demixer = None
@@ -356,11 +374,11 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         and returns df/f of each pixel formatted correctly for extraction"""
         while True:
             df_frame = (
-                next(cycle)[..., channel] - time_averages[..., channel]) \
-                / time_averages[..., channel]
+                next(cycle)[..., channel] - time_averages[..., channel]
+            ) / time_averages[..., channel]
             yield df_frame.flatten()
 
-    for cycle_idx, sequence in it.izip(it.count(), dataset):
+    for cycle_idx, sequence in zip(it.count(), dataset):
 
         signal = np.empty((n_rois, len(sequence)), dtype='float32')
         if demixer is not None:
@@ -374,18 +392,18 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         constants['is_overlap'] = len(overlap[0]) > 0 and not remove_overlap
 
         # Determine chunksize and limit to prevent pools from hanging
-        chunksize = min(1 + len(sequence) / n_processes, 200)
+        chunksize = min(1 + old_div(len(sequence), n_processes), 200)
 
         # This will farm out signal extraction across 'n_processes' CPUs
         # The actual extraction is in _roi_extract, it's a separate
         # top-level function due to Pool constraints.
         if n_processes > 1:
-            map_generator = pool.imap_unordered(_roi_extract, it.izip(
+            map_generator = pool.imap_unordered(_roi_extract, zip(
                 _data_chunker(
                     iter(sequence), dataset.time_averages, signal_channel),
                 it.count(), it.repeat(constants)), chunksize=chunksize)
         else:
-            map_generator = it.imap(_roi_extract, it.izip(
+            map_generator = map(_roi_extract, zip(
                 _data_chunker(
                     iter(sequence), dataset.time_averages, signal_channel),
                 it.count(), it.repeat(constants)))
@@ -517,4 +535,4 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
     pickle.dump(sig_data,
                 open(signals_filename, 'wb'), pickle.HIGHEST_PROTOCOL)
 
-    return sig_data
+    return sig_data[label]

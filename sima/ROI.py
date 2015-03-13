@@ -12,10 +12,15 @@ ROI.ROIList object are a list-like container for storing multiple ROIs and
 includes methods for saving, sorting, and sub-grouping.
 
 """
+from builtins import filter
+from builtins import str
+from builtins import zip
+from builtins import range
+from builtins import object
 
 from scipy.sparse import lil_matrix, issparse
 import numpy as np
-import cPickle as pickle
+import pickle as pickle
 import itertools as it
 from itertools import product
 from datetime import datetime
@@ -31,6 +36,9 @@ import os
 import glob
 import re
 import scipy.io
+
+from future import standard_library
+standard_library.install_aliases()
 
 
 class NonBooleanMask(Exception):
@@ -365,7 +373,7 @@ class ROIList(list):
         elif fmt == 'ImageJ':
             roi_list = cls(rois=sima.misc.imagej.read_imagej_roi_zip(path))
         elif fmt == 'inscopix':
-            dirnames = os.walk(path).next()[1]
+            dirnames = next(os.walk(path))[1]
             # this naming convetion for ROI masks is used in Mosiac 1.0.0b
             files = [glob.glob(os.path.join(path, dirname, '*IC filter*.mat'))
                      for dirname in dirnames]
@@ -382,7 +390,7 @@ class ROIList(list):
         else:
             raise ValueError('Unrecognized file format.')
         if reassign_label:
-            for idx, roi in it.izip(it.count(), roi_list):
+            for idx, roi in zip(it.count(), roi_list):
                 roi.label = str(idx)
         return roi_list
 
@@ -546,7 +554,7 @@ def poly2mask(polygons, im_size):
         points = [Point(x, y) for x, y in
                   product(np.arange(int(x_min), np.ceil(x_max)),
                           np.arange(int(y_min), np.ceil(y_max)))]
-        points_in_poly = filter(shifted_poly.contains, points)
+        points_in_poly = list(filter(shifted_poly.contains, points))
         for point in points_in_poly:
             x = int(point.x)
             y = int(point.y)

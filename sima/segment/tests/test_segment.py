@@ -1,3 +1,7 @@
+import sys
+from distutils.version import LooseVersion
+
+import numpy
 from numpy.testing import (
     assert_,
     assert_equal,
@@ -28,9 +32,12 @@ def test_extract_rois():
     return
 
 
+@dec.knownfailureif(
+    sys.version_info > (3, 0) and
+    LooseVersion(numpy.__version__) < LooseVersion('1.9.0'))
 def test_STICA():
     ds = ImagingDataset.load(example_data())
-    method = segment.STICA(components=5)
+    method = segment.STICA(components=5, overlap_per=0.5)
     ds.segment(method)
 
 

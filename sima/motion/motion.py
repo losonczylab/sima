@@ -1,10 +1,18 @@
+from __future__ import absolute_import
+from __future__ import division
+from builtins import next
+from builtins import zip
+from builtins import range
+from past.utils import old_div
+from builtins import object
 import itertools as it
 import abc
 
 import numpy as np
 
 import sima
-import _motion as mc
+from . import _motion as mc
+from future.utils import with_metaclass
 
 
 def add_with_offset(array1, array2, offset):
@@ -23,8 +31,7 @@ def add_with_offset(array1, array2, offset):
     array1[slices] += array2
 
 
-class MotionEstimationStrategy(object):
-    __metaclass__ = abc.ABCMeta
+class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
 
     @classmethod
     def _make_nonnegative(cls, displacements):
@@ -65,14 +72,14 @@ class MotionEstimationStrategy(object):
             for shift in it.chain.from_iterable(shifts))
         return shifts
 
-    def correct(self, sequences, savedir, channel_names=None, info=None,
+    def correct(self, dataset, savedir, channel_names=None, info=None,
                 correction_channels=None, trim_criterion=None):
         """Create a motion-corrected dataset.
 
         Parameters
         ----------
-        sequences : list of list of iterable
-            Iterables yielding frames from imaging cycles and channels.
+        dataset : sima.ImagingDataset or list of sima.Sequence
+            Dataset or sequences to be motion corrected.
         savedir : str
             The directory used to store the dataset. If the directory
             name does not end with .sima, then this extension will
@@ -97,6 +104,7 @@ class MotionEstimationStrategy(object):
         dataset : sima.ImagingDataset
             The motion-corrected dataset.
         """
+        sequences = [s for s in dataset]
         if correction_channels:
             correction_channels = [
                 sima.misc.resolve_channels(c, channel_names, len(sequences[0]))
@@ -108,7 +116,7 @@ class MotionEstimationStrategy(object):
         displacements = self.estimate(sima.ImagingDataset(mc_sequences, None))
         disp_dim = displacements[0].shape[-1]
         max_disp = np.max(list(it.chain.from_iterable(d.reshape(-1, disp_dim)
-                               for d in displacements)),
+                                                      for d in displacements)),
                           axis=0)
         frame_shape = np.array(sequences[0].shape)[1: -1]  # (z, y, x)
         if len(max_disp) == 2:  # if 2D displacements
@@ -127,6 +135,7 @@ class MotionEstimationStrategy(object):
 
 
 class ResonantCorrection(MotionEstimationStrategy):
+
     """Motion estimation strategy for resonant scanner data.
 
     When acquiring data imaging data with a resonant scanner, the data
@@ -146,7 +155,7 @@ class ResonantCorrection(MotionEstimationStrategy):
     base_strategy : sima.motion.MotionEstimationStrategy
         The underlying motion estimation strategy that will be used.
     offset : int
-        Horizontal displacement to be added to even rows. Not the
+        Horizontal displacement to be added to odd rows. Note the
         convention that row 0 (i.e. the "first" row) is considered
         even.
     """
@@ -160,14 +169,19 @@ class ResonantCorrection(MotionEstimationStrategy):
             raise ValueError(
                 'Resonant motion correction requires an even number of rows')
         downsampled_dataset = sima.ImagingDataset(
-            [seq[:, :, ::2] for seq in dataset], None)
+            [sima.Sequence.join(
+                *it.chain.from_iterable(
+                    (seq[:, :, ::2, :, c], seq[:, :, 1::2, :, c])
+                    for c in range(seq.shape[4])))
+             for seq in dataset],
+            None)
         downsampled_displacements = self._base_strategy.estimate(
             downsampled_dataset)
         displacements = []
         for d_disps in downsampled_displacements:
             disps = np.repeat(d_disps, 2, axis=2)  # Repeat the displacements
             disps[:, :, :, 0] *= 2  # multiply y-shifts by 2
-            disps[:, :, ::2, -1] += self._offset  # shift even rows by offset
+            disps[:, :, 1::2, -1] += self._offset  # shift even rows by offset
             displacements.append(disps)
         return displacements
 
@@ -186,22 +200,22 @@ def _trim_coords(trim_criterion, displacements, raw_shape, untrimmed_shape):
     obs_counts = sum(_observation_counts(raw_shape, d, untrimmed_shape)
                      for d in it.chain.from_iterable(displacements))
     num_frames = sum(len(x) for x in displacements)
-    occupancy = obs_counts.astype(float) / num_frames
+    occupancy = old_div(obs_counts.astype(float), num_frames)
 
-    plane_occupancy = occupancy.sum(axis=2).sum(axis=1) / (
-        raw_shape[1] * raw_shape[2])
+    plane_occupancy = old_div(occupancy.sum(axis=2).sum(axis=1), (
+        raw_shape[1] * raw_shape[2]))
     good_planes = plane_occupancy + epsilon > trim_criterion
     plane_min = np.nonzero(good_planes)[0].min()
     plane_max = np.nonzero(good_planes)[0].max() + 1
 
-    row_occupancy = occupancy.sum(axis=2).sum(axis=0) / (
-        raw_shape[0] * raw_shape[2])
+    row_occupancy = old_div(occupancy.sum(axis=2).sum(axis=0), (
+        raw_shape[0] * raw_shape[2]))
     good_rows = row_occupancy + epsilon > trim_criterion
     row_min = np.nonzero(good_rows)[0].min()
     row_max = np.nonzero(good_rows)[0].max() + 1
 
-    col_occupancy = occupancy.sum(axis=1).sum(axis=0) / np.prod(
-        raw_shape[:2])
+    col_occupancy = old_div(occupancy.sum(axis=1).sum(axis=0), np.prod(
+        raw_shape[:2]))
     good_cols = col_occupancy + epsilon > trim_criterion
     col_min = np.nonzero(good_cols)[0].min()
     col_max = np.nonzero(good_cols)[0].max() + 1

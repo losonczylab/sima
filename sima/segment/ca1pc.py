@@ -1,3 +1,5 @@
+from __future__ import division
+from builtins import range
 from distutils.version import LooseVersion
 
 import numpy as np
@@ -20,6 +22,7 @@ from sima.ROI import ROI, ROIList
 
 
 class CA1PCNucleus(PostProcessingStep):
+
     """Return ROI structures containing CA1 pyramidal cell somata.
 
     Parameters
@@ -106,8 +109,8 @@ def _clahe(image, x_tile_size=10, y_tile_size=10, clip_limit=20):
         raise ImportError('OpenCV >= 2.4.8 required')
     transform = cv2.createCLAHE(clipLimit=clip_limit,
                                 tileGridSize=(
-                                    int(image.shape[1] / float(x_tile_size)),
-                                    int(image.shape[0] / float(y_tile_size))))
+                                    int(image.shape[1] // float(x_tile_size)),
+                                    int(image.shape[0] // float(y_tile_size))))
     return transform.apply(sima.misc.to8bit(image))
 
 
@@ -142,16 +145,16 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
                  num_pcs=75, x_diameter=10, y_diameter=10, verbose=False):
         super(AffinityMatrixCA1PC, self).__init__(
             channel, max_dist, spatial_decay, num_pcs, verbose)
-        self._params.x_diameter = x_diameter
-        self._params.y_diameter = y_diameter
+        self._params['x_diameter'] = x_diameter
+        self._params['y_diameter'] = y_diameter
 
     def _setup(self, dataset):
         super(AffinityMatrixCA1PC, self)._setup(dataset)
-        channel = sima.misc.resolve_channels(self._params.channel,
+        channel = sima.misc.resolve_channels(self._params['channel'],
                                              dataset.channel_names)
         processed_image = _processed_image_ca1pc(
-            dataset, channel, self._params.x_diameter,
-            self._params.y_diameter)[0]
+            dataset, channel, self._params['x_diameter'],
+            self._params['y_diameter'])[0]
         time_avg = processed_image
         std = np.std(time_avg)
         time_avg = np.minimum(time_avg, 2 * std)
@@ -178,6 +181,7 @@ class AffinityMatrixCA1PC(BasicAffinityMatrix):
 
 
 class PlaneCA1PC(SegmentationStrategy):
+
     """Segmentation method designed for finding CA1 pyramidal cell somata.
 
     Parameters
@@ -231,11 +235,12 @@ class PlaneCA1PC(SegmentationStrategy):
 
     Warning
     -------
-    In version 1.0.0, this method currently only works on datasets with a
+    In version 1.0, this method currently only works on datasets with a
     single plane, or in conjunction with
     :class:`sima.segment.PlaneWiseSegmentation`.
 
     """
+
     def __init__(
             self, channel=0, num_pcs=75, max_dist=None, spatial_decay=None,
             cut_max_pen=0.01, cut_min_size=40, cut_max_size=200, x_diameter=10,

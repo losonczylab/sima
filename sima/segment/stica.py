@@ -1,3 +1,8 @@
+from __future__ import print_function
+from __future__ import division
+from builtins import str
+from builtins import range
+from past.utils import old_div
 import os
 
 import numpy as np
@@ -18,11 +23,6 @@ from .segment import (
 from .normcut import _OPCA
 from sklearn.decomposition import FastICA
 from sima.ROI import ROI, ROIList
-
-
-class Struct:
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
 
 
 def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
@@ -99,7 +99,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     for i in range(st_components.shape[2]):
         st_component = st_components[:, :, i]
         st_component = abs(st_component - np.mean(st_component))
-        st_component = st_component / np.max(st_component)
+        st_component = old_div(st_component, np.max(st_component))
         st_components[:, :, i] = st_component
 
     # save the ica components if a path has been provided
@@ -140,14 +140,14 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
     accepted = []
     accepted_components = []
     rejected = []
-    for i in xrange(st_components.shape[2]):
+    for i in range(st_components.shape[2]):
 
         # copy the component, remove pixels with low weights
         frame = st_components[:, :, i].copy()
         frame[frame < 2 * np.std(frame)] = 0
 
         # smooth the component via static removal and gaussian blur
-        for n in xrange(x_smoothing):
+        for n in range(x_smoothing):
             check = frame[1:-1, :-2] + frame[1:-1, 2:] + frame[:-2, 1:-1] + \
                 frame[2, 1:-1]
             z = np.zeros(frame.shape)
@@ -157,7 +157,7 @@ def _find_useful_components(st_components, threshold, x_smoothing=4):
             blurred = ndimage.gaussian_filter(frame, sigma=1)
             frame = blurred + frame
 
-            frame = frame / np.max(frame)
+            frame = old_div(frame, np.max(frame))
             frame[frame < 2 * np.std(frame)] = 0
 
         # calculate the remaining static in the component
@@ -208,7 +208,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
         img, seg_count = measurements.label(img)
         component_mask = np.zeros(img.shape, 'bool')
 
-        for i in xrange(seg_count):
+        for i in range(seg_count):
             segment = np.where(img == i + 1)
             if segment[0].size >= min_area:
                 if spatial_sep:
@@ -226,6 +226,7 @@ def _extract_st_rois(frames, min_area=50, spatial_sep=True):
 
 
 class STICA(SegmentationStrategy):
+
     """
     Segmentation using spatiotemporial indepenent component analysis (stICA).
 
@@ -308,7 +309,7 @@ class STICA(SegmentationStrategy):
 
     Warning
     -------
-    In version 1.0.0, this method currently only works on datasets with a
+    In version 1.0, this method currently only works on datasets with a
     single plane, or in conjunction with
     :class:`sima.segment.PlaneWiseSegmentation`.
 
@@ -319,14 +320,13 @@ class STICA(SegmentationStrategy):
             min_area=50, x_smoothing=4, overlap_per=0, smooth_rois=True,
             spatial_sep=True, verbose=False):
         super(STICA, self).__init__()
-        d = locals()
-        d.pop('self')
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        self._params.pop('self')
 
     @_check_single_plane
     def _segment(self, dataset):
 
-        channel = sima.misc.resolve_channels(self._params.channel,
+        channel = sima.misc.resolve_channels(self._params['channel'],
                                              dataset.channel_names)
         if dataset.savedir is not None:
             pca_path = os.path.join(dataset.savedir,
@@ -340,48 +340,48 @@ class STICA(SegmentationStrategy):
         else:
             ica_path = None
 
-        if self._params.verbose:
-            print 'performing PCA...'
-        if isinstance(self._params.components, int):
-            self._params.components = range(self._params.components)
+        if self._params['verbose']:
+            print('performing PCA...')
+        components = self._params['components']
+        if isinstance(components, int):
+            components = list(range(components))
         _, space_pcs, time_pcs = _OPCA(
-            dataset, channel, self._params.components[-1] + 1, path=pca_path)
+            dataset, channel, components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs.reshape(
             dataset.frame_shape[1:3] + (space_pcs.shape[2],)))
         space_pcs = np.array(
-            [space_pcs[:, :, i] for i in self._params.components]
-        ).transpose((1, 2, 0))
-        time_pcs = np.array(
-            [time_pcs[:, i] for i in self._params.components]
-        ).transpose((1, 0))
+            [space_pcs[:, :, i] for i in components]).transpose((1, 2, 0))
+        time_pcs = np.array([time_pcs[:, i] for i in components]
+                            ).transpose((1, 0))
 
-        if self._params.verbose:
-            print 'performing ICA...'
+        if self._params['verbose']:
+            print('performing ICA...')
         st_components = _stica(
-            space_pcs, time_pcs, mu=self._params.mu, path=ica_path,
+            space_pcs, time_pcs, mu=self._params['mu'], path=ica_path,
             n_components=space_pcs.shape[2])
 
-        if self._params.x_smoothing > 0 or self._params.static_threshold > 0:
+        if (self._params['x_smoothing'] > 0 or
+                self._params['static_threshold'] > 0):
             accepted, _, _ = _find_useful_components(
-                st_components, self._params.static_threshold,
-                x_smoothing=self._params.x_smoothing)
+                st_components, self._params['static_threshold'],
+                x_smoothing=self._params['x_smoothing'])
 
-            if self._params.min_area > 0 or self._params.spatial_sep:
+            if self._params['min_area'] > 0 or self._params['spatial_sep']:
                 rois = _extract_st_rois(
-                    accepted, min_area=self._params.min_area,
-                    spatial_sep=self._params.spatial_sep)
+                    accepted, min_area=self._params['min_area'],
+                    spatial_sep=self._params['spatial_sep'])
 
-            if self._params.smooth_rois:
-                if self._params.verbose:
-                    print 'smoothing ROIs...'
+            if self._params['smooth_rois']:
+                if self._params['verbose']:
+                    print('smoothing ROIs...')
                 rois = [_smooth_roi(roi)[0] for roi in rois]
 
-            if self._params.verbose:
-                print 'removing overlapping ROIs...'
+            if self._params['verbose']:
+                print('removing overlapping ROIs...')
             rois = _remove_overlapping(
-                rois, percent_overlap=self._params.overlap_per)
+                rois, percent_overlap=self._params['overlap_per'])
         else:
             rois = [ROI(st_components[:, :, i]) for i in
-                    xrange(st_components.shape[2])]
+                    range(st_components.shape[2])]
 
         return ROIList(rois)

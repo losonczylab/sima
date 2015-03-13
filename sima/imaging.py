@@ -1,12 +1,21 @@
 """Base classes for multiframe imaging data."""
+from __future__ import print_function
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import input
+from builtins import zip
+from builtins import range
+from builtins import object
+from past.utils import old_div
+from past.builtins import basestring
 import warnings
-import collections
 import itertools as it
 import os
 import errno
 import csv
 from os.path import dirname, join, abspath
-import cPickle as pickle
+import pickle as pickle
 from distutils.version import StrictVersion
 from distutils.util import strtobool
 
@@ -24,6 +33,10 @@ from sima.misc import mkdir_p, most_recent_key, estimate_array_transform, \
     estimate_coordinate_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
+
+from future import standard_library
+standard_library.install_aliases()
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from sima.misc.tifffile import imsave
@@ -144,7 +157,8 @@ class ImagingDataset(object):
             seq_indices = slice(seq_indices, seq_indices + 1)
         sequences = [seq[tuple(indices)] for seq in self.sequences][
             seq_indices]
-        return ImagingDataset(sequences, None)
+        return ImagingDataset(
+            sequences, None, channel_names=self.channel_names)
 
     @property
     def sequences(self):
@@ -236,10 +250,10 @@ class ImagingDataset(object):
             except OSError as exc:
                 if exc.errno == errno.EEXIST and os.path.isdir(savedir):
                     overwrite = strtobool(
-                        raw_input("Overwrite existing directory ({})? ".format(
+                        input("Overwrite existing directory ({})? ".format(
                             savedir)))
-                    # Note: This will overwrite dataset.pkl but will leave
-                    #       all other files in the directory intact
+                    # Note: This will overwrite dataset.pkl and sequences.pkl
+                    # but will leave all other files in the directory intact
                     if overwrite:
                         self._savedir = savedir
                     else:
@@ -282,7 +296,7 @@ class ImagingDataset(object):
         for frame in it.chain.from_iterable(self):
             sums += np.nan_to_num(frame)
             counts[np.isfinite(frame)] += 1
-        averages = sums / counts
+        averages = old_div(sums, counts)
         if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_averages.pkl'), 'wb') as f:
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
@@ -294,7 +308,7 @@ class ImagingDataset(object):
         try:
             with open(join(self.savedir, 'rois.pkl'), 'rb') as f:
                 return {label: ROIList(**v)
-                        for label, v in pickle.load(f).iteritems()}
+                        for label, v in pickle.load(f).items()}
         except (IOError, pickle.UnpicklingError):
             return {}
 
@@ -304,7 +318,8 @@ class ImagingDataset(object):
         try:
             return cls(None, path)
         except ImportError as error:
-            if not error.args[0] == 'No module named iterables':
+            if not (error.args[0].endswith('iterables') or
+                    error.args[0].endswith("iterables'")):
                 raise error
             from sima.misc.convert import _load_version0
             # Load a read-only copy of the converted dataset
@@ -406,23 +421,34 @@ class ImagingDataset(object):
         if anchor_label is None:
             try:
                 transforms = [estimate_array_transform(s, t, method=method)
-                              for s, t in it.izip(source, target)]
+                              for s, t in zip(source, target)]
             except ValueError:
                 print('Auto transform not implemented for this method')
                 return
         else:
             # Assume one ROI per plane
-            assert len(self.ROIs[anchor_label]) == self.frame_shape[0]
             transforms = []
-            for plane_idx in xrange(self.frame_shape[0]):
+            for plane_idx in range(self.frame_shape[0]):
+                trg_coords = None
                 for roi in self.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
-                        trg_coords = roi.coords[0][:, :2]
-                    else:
-                        pass
+                        # Coords is a closed polygon, so the last coord and the
+                        # first coord are identical, remove one copy
+                        trg_coords = roi.coords[0][:-1, :2]
+                        break
+                if trg_coords is None:
+                    transforms.append(None)
+                    break
+
+                src_coords = None
                 for roi in source_dataset.ROIs[anchor_label]:
                     if roi.coords[0][0, 2] == plane_idx:
-                        src_coords = roi.coords[0][:, :2]
+                        src_coords = roi.coords[0][:-1, :2]
+                        break
+                if src_coords is None:
+                    transforms.append(None)
+                    break
+
                 assert len(src_coords) == len(trg_coords)
 
                 mean_dists = []
@@ -454,6 +480,21 @@ class ImagingDataset(object):
 
                 transforms.append(estimate_coordinate_transform(
                     src_coords, trg_coords, method, **method_kwargs))
+
+            transform_check = [t is None for t in transforms]
+            assert not all(transform_check)
+
+            if any(transform_check):
+                warnings.warn("Z-plane missing transform. Copying from " +
+                              "adjacent plane, accuracy not guaranteed")
+                # If any planes were missing an anchor set, copy transforms
+                # from adjacent planes
+                for idx in range(len(transforms) - 1):
+                    if transforms[idx + 1] is None:
+                        transforms[idx + 1] = transforms[idx]
+                for idx in reversed(range(len(transforms) - 1)):
+                    if transforms[idx] is None:
+                        transforms[idx] = transforms[idx + 1]
 
         src_rois = source_dataset.ROIs
         if source_label is None:
@@ -512,7 +553,7 @@ class ImagingDataset(object):
             output format. Defaults to False.
         """
         if fmt == 'HDF5':
-            if not isinstance(filenames, str):
+            if not isinstance(filenames, basestring):
                 raise ValueError(
                     'A single filename must be passed for HDF5 format.')
         elif not len(filenames) == self.frame_shape[-1]:
@@ -531,20 +572,21 @@ class ImagingDataset(object):
             for idx, label in enumerate(['z', 'y', 'x', 'c']):
                 f['time_average'].dims[idx].label = label
             if self.channel_names is not None:
-                f['time_average'].attrs['channel_names'] = np.array(
-                    self.channel_names)
+                f['time_average'].attrs['channel_names'] = [
+                    np.string_(s) for s in self.channel_names]
+                # Note: https://github.com/h5py/h5py/issues/289
             f.close()
         else:
             for chan, filename in enumerate(filenames):
                 im = self.time_averages[:, :, :, chan]
                 if dirname(filename):
                     mkdir_p(dirname(filename))
-                if fmt is 'TIFF8':
+                if fmt == 'TIFF8':
                     if scale_values:
                         out = sima.misc.to8bit(im)
                     else:
                         out = im.astype('uint8')
-                elif fmt is 'TIFF16':
+                elif fmt == 'TIFF16':
                     if scale_values:
                         out = sima.misc.to16bit(im)
                     else:
@@ -573,14 +615,15 @@ class ImagingDataset(object):
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
         """
-        depth = lambda L: \
-            isinstance(L, collections.Sequence) and \
-            (not isinstance(L, str)) and max(map(depth, L)) + 1
-        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 3:
-            raise ValueError
-        if fmt == 'HDF5' and not depth(filenames) == 1:
-            raise ValueError
-        for sequence, fns in it.izip(self, filenames):
+        try:
+            depth = np.array(filenames).ndim
+        except:
+            raise TypeError('Improperly formatted filenames')
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth == 3:
+            raise TypeError('Improperly formatted filenames')
+        if fmt == 'HDF5' and not np.array(filenames).ndim == 1:
+            raise TypeError('Improperly formatted filenames')
+        for sequence, fns in zip(self, filenames):
             sequence.export(fns, fmt, fill_gaps, self.channel_names)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
@@ -599,9 +642,15 @@ class ImagingDataset(object):
             The label of the extracted signal set to use. By default,
             the most recently extracted signals are used.
         """
-        with open(path, 'wb') as csvfile:
-            writer = csv.writer(csvfile, delimiter='\t')
-
+        try:
+            csvfile = open(path, 'w', newline='')
+        except TypeError:  # Python 2
+            csvfile = open(path, 'wb')
+        try:
+            try:
+                writer = csv.writer(csvfile, delimiter='\t')
+            except TypeError:  # Python 2
+                writer = csv.writer(csvfile, delimiter=b'\t')
             signals = self.signals(channel)
             if signals_label is None:
                 signals_label = most_recent_key(signals)
@@ -618,6 +667,8 @@ class ImagingDataset(object):
                     signals[signals_label]['raw']):
                 for frame_idx, frame in enumerate(sequence.T):
                     writer.writerow([sequence_idx, frame_idx] + frame.tolist())
+        finally:
+            csvfile.close()
 
     def extract(self, rois=None, signal_channel=0, label=None,
                 remove_overlap=True, n_processes=1, demix_channel=None,

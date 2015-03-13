@@ -1,5 +1,6 @@
 language: python
 python:
+  - "3.4"
   - "2.7"
 # command to install dependencies
 # install: "pip install -r requirements.txt"
@@ -14,22 +15,6 @@ before_install:
   - ulimit -a
   - sudo apt-get update -qq
   - sudo apt-get install -qq libatlas-dev libatlas-base-dev liblapack-dev gfortran
-  # install OpenCV
-  # - sudo apt-get install -qq libopencv-dev python-dev unzip
-  # - sudo apt-get install -qq build-essential checkinstall cmake
-  # - wget -O opencv-2.4.9.zip http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip/download
-  # - unzip opencv-2.4.9.zip
-  # - cd opencv-2.4.9/
-  # - mkdir build
-  # - cd build
-  # - cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D BUILD_ZLIB=ON -D BUILD_NEW_PYTHON_SUPPORT=ON ..
-  # - make -j2
-  # - sudo make -j2 install
-  # - sudo sh -c 'echo "/usr/local/lib" > /etc/ld.so.conf.d/opencv.conf'
-  # - sudo ldconfig
-  # - cd ../..
-  # - sudo rm -r opencv*
-  # done installing OpenCV
   - sudo cp /usr/lib/x86_64-linux-gnu/libm.so /usr/lib/x86_64-linux-gnu/libm.so.6
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget http://repo.continuum.io/miniconda/Miniconda-3.7.0-Linux-x86_64.sh -O miniconda.sh;
@@ -42,19 +27,16 @@ before_install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn sphinx numpydoc pillow'
+  - deps='pip numpy>=1.8 scipy>=0.13 nose shapely h5py cython scikit-image pep8 flake8 scikit-learn sphinx numpydoc pillow future'
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
-  - conda install -c https://conda.binstar.org/menpo opencv
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then conda install -c https://conda.binstar.org/anaconda opencv; fi
   - pip install sphinxcontrib-napoleon 
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
-  - python -c "import h5py; print h5py.__file__"
   - echo $PATH
   - cp /usr/lib/x86_64-linux-gnu/libm.so /home/travis/miniconda/envs/test-environment/bin/../lib/libm.so.6
-  # - cp /usr/local/lib/python2.7/site-packages/cv* /home/travis/miniconda/envs/test-environment/lib/python2.7/site-packages/
   - ldconfig -p
-  - python -c "import cv2; print cv2.__version__; print cv2.__file__"
 script: 
     - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/misc/align.py,sima/motion/__init__.py,sima/segment/__init__.py
     - python runtests.py --doctests -m $TESTMODE $COVERAGE
@@ -62,7 +44,8 @@ script:
 branches:
   only:
     - master
-    - 0.2.x
     - 0.3.x
+    - 1.0.x
 after_success:
-    - if [ "${TESTMODE}" == "full" ]; then cp build/test/.coverage . && coveralls; fi
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      if [ "${TESTMODE}" == "full" ]; then cp build/test/.coverage . && coveralls; fi; fi

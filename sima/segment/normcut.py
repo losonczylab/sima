@@ -7,6 +7,11 @@ Reference
     IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE,
     VOL. 22, NO. 8, AUGUST 2000.
 """
+from __future__ import division
+from builtins import str
+from builtins import range
+from builtins import object
+from past.utils import old_div
 import os
 from distutils.version import LooseVersion
 import itertools as it
@@ -19,9 +24,10 @@ from scipy import sparse, ndimage
 
 import sima.misc
 from sima.ROI import ROI, ROIList
-from .segment import Struct, SegmentationStrategy, _check_single_plane
+from .segment import SegmentationStrategy, _check_single_plane
 from . import oPCA
 from . import _opca
+from future.utils import with_metaclass
 
 try:
     import cv2
@@ -52,7 +58,7 @@ def normcut_vectors(affinity_matrix, k):
         The normcut vectors.  Shape (num_nodes, k).
     """
     node_degrees = np.array(affinity_matrix.sum(axis=0)).flatten()
-    transformation_matrix = diags(np.sqrt(1. / node_degrees), 0)
+    transformation_matrix = diags(np.sqrt(old_div(1., node_degrees)), 0)
     normalized_affinity_matrix = transformation_matrix * affinity_matrix * \
         transformation_matrix
     _, vects = eigsh(normalized_affinity_matrix, k + 1, sigma=1.001,
@@ -61,7 +67,7 @@ def normcut_vectors(affinity_matrix, k):
     return cuts
 
 
-class CutRegion():
+class CutRegion(object):
 
     """A subgraph of an affinity matrix used for iteratively cutting with the
     normalized cut procedure.
@@ -107,9 +113,9 @@ class CutRegion():
             True/False indicating one of the segments.
         """
         node_degrees = self.affinity_matrix.sum(axis=0)
-        k = node_degrees[:, cut].sum() / node_degrees.sum()
+        k = old_div(node_degrees[:, cut].sum(), node_degrees.sum())
         node_degrees = diags(np.array(node_degrees).flatten(), 0)
-        b = k / (1 - k)
+        b = old_div(k, (1 - k))
         y = np.matrix(cut - b * np.logical_not(cut)).T
         return float(y.T * (node_degrees - self.affinity_matrix) * y) / (
             y.T * node_degrees * y)
@@ -216,9 +222,9 @@ def itercut(affinity_matrix, shape, max_pen=0.01, min_size=40, max_size=200):
     return region_list
 
 
-class AffinityMatrixMethod(object):
+class AffinityMatrixMethod(with_metaclass(abc.ABCMeta, object)):
+
     """Method for calculating the affinity matrix"""
-    __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
     def calculate(self, dataset):
@@ -238,7 +244,7 @@ class AffinityMatrixMethod(object):
         return
 
 
-class DatasetIterable():
+class DatasetIterable(object):
 
     def __init__(self, dataset, channel):
         self.dataset = dataset
@@ -407,39 +413,39 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
     verbose : bool, optional
         Whether to print progress status. Default: False.
     """
+
     def __init__(self, channel=0, max_dist=None, spatial_decay=None,
                  num_pcs=75, verbose=False):
         if max_dist is None:
             max_dist = (2, 2)
         if spatial_decay is None:
             spatial_decay = (2, 2)
-        d = locals()
-        d.pop('self')
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     def _calculate_correlations(self, dataset):
         shape = dataset.frame_shape[1:3]
-        max_dist = self._params.max_dist
+        max_dist = self._params['max_dist']
         pairs = []
-        for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
+        for y, x in it.product(range(shape[0]), range(shape[1])):
             for dx in range(max_dist[1] + 1):
                 if dx == 0:
-                    yrange = range(1, max_dist[0] + 1)
+                    yrange = list(range(1, max_dist[0] + 1))
                 else:
-                    yrange = range(-max_dist[0], max_dist[0] + 1)
+                    yrange = list(range(-max_dist[0], max_dist[0] + 1))
                 for dy in yrange:
                     if (x + dx < shape[1]) and (y + dy >= 0) and \
                             (y + dy < shape[0]):
                         pairs.append(
                             np.reshape([y, x, y + dy, x + dx], (1, 4)))
-        channel = sima.misc.resolve_channels(self._params.channel,
+        channel = sima.misc.resolve_channels(self._params['channel'],
                                              dataset.channel_names)
         return _offset_corrs(
             dataset, np.concatenate(pairs, 0), channel,
-            num_pcs=self._params.num_pcs, verbose=self._params.verbose)
+            num_pcs=self._params['num_pcs'], verbose=self._params['verbose'])
 
     def _weight(self, r0, r1):
-        Y, X = self._params.spatial_decay
+        Y, X = self._params['spatial_decay']
         dy = r1[0] - r0[0]
         dx = r1[1] - r0[1]
         return np.exp(9. * self._correlations[(r0, r1)]) * np.exp(
@@ -450,15 +456,15 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
 
     def calculate(self, dataset):
         self._setup(dataset)
-        max_dist = self._params.max_dist
+        max_dist = self._params['max_dist']
         shape = dataset.frame_shape[1:3]
         A = sparse.dok_matrix((shape[0] * shape[1], shape[0] * shape[1]))
-        for y, x in it.product(xrange(shape[0]), xrange(shape[1])):
+        for y, x in it.product(range(shape[0]), range(shape[1])):
             for dx in range(max_dist[1] + 1):
                 if dx == 0:
-                    yrange = range(1, max_dist[0] + 1)
+                    yrange = list(range(1, max_dist[0] + 1))
                 else:
-                    yrange = range(-max_dist[0], max_dist[0] + 1)
+                    yrange = list(range(-max_dist[0], max_dist[0] + 1))
                 for dy in yrange:
                     r0 = (y, x)
                     r1 = (y + dy, x + dx)
@@ -503,19 +509,19 @@ class PlaneNormalizedCuts(SegmentationStrategy):
 
     Warning
     -------
-    In version 1.0.0, this method currently only works on datasets with a
+    In version 1.0, this method currently only works on datasets with a
     single plane, or in conjunction with
     :class:`sima.segment.PlaneWiseSegmentation`.
 
     """
+
     def __init__(self, affinity_method=None, cut_max_pen=0.01,
                  cut_min_size=40, cut_max_size=200):
         super(PlaneNormalizedCuts, self).__init__()
         if affinity_method is None:
             affinity_method = BasicAffinityMatrix(channel=0, num_pcs=75)
-        d = locals()
-        d.pop('self')
-        self._params = Struct(**d)
+        self._params = dict(locals())
+        del self._params['self']
 
     @classmethod
     def _rois_from_cuts(cls, cuts):
@@ -543,8 +549,8 @@ class PlaneNormalizedCuts(SegmentationStrategy):
     @_check_single_plane
     def _segment(self, dataset):
         params = self._params
-        affinity = params.affinity_method.calculate(dataset)
+        affinity = params['affinity_method'].calculate(dataset)
         shape = dataset.frame_shape[1:3]
-        cuts = itercut(affinity, shape, params.cut_max_pen,
-                       params.cut_min_size, params.cut_max_size)
+        cuts = itercut(affinity, shape, params['cut_max_pen'],
+                       params['cut_min_size'], params['cut_max_size'])
         return self._rois_from_cuts(cuts)

@@ -1,3 +1,10 @@
+from builtins import filter
+from builtins import zip
+from builtins import input
+from builtins import next
+from builtins import range
+from builtins import object
+from future.utils import with_metaclass
 # ImagingDataset objects must be initialized with a list of
 # `iterable <http://docs.python.org/2/glossary.html#term-iterable>`_
 # objects that satisfy the following properties:
@@ -29,14 +36,9 @@
 # For convenience, we have created iterable objects that can be used with
 # common data formats.
 
-try:
-    input = raw_input
-except NameError:  # Python 3
-    pass
 import itertools as it
 import glob
 import warnings
-import collections
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
@@ -68,7 +70,7 @@ with warnings.catch_warnings():
     from sima.misc.tifffile import TiffFileWriter
 
 
-class Sequence(object):
+class Sequence(with_metaclass(ABCMeta, object)):
 
     """Object containing data from sequentially acquired imaging data.
 
@@ -101,7 +103,6 @@ class Sequence(object):
         (num_frames, num_planes, num_rows, num_columns, num_channels)
 
     """
-    __metaclass__ = ABCMeta
 
     def __new__(cls, *args, **kwargs):
         try:
@@ -123,7 +124,7 @@ class Sequence(object):
         The yielded structures are numpy arrays of the shape (num_planes,
         num_rows, num_columns, num_channels).
         """
-        for t in xrange(len(self)):
+        for t in range(len(self)):
             yield self._get_frame(t)
 
     @abstractmethod
@@ -158,7 +159,7 @@ class Sequence(object):
 
     @property
     def shape(self):
-        return (len(self),) + iter(self).next().shape
+        return (len(self),) + self._get_frame(0).shape
 
     def apply_displacements(self, displacements, frame_shape=None):
         return _MotionCorrectedSequence(self, displacements, frame_shape)
@@ -378,20 +379,17 @@ class Sequence(object):
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
         """
-        depth = lambda L: \
-            isinstance(L, collections.Sequence) and \
-            (not isinstance(L, str)) and max(map(depth, L)) + 1
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
-        if (fmt in ['TIFF16', 'TIFF8']) and not depth(filenames) == 2:
-            raise ValueError
+        if (fmt in ['TIFF16', 'TIFF8']) and not np.array(filenames).ndim == 2:
+            raise TypeError('Improperly formatted filenames')
 
         # Make directories necessary for saving the files.
         try:  # HDF5 case
             out_dirs = [[dirname(filenames)]]
-        except (AttributeError,TypeError):  # TIFF case
+        except (AttributeError, TypeError):  # TIFF case
             out_dirs = [[dirname(f) for f in plane] for plane in filenames]
-        for d in filter(None, it.chain.from_iterable(out_dirs)):
+        for d in [_f for _f in it.chain.from_iterable(out_dirs) if _f]:
             sima.misc.mkdir_p(d)
 
         if 'TIFF' in fmt:
@@ -434,6 +432,7 @@ class Sequence(object):
 
 
 class _Sequence_TIFF_Interleaved(Sequence):
+
     """
 
     Parameters
@@ -447,6 +446,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
     such that they retain the same relative position.
 
     """
+
     def __init__(self, path, num_planes=1, num_channels=1, len_=None):
         self._num_planes = num_planes
         self._num_channels = num_channels
@@ -516,6 +516,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
 
 
 class _Sequence_TIFFs(Sequence):
+
     """
 
     Parameters
@@ -524,6 +525,7 @@ class _Sequence_TIFFs(Sequence):
         The string paths[i][j] is a unix style expression for the the
         filenames for plane i and channel j. See glob for details.
     """
+
     def __init__(self, paths):
         if not isinstance(paths, list):
             raise ValueError('paths must be a list of list of str')
@@ -570,6 +572,7 @@ class _Sequence_TIFFs(Sequence):
 
 
 class _Sequence_ndarray(Sequence):
+
     def __init__(self, array):
         self._array = array
 
@@ -600,10 +603,10 @@ class _Sequence_HDF5(Sequence):
             group = '/'
         self._group = self._file[group]
         if key is None:
-            if len(self._group.keys()) != 1:
+            if len(list(self._group.keys())) != 1:
                 raise ValueError(
                     'key must be provided to resolve ambiguity.')
-            key = self._group.keys()[0]
+            key = list(self._group.keys())[0]
         self._key = key
         self._dataset = self._group[key]
         if len(dim_order) != len(self._dataset.shape):
@@ -685,7 +688,7 @@ class _Joined_Sequence(Sequence):
         return self._shape
 
     def __iter__(self):
-        for frames in it.izip(*self._sequences):
+        for frames in zip(*self._sequences):
             yield np.concatenate(frames, axis=3)
 
     def _get_frame(self, t):
@@ -707,9 +710,9 @@ class _Joined_Sequence(Sequence):
         return cls(sequences)
 
 
-class _WrapperSequence(Sequence):
+class _WrapperSequence(with_metaclass(ABCMeta, Sequence)):
+
     "Abstract class for wrapping a Sequence to modify its functionality"""
-    __metaclass__ = ABCMeta
 
     def __init__(self, base):
         self._base = base
@@ -778,7 +781,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         elif displacement.ndim == 2:  # plane-wise displacement
             out = np.nan * np.ones(self._frame_shape)
             s = frame.shape
-            for p, (plane, disp) in enumerate(it.izip(frame, displacement)):
+            for p, (plane, disp) in enumerate(zip(frame, displacement)):
                 if len(disp) == 2:
                     disp = [0] + list(disp)
                 out[p + disp[0],
@@ -799,7 +802,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         return (len(self),) + self._frame_shape
 
     def __iter__(self):
-        for frame, displacement in it.izip(self._base, self.displacements):
+        for frame, displacement in zip(self._base, self.displacements):
             yield self._align(frame, displacement)
 
     def _get_frame(self, t):
@@ -811,7 +814,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         indices = indices if isinstance(indices, tuple) else (indices,)
         times = indices[0]
         if indices[0] not in (None, slice(None)):
-            new_indices = (None,) + indices[1:]
+            new_indices = (slice(None),) + indices[1:]
             return _MotionCorrectedSequence(
                 self._base[times],
                 self.displacements[times],
@@ -837,6 +840,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
 
 
 class _MaskedSequence(_WrapperSequence):
+
     """Sequence for masking invalid data with NaN's.
 
     Parameters
@@ -849,6 +853,7 @@ class _MaskedSequence(_WrapperSequence):
         If the mask is None
 
     """
+
     def __init__(self, base, outers):
         super(_MaskedSequence, self).__init__(base)
         self._base_len = len(base)
@@ -875,18 +880,47 @@ class _MaskedSequence(_WrapperSequence):
         for i in masks:
             outer = self._outers[i][1:]
             if len(outer) == 2:  # (zyx, channels)
-                if outer[0] is None:
-                    frame[:, :, :, outer[1]] = np.nan
+                mask, channels = outer
+                if channels is None:
+                    channels = range(frame.shape[-1])
                 else:
-                    frame[:, :, :, outer[1]][outer[0]] = np.nan
-            elif len(outer) == 3:  # (planes, yx, channels)
-                planes = \
-                    range(frame.shape[-1]) if outer[0] is None else outer[0]
-                for p in planes:
-                    if outer[1] is None:
-                        frame[p][:, :, outer[2]] = np.nan
+                    try:
+                        int(channels)
+                    except TypeError:
+                        pass
                     else:
-                        frame[p][:, :, outer[2]][outer[1]] = np.nan
+                        channels = [channels]
+                for c in channels:
+                    if mask is None:
+                        frame[:, :, :, c] = np.nan
+                    else:
+                        frame[mask, c] = np.nan
+            elif len(outer) == 3:  # (planes, yx, channels)
+                planes, mask, channels = outer
+                if planes is None:
+                    planes = range(frame.shape[0])
+                else:
+                    try:
+                        int(planes)
+                    except TypeError:
+                        pass
+                    else:
+                        planes = [planes]
+                if channels is None:
+                    channels = range(frame.shape[-1])
+                else:
+                    try:
+                        int(channels)
+                    except TypeError:
+                        pass
+                    else:
+                        channels = [channels]
+                for p in planes:
+                    for c in channels:
+                        if mask is None:
+                            frame[p, :, :, c] = np.nan
+                        else:
+                            frame[p, mask, c] = np.nan
             else:
                 raise Exception
 
@@ -932,7 +966,7 @@ class _IndexedSequence(_WrapperSequence):
             else:
                 new_indices.append(slice(i, i + 1))
         self._indices = tuple(new_indices)
-        self._times = range(self._base_len)[self._indices[0]]
+        self._times = list(range(self._base_len))[self._indices[0]]
         # TODO: switch to generator/iterator if possible?
 
     def __iter__(self):
@@ -943,6 +977,9 @@ class _IndexedSequence(_WrapperSequence):
                 # memory.
                 yield np.copy(self._base._get_frame(t)[self._indices[1:]])
         except NotImplementedError:
+            if self._indices[0].step < 0:
+                raise NotImplementedError(
+                    'Iterating backwards not supported by the base class')
             idx = 0
             for t, frame in enumerate(self._base):
                 try:
@@ -960,7 +997,7 @@ class _IndexedSequence(_WrapperSequence):
         return self._base._get_frame(self._times[t])[self._indices[1:]]
 
     def __len__(self):
-        return len(range(len(self._base))[self._indices[0]])
+        return len(list(range(len(self._base)))[self._indices[0]])
 
     def _todict(self, savedir=None):
         return {
@@ -973,7 +1010,7 @@ class _IndexedSequence(_WrapperSequence):
     #     """Customize how attributes are reported, e.g. for tab completion.
 
     #     This may not be necessary if we inherit an abstract class"""
-    #     heritage = dir(super(self.__class__, self)) # inherited attributes
+    # heritage = dir(super(self.__class__, self)) # inherited attributes
     #     return sorted(heritage + self.__class__.__dict__.keys() +
     #                   self.__dict__.keys())
 
@@ -1028,7 +1065,7 @@ def _resolve_paths(d, savedir):
     except KeyError:
         pass
     if len(paths):
-        valid_paths = filter(isfile, paths)
+        valid_paths = list(filter(isfile, paths))
         if not len(valid_paths):
             error_msg = (
                 'Data could not be found in either of the following '

@@ -1,3 +1,7 @@
+from __future__ import division
+from __future__ import unicode_literals
+from builtins import str
+from builtins import range
 # Copyright: Luis Pedro Coelho <luis@luispedro.org>, 2012
 # License: MIT
 #
@@ -112,15 +116,15 @@ def read_roi(roi_obj):
         else:
             getc = _get16
             points = np.empty((n_coordinates, 3), dtype=np.int16)
-        points[:, 0] = [getc() for _ in xrange(n_coordinates)]
-        points[:, 1] = [getc() for _ in xrange(n_coordinates)]
+        points[:, 0] = [getc() for _ in range(n_coordinates)]
+        points[:, 1] = [getc() for _ in range(n_coordinates)]
         points[:, 0] += left
         points[:, 1] += top
         points[:, 2] = z
         return points
 
     magic = roi_obj.read(4)
-    if magic != 'Iout':
+    if magic != b'Iout':
         raise IOError('read_imagej_roi: Magic number not found')
 
     _get16()  # version

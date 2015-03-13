@@ -1,3 +1,4 @@
+from builtins import object
 # Unit tests for sima/imaging.py
 # Tests follow conventions for NumPy/SciPy avialble at
 # https://github.com/numpy/numpy/blob/master/doc/TESTS.rst.txt
@@ -20,7 +21,6 @@ from numpy.testing import (
 
 from sima import ImagingDataset, Sequence, ROI
 from sima.misc import example_hdf5, example_imagej_rois
-from scipy.weave import build_tools
 import os
 import shutil
 # import tempfile
@@ -40,8 +40,6 @@ def setup():
         os.mkdir(tmp_dir)
     except:
         pass
-
-    tmp_dir = build_tools.configure_temp_dir(tmp_dir)
 
 
 def teardown():
@@ -102,7 +100,8 @@ class TestImagingDataset(object):
 
         h5_time_avg = h5py.File(time_avg_path, 'r')['time_average']
         assert_equal(self.ds.time_averages.astype('uint16'), h5_time_avg)
-        assert_equal(self.ds.channel_names, h5_time_avg.attrs['channel_names'])
+        assert_equal(np.string_(self.ds.channel_names),
+                     np.string_(h5_time_avg.attrs['channel_names']))
         dim_labels = [dim.label for dim in h5_time_avg.dims]
         assert_equal(['z', 'y', 'x', 'c'], dim_labels)
 

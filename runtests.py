@@ -25,6 +25,15 @@ Generate C code coverage listing under build/lcov/:
 
 """
 
+import sys
+import os
+
+import shutil
+import subprocess
+import time
+import imp
+from argparse import ArgumentParser, REMAINDER
+
 #
 # This is a generic test runner script for projects using Numpy's test
 # framework. Change the following values to adapt to your project:
@@ -40,25 +49,14 @@ EXTRA_PATH = ['/usr/lib/ccache', '/usr/lib/f90cache',
 
 # ---------------------------------------------------------------------
 
-
 if __doc__ is None:
     __doc__ = "Run without -OO if you want usage info"
 else:
     __doc__ = __doc__.format(**globals())
 
-
-import sys
-import os
-
 # In case we are run from the source directory, we don't want to import the
 # project from there:
 sys.path.pop(0)
-
-import shutil
-import subprocess
-import time
-import imp
-from argparse import ArgumentParser, REMAINDER
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 
