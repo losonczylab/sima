@@ -4,18 +4,22 @@ Created on Tue Oct 14 10:44:55 2014
 
 @author: tamachado
 """
+from __future__ import division
+from __future__ import print_function
+from builtins import str
+from builtins import range
 import numpy as np
 from scipy import signal
 from scipy.stats import uniform, norm
 
 
-def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1./30.):
+def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
     """
     Generate a poisson spike train
     """
     np.random.seed(seed)
     spikes = np.zeros(steps)
-    spikes[[step for step in xrange(steps) if uniform.rvs()
+    spikes[[step for step in range(steps) if uniform.rvs()
             <= rate*deltat]] = 1.0
     return spikes
 
@@ -63,8 +67,8 @@ def spike_inference(fluor, noise=None, gamma=None, verbose=False,
         gamma, noise = estimate_parameters(fluor, gamma, noise, mode)
 
     # Make spike generating matrix (eye, but with -g on diag below main diag)
-    gen = spdiag([1 for step in xrange(fluor.size)])
-    for step in xrange(fluor.size):
+    gen = spdiag([1 for step in range(fluor.size)])
+    for step in range(fluor.size):
         if step > 0:
             gen[step, step-1] = -gamma
 
@@ -122,8 +126,8 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     if gamma is None:
         lags = 50
         if fluor.size > lags*2+1:
-            covar = axcov(fluor, lags)/fluor.size
-            gamma = covar[lags+3]/covar[lags+2]
+            covar = axcov(fluor, lags) / fluor.size
+            gamma = covar[lags+3] / covar[lags+2]
         else:
             raise Exception  # TODO: what if this condition fails?
 
@@ -135,13 +139,13 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     # more "robust" spike inference output
     if sigma is None:
         lags = 1
-        covar = axcov(fluor, lags)/fluor.size
+        covar = axcov(fluor, lags) / fluor.size
         if np.logical_not(set([mode]).issubset(["correct", "robust"])):
             mode = "correct"
 
         # Correct method; assumes gamma estimate is accurate
         if mode == "correct":
-            sigma = np.sqrt((gamma*covar[1]-covar[0])/gamma)
+            sigma = np.sqrt((gamma*covar[1]-covar[0]) / gamma)
 
         # Robust method; assumes gamma is approximately 1
         if mode == "robust":
@@ -169,29 +173,29 @@ if __name__ == '__main__':
     #########
 
     # Data parameters
-    RATE = 1         # mean firing rate of poisson spike train (Hz)
-    STEPS = 5000     # number of time steps in data
-    TAU = 0.6        # time constant of calcium indicator (seconds)
-    DELTAT = 1./30.  # time step duration (seconds)
-    SIGMA = 0.1      # standard deviation of gaussian noise
-    SEED = 2222      # random number generator seed
-    NTRACE = 5       # number of data traces to generate
+    RATE = 1       # mean firing rate of poisson spike train (Hz)
+    STEPS = 5000   # number of time steps in data
+    TAU = 0.6      # time constant of calcium indicator (seconds)
+    DELTAT = 1/30  # time step duration (seconds)
+    SIGMA = 0.1    # standard deviation of gaussian noise
+    SEED = 2222    # random number generator seed
+    NTRACE = 5     # number of data traces to generate
 
     # Make a poisson spike trains
     SPIKES = [get_poisson_spikes(deltat=DELTAT, rate=RATE,
                                  steps=STEPS, seed=SEED+i)
-              for i in xrange(NTRACE)]
+              for i in range(NTRACE)]
     SPIKES = np.asarray(SPIKES)
 
     # Convolve with kernel to make calcium signal
     np.random.seed(SEED)
-    GAMMA = 1-(DELTAT/TAU)
+    GAMMA = 1 - (DELTAT / TAU)
     CALCIUM = signal.lfilter([1], [1, -GAMMA], SPIKES)
     TIME = np.linspace(0, STEPS*DELTAT, STEPS)
 
     # Make fluorescence traces with random gaussian noise and baseline
     FLUORS = [CALCIUM[i, ] + norm.rvs(scale=SIGMA, size=STEPS) + uniform.rvs()
-              for i in xrange(NTRACE)]
+              for i in range(NTRACE)]
     FLUORS = np.asarray(FLUORS)
 
     #########
@@ -206,13 +210,13 @@ if __name__ == '__main__':
     [joint_gamma_est, joint_sigma_est] = estimate_parameters(
         FLUORS.reshape(FLUORS.size), mode="correct")
 
-    for x in xrange(NTRACE):
+    for x in range(NTRACE):
 
         # Estimate noise and decay parameters
         [gamma_est, sigma_est] = estimate_parameters(
             FLUORS[x, ], mode="correct", gamma=joint_gamma_est)
-        print "tau = {tau},  sigma = {sigma}".format(
-            tau=DELTAT/(1-gamma_est), sigma=sigma_est)
+        print("tau = {tau},  sigma = {sigma}".format(
+            tau=DELTAT/(1-gamma_est), sigma=sigma_est))
 
         # Run spike inference
         INFERENCE[:, x], FITS[:, x] = spike_inference(
@@ -255,8 +259,8 @@ if __name__ == '__main__':
     t_times = ml.find(SPIKES[cp, :])  # true spikes
     sInds = np.intersect1d(i_times, t_times)  # indices of true positives
     wInds = np.setdiff1d(i_times, t_times)   # indices of false positives
-    tp = float(sInds.size)/float(i_times.size)  # true positive rate
-    fp = float(wInds.size)/(STEPS-float(t_times.size))  # false positive rate
+    tp = float(sInds.size) / float(i_times.size)  # true positive rate
+    fp = float(wInds.size) / (STEPS-float(t_times.size))  # false positive rate
 
     # Plot the spike inference
     plt.axes(ax3)
@@ -267,7 +271,7 @@ if __name__ == '__main__':
         TIME[wInds], np.ones(wInds.size),
         color="Red", edgecolor="Red", width=DELTAT)
     plt.bar(
-        TIME, INFERENCE[:, 0]/INFERENCE[:, 0].max(),
+        TIME, INFERENCE[:, 0] / INFERENCE[:, 0].max(),
         color="DimGray", edgecolor="DimGray", width=DELTAT)
     ax3.set_xlabel("Time (Seconds)")
     ax3.set_ylabel("Spike Inference")
