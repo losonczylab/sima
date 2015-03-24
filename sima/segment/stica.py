@@ -44,6 +44,8 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
         stICA components
         Shape: (num_rows, num_columns, n_components)
     """
+    if time_pcs.shape[-1] != space_pcs.shape[-1]:
+        raise ValueError('Different number of time and space PCs.')
 
     # attempt to retrive the stICA data from a save file
     ret = None

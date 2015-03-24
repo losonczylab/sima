@@ -24,6 +24,7 @@ Testing / Bug Fixes
 * Nathan Kern
 * Masatoshi Kasai
 * Yoshiyuki Yamada
+* Christoph Schmidt-Hieber
 
 
 External code

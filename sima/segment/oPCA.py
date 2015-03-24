@@ -281,7 +281,7 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
             if data['oPC_signals'].shape[1] >= num_pcs:
                 ret = (
                     data['oPC_vars'][:num_pcs],
-                    data['oPCs'][:, :, :num_pcs],
+                    data['oPCs'][..., :num_pcs],
                     data['oPC_signals'][:, :num_pcs]
                 )
             data.close()
