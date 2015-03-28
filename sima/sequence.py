@@ -316,8 +316,14 @@ class Sequence(with_metaclass(ABCMeta, object)):
         **TIFFs**
 
         paths : list of list of str
-            The string paths[i][j] is a unix style expression for the the
-            filenames for plane i and channel j. See glob for details.
+            The string paths[i][j] is a unix style expression for the
+            filenames for plane i and channel j. See
+            `glob <https://docs.python.org/2/library/glob.html>`_ for
+            details on how to format such a string.
+
+        >>> from sima import Sequence
+        >>> seq = Sequence.create('TIFFs', [['example/example_??.tif']])
+        >>> seq = Sequence.create('TIFFs', [['example/example_*.tif']])
 
         Warning
         -------
