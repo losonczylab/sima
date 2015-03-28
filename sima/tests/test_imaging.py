@@ -20,7 +20,7 @@ from numpy.testing import (
 
 
 from sima import ImagingDataset, Sequence, ROI
-from sima.misc import example_hdf5, example_imagej_rois
+from sima.misc import example_hdf5, example_imagej_rois, example_tiffs
 import os
 import shutil
 # import tempfile
@@ -70,8 +70,21 @@ class TestImagingDataset(object):
         self.filepath = os.path.join(tmp_dir, "test_imaging_dataset.sima")
         self.ds = ImagingDataset([seq, seq], self.filepath)
 
+        self.filepath_tiffs = os.path.join(tmp_dir, "test_dataset_tiffs.sima")
+        seq = Sequence.create(
+            'TIFFs', [[example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()],
+                      [example_tiffs(), example_tiffs()]])
+        self.ds_tiffs = ImagingDataset([seq, seq], self.filepath_tiffs)
+
     def teardown(self):
         shutil.rmtree(self.filepath)
+        shutil.rmtree(self.filepath_tiffs)
+
+    def load_saved_tiffs_dataset(self):
+        tiff_ds = ImagingDataset.load(self.filepath_tiffs)
+        assert_equal(tiff_ds.sequences[0].shape, (3, 4, 173, 173, 2))
 
     def test_time_averages(self):
         averages = self.ds.time_averages
