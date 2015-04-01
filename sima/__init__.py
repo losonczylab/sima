@@ -9,4 +9,4 @@ from sima.sequence import Sequence
 from numpy.testing import Tester
 test = Tester().test
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
