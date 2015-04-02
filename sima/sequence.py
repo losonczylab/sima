@@ -543,7 +543,8 @@ class _Sequence_TIFFs(Sequence):
                 raise ValueError('paths must be a list of list of str')
             # save paths as an array of shape (frames, planes, channels)
             self._paths = np.array(
-                [[sorted(glob.glob(channel)) if isinstance(channel, str) else channel
+                [[sorted(glob.glob(channel))
+                  if isinstance(channel, str) else channel
                   for channel in plane] for plane in paths]
             ).reshape(-1, len(paths), len(paths[0]))
 
