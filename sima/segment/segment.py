@@ -607,10 +607,10 @@ class SmoothROIBoundaries(PostProcessingStep):
     ----------
     radius : int
         The smoothing radius, in pixels.
-        n_processes : int, optional
-            Number of processes to farm out the roi smoothing across. 
-            Should be at least 1 and at most one less than the number
-            of CPUs in the computer. Defaults to 1.
+    n_processes : int, optional
+        Number of processes to farm out the roi smoothing across.
+        Should be at least 1 and at most one less than the number
+        of CPUs in the computer. Defaults to 1.
 
     """
 
