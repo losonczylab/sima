@@ -48,10 +48,38 @@ def axcov(data, maxlag=1):
     return np.real(xcov)
 
 
-def spike_inference(fluor, noise=None, gamma=None, verbose=False,
-                    mode="correct"):
+def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
+                    verbose=False):
     """
     Infer most likely discretized spike train underlying a fluorescence trace
+
+    Parameters
+    ----------
+    fluor : ndarray
+        One dimensional array containing the fluorescence intensities with
+        one entry per time-bin.
+    gamma : float, optional
+        Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
+        process.  If no value is given, then gamma is estimated from the data.
+    sigma : float, optional
+        Standard deviation of the noise distribution.  If no value is given,
+        then sigma is estimated from the data.
+    mode : {'correct', 'robust'}, optional
+        The method for estimating sigma. The 'robust' method overestimates the
+        noise by assuming that gamma = 1. Default: 'correct'.
+    verbose : bool, optional
+        Whether to print status updates. Default: False.
+
+    Returns
+    -------
+    inference : ndarray of float
+        The inferred normalized spike count at each time-bin.  Values are
+        normalized to the maximium value over all time-bins.
+    fit : ndarray of float
+        The inferred denoised fluorescence signal at each time-bin.
+    parameters : dict
+        Dictionary with values for 'sigma', 'gamma', and 'baseline'.
+
     """
     try:
         import cvxopt.umfpack as umfpack
@@ -63,8 +91,8 @@ def spike_inference(fluor, noise=None, gamma=None, verbose=False,
     if verbose:
         sys.stdout.write('Spike inference...')
 
-    if noise is None or gamma is None:
-        gamma, noise = estimate_parameters(fluor, gamma, noise, mode)
+    if sigma is None or gamma is None:
+        gamma, sigma = estimate_parameters(fluor, gamma, sigma, mode)
 
     # Make spike generating matrix (eye, but with -g on diag below main diag)
     gen = spdiag([1 for step in range(fluor.size)])
@@ -87,7 +115,7 @@ def spike_inference(fluor, noise=None, gamma=None, verbose=False,
     prob.add_constraint(init_calcium > 0)
     prob.add_constraint(gen*calcium_fit > 0)
     res = abs(matrix(fluor)-calcium_fit-baseline-gen_ones*init_calcium)
-    prob.add_constraint(res < noise * np.sqrt(fluor.size))
+    prob.add_constraint(res < sigma * np.sqrt(fluor.size))
     prob.set_objective('min', calcium_fit.T * gen_vec)
 
     # Run solver
@@ -109,12 +137,37 @@ def spike_inference(fluor, noise=None, gamma=None, verbose=False,
     fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)]
                      + baseline.value)
     inference = np.squeeze(np.asarray(gen*matrix(fit)))
-    return (inference, fit)
+    parameters = {'gamma': gamma, 'sigma': sigma, 'baseline': baseline.value}
+    return inference, fit, parameters
 
 
 def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     """
     Use the autocovariance to estimate the scale of noise and indicator tau
+
+    Parameters
+    ----------
+    fluor : ndarray
+        One dimensional array containing the fluorescence intensities with
+        one entry per time-bin.
+    gamma : float, optional
+        Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
+        process.  If no value is given, then gamma is estimated from the data.
+    sigma : float, optional
+        Standard deviation of the noise distribution.  If no value is given,
+        then sigma is estimated from the data.
+    mode : {'correct', 'robust'}, optional
+        The method for estimating sigma. The 'robust' method overestimates the
+        noise by assuming that gamma = 1. Default: 'correct'.
+
+    Returns
+    -------
+    gamma : float
+        Gamma is 1 - dt/tau, where tau is the time constant of the AR(1)
+        process.
+    sigma : float, optional
+        Standard deviation of the noise distribution.
+
     """
     # Use autocovariance (cv) to estimate gamma:
     #     cv(t)/cv(t-1) = gamma, if t > 1
@@ -124,12 +177,9 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     #
     # Note that this equation is only strictly true if spiking is Poisson
     if gamma is None:
-        lags = 50
-        if fluor.size > lags*2+1:
-            covar = axcov(fluor, lags) / fluor.size
-            gamma = covar[lags+3] / covar[lags+2]
-        else:
-            raise Exception  # TODO: what if this condition fails?
+        lags = min(50, len(fluor) // 2 - 1)
+        covar = axcov(fluor, lags) / fluor.size
+        gamma = covar[lags+3] / covar[lags+2]
 
     # Use autocovariance (cv) to estimate sigma:
     #     sqrt((gamma*cv(t-1)-cv(t))/gamma) = gamma, if t == 1
@@ -220,7 +270,7 @@ if __name__ == '__main__':
 
         # Run spike inference
         INFERENCE[:, x], FITS[:, x] = spike_inference(
-            FLUORS[x, ], noise=sigma_est, gamma=joint_gamma_est, verbose=True)
+            FLUORS[x, ], sigma=sigma_est, gamma=joint_gamma_est, verbose=True)
 
     #########
     # PART 3: Plot results
