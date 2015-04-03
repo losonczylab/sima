@@ -518,6 +518,8 @@ class SmoothBoundariesParallel(object):
         # smoothing is unsuccessful
         limit = 1500
 
+        radius = self.radius
+
         # store wether the radius of search is increased aboved the initial
         # value
         tmp_rad = False
@@ -526,17 +528,17 @@ class SmoothBoundariesParallel(object):
             # find the ist of all points at the given radius and adjust to be
             # lined up for clockwise traversal
             x = np.roll(
-                np.array(list(p[0] + list(range(-self.radius, self.radius))) +
-                         [p[0] + self.radius] * (2 * self.radius + 1) +
-                         list(p[0] + list(range(-self.radius, self.radius))[::-1]) +
-                         [p[0] - (self.radius + 1)] * (2 * self.radius + 1)), -2)
-            y = np.roll(np.array([p[1] - self.radius] * (2 * self.radius) +
-                                 list(p[1] + list(range(-self.radius, self.radius))) +
-                                 [p[1] + self.radius] * (2 * self.radius + 1) +
+                np.array(list(p[0] + list(range(-radius, radius))) +
+                         [p[0] + radius] * (2 * radius + 1) +
+                         list(p[0] + list(range(-radius, radius))[::-1]) +
+                         [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
+            y = np.roll(np.array([p[1] - radius] * (2 * radius) +
+                                 list(p[1] + list(range(-radius, radius))) +
+                                 [p[1] + radius] * (2 * radius + 1) +
                                  list(
                                      p[1] + list(
-                                         range(-self.radius, (self.radius + 1)))[::-1])),
-                        -self.radius)
+                                         range(-radius, (radius + 1)))[::-1])),
+                        -radius)
 
             # insure that the x and y points are within the image
             x[x < 0] = 0
@@ -560,7 +562,7 @@ class SmoothBoundariesParallel(object):
             # that the algirthm has completed. If less then 3 points are found
             # this is not yet a valid ROI
             if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
-                    1.5 * self.radius and len(b) > 3:
+                    1.5 * radius and len(b) > 3:
                 new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
                 if new_roi.mask[0].size != 0:
                     # "well formed ROI"
@@ -570,8 +572,8 @@ class SmoothBoundariesParallel(object):
             # radius of search. if radius is already larger then 6, blur the
             # mask and try again
             if p in b:
-                if self.radius > 6:
-                    self.radius = 3
+                if radius > 6:
+                    radius = 3
                     z = ndimage.gaussian_filter(z, sigma=1)
 
                     b = []
@@ -581,7 +583,7 @@ class SmoothBoundariesParallel(object):
                     tmp_rad = False
 
                 else:
-                    self.radius = self.radius + 1
+                    radius = radius + 1
                     tmp_rad = True
                     if len(b) > 3:
                         p = b[-3]
@@ -589,7 +591,7 @@ class SmoothBoundariesParallel(object):
 
             elif tmp_rad:
                 tmp_rad = False
-                self.radius = 3
+                radius = 3
 
         # The maximum number of cycles has completed and no suitable smoothed
         # ROI has been determined
