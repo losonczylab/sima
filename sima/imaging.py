@@ -789,8 +789,8 @@ class ImagingDataset(object):
 
     def infer_spikes(self, channel=0, label=None, sigma=None, gamma=None,
                      mode='correct', verbose=False):
-        """
-        Infer most likely discretized spike train underlying a fluorescence trace
+        """Infer most likely discretized spike train underlying a fluorescence
+        trace
 
         Parameters
         ----------
@@ -829,8 +829,8 @@ class ImagingDataset(object):
             label = most_recent_key(all_signals)
         signals = all_signals[label]
 
-        spikes = np.zeros_like(signals)
-        fits = np.zeros_like(signals)
+        spikes = np.zeros_like(signals['raw'])
+        fits = np.zeros_like(signals['raw'])
         parameters = collections.defaultdict(list)
         for i, trace in enumerate(signals['raw']):
             spikes[i], fits[i], p = sima.spikes.spike_inference(
@@ -838,9 +838,22 @@ class ImagingDataset(object):
             for k, v in p.iteritems():
                 parameters[k].append(v)
         for v in parameters.itervalues():
-            assert len(v) == len(signals)
-        return signals, fits, parameters
+            assert len(v) == len(spikes)
 
+        if self.savedir:
+            signals['spikes'] = spikes
+            signals['spikes_fits'] = fits
+            signals['spikes_params'] = parameters
+            all_signals[label] = signals
+
+            signals_filename = os.path.join(
+                self.savedir,
+                'signals_{}.pkl'.format(signals['signal_channel']))
+
+            pickle.dump(all_signals,
+                        open(signals_filename, 'wb'), pickle.HIGHEST_PROTOCOL)
+
+        return spikes, fits, parameters
 
     def __str__(self):
         return '<ImagingDataset>'
