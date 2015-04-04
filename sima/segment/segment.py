@@ -298,7 +298,7 @@ class MergeOverlapping(PostProcessingStep):
         return ROIList(roi for roi in rois if roi is not None)
 
 
-class FilterParallel(object):
+class _FilterParallel(object):
     """
     Helper class to parallelize ROI smoothing
 
@@ -478,9 +478,9 @@ class SparseROIsFromMasks(PostProcessingStep):
 
         return accepted, accepted_components, rejected
 
-class SmoothBoundariesParallel(object):
+class _SmoothBoundariesParallel(object):
     """ Smooth out the ROI boundaries and reduce the number of points in
-    the ROI polygons.
+    the ROI polygons. Helper class for parallelization.
 
     Parameters
     ----------
