@@ -464,7 +464,7 @@ class SparseROIsFromMasks(PostProcessingStep):
         else:
             rois = [np.abs(r) for r in rois]
 
-        FilterFunc = FilterParallel(threshold, x_smoothing)
+        FilterFunc = _FilterParallel(threshold, x_smoothing)
         if n_processes > 1:
             pool = Pool(processes=n_processes)
             smooth_results = pool.map(FilterFunc, rois)
@@ -622,7 +622,7 @@ class SmoothROIBoundaries(PostProcessingStep):
         if not all(len(r.mask) == 1 for r in rois):
             raise ValueError('SmoothROIBoundaries applies only to 2D ROIs.')
 
-        SmoothFunc = SmoothBoundariesParallel(self.radius)
+        SmoothFunc = _SmoothBoundariesParallel(self.radius)
         if self.n_processes > 1:
             pool = Pool(processes=self.n_processes)
             smooth_rois = pool.map(SmoothFunc, rois)
