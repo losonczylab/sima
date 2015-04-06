@@ -468,6 +468,7 @@ class SparseROIsFromMasks(PostProcessingStep):
         if n_processes > 1:
             pool = Pool(processes=n_processes)
             smooth_results = pool.map(FilterFunc, rois)
+            pool.close()
         else:
             smooth_results = map(FilterFunc, rois)
 
@@ -628,6 +629,7 @@ class SmoothROIBoundaries(PostProcessingStep):
         if self.n_processes > 1:
             pool = Pool(processes=self.n_processes)
             smooth_rois = pool.map(SmoothFunc, rois)
+            pool.close()
         else:
             smooth_rois = map(SmoothFunc, rois)
 
