@@ -478,6 +478,7 @@ class SparseROIsFromMasks(PostProcessingStep):
 
         return accepted, accepted_components, rejected
 
+
 class _SmoothBoundariesParallel(object):
     """ Smooth out the ROI boundaries and reduce the number of points in
     the ROI polygons. Helper class for parallelization.
@@ -596,6 +597,7 @@ class _SmoothBoundariesParallel(object):
         # The maximum number of cycles has completed and no suitable smoothed
         # ROI has been determined
         return roi, False
+
 
 class SmoothROIBoundaries(PostProcessingStep):
     """
