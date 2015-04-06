@@ -375,7 +375,7 @@ class SparseROIsFromMasks(PostProcessingStep):
     sign_split : bool, optional
         Whether to split each mask into its positive and negative components.
     n_processes : int, optional
-        Number of processes to farm out the roi smoothing across. 
+        Number of processes to farm out the roi smoothing across.
         Should be at least 1 and at most one less than the number
         of CPUs in the computer. Defaults to 1.
 
@@ -442,7 +442,7 @@ class SparseROIsFromMasks(PostProcessingStep):
             Whether to split each mask into its positive and negative
             components.
         n_processes : int, optional
-            Number of processes to farm out the roi smoothing across. 
+            Number of processes to farm out the roi smoothing across.
             Should be at least 1 and at most one less than the number
             of CPUs in the computer. Defaults to 1.
 
