@@ -316,7 +316,7 @@ class _FilterParallel(object):
 
     def __call__(self, roi):
 
-        roi static = []
+        roi_static = []
         roi_cpy = np.array(roi)
         for frame in roi_cpy:
             # copy the component, remove pixels with low weights
