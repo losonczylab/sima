@@ -316,44 +316,44 @@ class _FilterParallel(object):
 
     def __call__(self, roi):
 
-        # copy the component, remove pixels with low weights
-        if len(roi) > 1:
-            raise ValueError('This PostProcessingStep is only intended '
-                             'for ROIs from 2D datasets.')
-        frame = roi[0]
-        frame[frame < 2 * np.std(frame)] = 0
-
-        # smooth the component via static removal and gaussian blur
-        for _ in range(self.x_smoothing):
-            check = frame[1:-1, :-2] + frame[1:-1, 2:] + \
-                frame[:-2, 1:-1] + frame[2, 1:-1]
-            z = np.zeros(frame.shape)
-            z[1:-1, 1:-1] = check
-            frame[np.logical_not(z)] = 0
-
-            blurred = ndimage.gaussian_filter(frame, sigma=1)
-            frame = blurred + frame
-
-            frame = frame / np.max(frame)
+        roi_static = []
+        roi_cpy = np.array(roi)
+        for frame in roi_cpy:
+            # copy the component, remove pixels with low weights
             frame[frame < 2 * np.std(frame)] = 0
 
-        # calculate the remaining static in the component
-        static = np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 1:-1])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 1:-1])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, :-2])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 2:])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, :-2])) + \
-            np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, :-2]))
+            # smooth the component via static removal and gaussian blur
+            for _ in range(self.x_smoothing):
+                check = frame[1:-1, :-2] + frame[1:-1, 2:] + \
+                    frame[:-2, 1:-1] + frame[2, 1:-1]
+                z = np.zeros(frame.shape)
+                z[1:-1, 1:-1] = check
+                frame[np.logical_not(z)] = 0
 
-        static = static * 2.0 / (frame.shape[0] * frame.shape[1])
+                blurred = ndimage.gaussian_filter(frame, sigma=1)
+                frame = blurred + frame
+
+                frame = frame / np.max(frame)
+                frame[frame < 2 * np.std(frame)] = 0
+
+            # calculate the remaining static in the component
+            static = np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 1:-1])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 1:-1])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, :-2])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[1:-1, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, 2:])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[2:, :-2])) + \
+                np.sum(np.abs(frame[1:-1, 1:-1] - frame[:-2, :-2]))
+
+            static = np.sum(static) * 2.0 / (frame.shape[0] * frame.shape[1])
+            roi_static.append(static)
 
         # decide if the component should be accepted or rejected
-        if np.sum(static) < self.threshold:
-            return ROI(mask=np.expand_dims(frame, 0)), ROI(mask=roi), None
+        if np.mean(static) < self.threshold:
+            return ROI(mask=roi_cpy), ROI(mask=roi), None
         else:
-            return None, None, ROI(mask=np.expand_dims(frame, 0))
+            return None, None, ROI(mask=roi)
 
 
 class SparseROIsFromMasks(PostProcessingStep):
