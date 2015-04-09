@@ -442,7 +442,7 @@ def _register_all_frames(input_array, mean_img, upsample_factor=10,
         results = pool.map(map_func, input_array)
         pool.close()
     else:
-        results = map(map_func, frames_for_mean)
+        results = map(map_func, input_array)
 
     # preallocate arrays
     dx = np.zeros(im_dim[0], dtype=np.float)
