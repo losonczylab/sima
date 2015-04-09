@@ -20,12 +20,9 @@ import scipy.ndimage.filters
 from . import motion
 from sima.misc.align import align_cross_correlation
 
-# Setup global variables used during parallelized whole frame shifting
-lock = 0
-namespace = 0
-
 # define globals for dftreg
-global fftn, ifftn, im_dim, im_dtype, nworkers, verbose_state
+# might be better to use global namespace struct? or attributes?
+global fftn, ifftn, im_dim, im_dtype, n_workers, verbose_state
 
 # imports for dftreg
 from scipy.ndimage.interpolation import shift
@@ -38,7 +35,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 Motion correction of image sequences by 'efficient subpixel image registration
 by cross correlation'. A reference image is iteratively computed by aligning
 and averaging a subset of images/frames.
-Lloyd Russell 2015 Adam Packer? Marius Pachitariu?
+Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
 *******************************************************************************
 Implements skimage.feature.register_translation, which is a port of MATLAB code
 by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
@@ -65,13 +62,12 @@ POSSIBILITY OF SUCH DAMAGE.
     def __init__(self, upsample_factor=1, num_images_for_mean=100,
              randomise_frames=True, err_thresh=0.02, max_iterations=5,
              use_fftw=False, rotation_scaling=False, save=False,
-             save_fmt='mptiff', save_name='none', nprocesses=1, verbose=False):
+             save_fmt='mptiff', save_name='none', n_processes=1, verbose=False):
         self._params = dict(locals())
         del self._params['self']
 
     def _estimate(self, dataset):
         """
-        dataset has shape: 1,4000,1,512,512,1 (seq,frames,plane,row,col,chan)
 
         Parameters
         ----------
@@ -90,19 +86,28 @@ POSSIBILITY OF SUCH DAMAGE.
             frame_shape = dataset[seq_idx].frame_shape
             num_planes = frame_shape[0]
             num_channels = frame_shape[3]
+            if num_channels > 1:
+                raise NotImplementedError("Error: only one colour channel can be used for DFT motion correction")
 
             for plane_idx in range(num_planes):
-                # load into memory... need to pass numpy array to dftreg register
+                # load into memory... need to pass numpy array to dftreg.
+                # could(should?) rework it to instead accept tiff array
                 print('Loading...')
                 t0 = time.time()
-                frames = np.squeeze(sequence[:,plane_idx]).astype('uint16')
+                frames = np.squeeze(sequence[:,plane_idx])  # reshape, only one plane at a time
                 e1 = time.time() - t0
                 print('Loaded in ' + str(e1) + ' s')
 
                 # do the registering
-                dx,dy,regisered_frames = register(
+                # registered_frames return is useless, sima later uses the displacements to shift the
+                # image (apply_displacements in sima/sequence.py: _align method of _MotionCorrectedSequence
+                # class) but this shifting is only pixel-level, much better results if sub-pixel were possible
+                # - replace sima's way of shifting? this may run into problems when sima then crops the final
+                # image so no empty rows/columns at edge of any frame in the video (trim_criterion)
+                dx,dy,registered_frames = register(
                     frames, upsample_factor=params['upsample_factor'], use_fftw=params['use_fftw'],
-                    nprocesses=params['nprocesses'], verbose=params['verbose'], save=True, save_name='subpixeltest.tif')
+                    n_processes=params['n_processes'], verbose=params['verbose'],
+                    save=params['save'], save_name=params['save_name'])
 
                 # get results into a shape sima likes...
                 frame_shifts = np.zeros([len(frames),num_planes,2])
@@ -117,7 +122,7 @@ POSSIBILITY OF SUCH DAMAGE.
 def register(input_array, upsample_factor=1, num_images_for_mean=100,
              randomise_frames=True, err_thresh=0.02, max_iterations=5,
              use_fftw=False, rotation_scaling=False, save=False,
-             save_fmt='mptiff', save_name='none', nprocesses=1, verbose=False):
+             save_fmt='mptiff', save_name='none', n_processes=1, verbose=False):
     """
     Master function. Establish parameters. Make aligned mean image. Register
     each frame in input array to aligned mean image.
@@ -156,7 +161,7 @@ def register(input_array, upsample_factor=1, num_images_for_mean=100,
     save_fmt : string
         the tiff format to save as. options include 'mptiff', 'bigtiff',
         'singles' (optional, default='mptiff'
-    nprocesses : int or 'auto'
+    n_processes : int or 'auto'
         number of workers to use (multiprocessing). if 'auto' number of workers
         is number of cpus. (optional, default=1)
     verbose : bool
@@ -179,7 +184,7 @@ def register(input_array, upsample_factor=1, num_images_for_mean=100,
 
     # configure settings and get image parameters
     _configure(input_array, use_fftw=use_fftw,
-               verbose=verbose, nprocesses=nprocesses)
+               verbose=verbose, n_processes=n_processes)
 
     # make a mean image
     mean_img = _make_mean_img(input_array,
@@ -213,7 +218,7 @@ def register(input_array, upsample_factor=1, num_images_for_mean=100,
     return dx, dy, registered_frames
 
 
-def _configure(input_array, use_fftw=False, verbose=False, nprocesses=1):
+def _configure(input_array, use_fftw=False, verbose=False, n_processes=1):
     """
     Setup. Decide how many workers to use (multiprocessing), which fft methods
     to use and get details of the input images
@@ -230,7 +235,7 @@ def _configure(input_array, use_fftw=False, verbose=False, nprocesses=1):
     None. But sets globals...
     """
     # define globals
-    global fftn, ifftn, im_dim, im_dtype, nworkers, verbose_state
+    global fftn, ifftn, im_dim, im_dtype, n_workers, verbose_state
 
     # verbose mode?
     if verbose:
@@ -239,12 +244,12 @@ def _configure(input_array, use_fftw=False, verbose=False, nprocesses=1):
         verbose_state = False
 
     # workers
-    if nprocesses == 'auto':
-        nworkers = multiprocessing.cpu_count()
+    if n_processes == 'auto':
+        n_workers = multiprocessing.cpu_count()
     else:
-        nworkers = nprocesses
+        n_workers = n_processes
     if verbose_state:
-        print('Using ' + str(nworkers) + ' workers')
+        print('Using ' + str(n_workers) + ' worker(s)')
 
     # num threads
     nthreads = 1
@@ -305,17 +310,18 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     mean_img = np.mean(frames_for_mean, 0)
     iteration = 1
     mean_img_err = 9999
-    # not final
-    while mean_img_err > err_thresh and iteration < max_iterations:
-        # configure pool of workers (multiprocessing)
-        # pool = multiprocessing.Pool(nworkers, maxtasksperchild=1)
+
+    while mean_img_err > err_thresh and iteration < max_iterations:  # not final conditions
+        # # configure pool of workers (multiprocessing)
+        # pool = multiprocessing.Pool(n_workers, maxtasksperchild=1)
         # map_func = partial(_register_frame, mean_img=mean_img,
         #                 upsample_factor=upsample_factor)
         # results = pool.map(map_func, frames_for_mean)
-        results = [_register_frame(frame, mean_img=mean_img,
-                           upsample_factor=upsample_factor) for frame in frames_for_mean]
         # pool.close()
         # pool.join()
+
+        results = [_register_frame(frame, mean_img=mean_img,
+                           upsample_factor=upsample_factor) for frame in frames_for_mean]
 
         # preallocate the results array
         mean_img_dx = np.zeros(num_images_for_mean, dtype=np.float)
@@ -325,8 +331,8 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
         for idx, result in enumerate(results):
             mean_img_dx[idx] = result[0]
             mean_img_dy[idx] = result[1]
-            # overwrite the temp array of frames used to make mean image
-            frames_for_mean[idx] = result[2]
+            frames_for_mean[idx] = result[2] # overwrite the frames used to make mean image
+
         # make the new (improved) mean image
         mean_img = np.mean(frames_for_mean, 0)
         mean_img_err = np.mean(
@@ -357,7 +363,7 @@ def _register_all_frames(input_array, mean_img, upsample_factor=10):
         print('Registering all ' + str(im_dim[0]) + ' frames...')
 
     # configure pool of workers (multiprocessing)
-    # pool = multiprocessing.Pool(nworkers)
+    # pool = multiprocessing.Pool(n_workers)
     # map_func = partial(
     #     _register_frame, mean_img=mean_img, upsample_factor=upsample_factor)
     # results = pool.map(map_func, input_array)
@@ -393,7 +399,7 @@ def _register_frame(frame, mean_img, upsample_factor=10):
     # shift the frame
     dy, dx = shifts
     registered_frame = shift(
-        frame, [dy, dx], order=3, mode='constant', cval=0, output=im_dtype)
+        frame, [dy, dx], order=3, mode='constant', cval=0, output=im_dtype)  # output forced to np.uint16 - if using detected type (float, im_dtype) weird things happen for presumably black pixel values when registered movie is saved with the built in method
 
     return dx, dy, registered_frame
 
@@ -520,7 +526,7 @@ def _upsampled_dft(data, upsampled_region_size,
             np.floor(data.shape[0] / 2))
     )
 
-    return row_kernel.dot(data).dot(col_kernel)
+    return row_kernel.dot(data).dot(col_kernel)  # for some reason this is the point it hangs when multiprocessing
 
 
 def _compute_phasediff(cross_correlation_max):
@@ -712,10 +718,10 @@ def _save_registered_frames(input_array, save_name, save_fmt):
         for idx in range(im_dim[0]):
             tifffile.imsave(
                 save_name + '_' + '{number:05d}'.format(number=idx)
-                + '_DFTreg.tif', input_array[idx].astype('uint16'))
+                + '_DFTreg.tif', input_array[idx].astype(np.uint16))
     if save_fmt == 'mptiff':
-        tifffile.imsave(save_name + '_DFTreg.tif', input_array.astype('uint16'))
+        tifffile.imsave(save_name + '_DFTreg.tif', input_array.astype(np.uint16))
     elif save_fmt == 'bigtiff':
-        tifffile.imsave(save_name + '_DFTreg.tif', input_array.astype('uint16'), bigtiff=True)
+        tifffile.imsave(save_name + '_DFTreg.tif', input_array.astype(np.uint16), bigtiff=True)
 
 
