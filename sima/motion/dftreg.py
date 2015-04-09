@@ -1,3 +1,34 @@
+"""
+Motion correction of image sequences by 'efficient subpixel image registration
+by cross correlation'. A reference image is iteratively computed by aligning
+and averaging a subset of images/frames.
+Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
+
+*******************************************************************************
+Parts of the code are based on:
+skimage.feature.register_translation, which is a port of MATLAB code
+by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
+subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+
+Relating to implementation of skimage.feature.register_translation:
+Copyright (C) 2011, the scikit-image team
+All rights reserved.
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+*******************************************************************************
+@author: llerussell
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from builtins import next
@@ -32,31 +63,57 @@ import time
 
 class DiscreteFourier2D(motion.MotionEstimationStrategy):
     """
-Motion correction of image sequences by 'efficient subpixel image registration
-by cross correlation'. A reference image is iteratively computed by aligning
-and averaging a subset of images/frames.
-Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
-*******************************************************************************
-Implements skimage.feature.register_translation, which is a port of MATLAB code
-by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
-subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+    Motion correction of image sequences by 'efficient subpixel image registration
+    by cross correlation'. A reference image is iteratively computed by aligning
+    and averaging a subset of images/frames.
+    Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
 
-Relating to implementation of skimage.feature.register_translation:
-Copyright (C) 2011, the scikit-image team
-All rights reserved.
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
-INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
 
-*******************************************************************************
+    Parameters
+    ----------
+    upsample_factor : int
+        upsample factor. final pixel alignment has resolution of
+        1/upsample_factor. if 1 only pixel level shifts are made - faster -
+        and no interpolation (optional, default=1)
+    num_images_for_mean : int
+        number of images to use to make the aligned mean image (optional,
+        default=100)
+    randomise_frames : bool
+        randomise the images selected to make the mean image? if false the
+        first 'num_frames_for_mean' frames will be used (optional,
+        default=True)
+    err_thresh : float
+        the error threshold level at which to stop iterating over the mean
+        image alignment (optional, default=0.02)
+    max_iterations : int
+        the maximum number of iterations to compute the aligned mean image
+        (optional, default=5)
+    use_fftw : bool
+        choose whether to use fftw methods (slightly faster) requires PyFFTW3.
+        if false, will use numpy methods. (optional, default=False)
+    rotation_scaling : bool
+        not yet implemented. (optional, default=false)
+    save : bool
+        choose whether to save the final registered array of images to disk
+        from within method (optional, default=False)
+    save_name : string
+        the filename for saved file (optional, default='none')
+    save_fmt : string
+        the tiff format to save as. options include 'mptiff', 'bigtiff',
+        'singles' (optional, default='mptiff'
+    n_processes : int or 'auto'
+        number of workers to use (multiprocessing). if 'auto' number of workers
+        is number of cpus. (optional, default=1)
+    verbose : bool
+        enable verbose mode (optional, default:False)
+
+    References
+    ----------
+    Parts of the code are based on:
+    skimage.feature.register_translation, which is a port of MATLAB code
+    by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
+    subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+
     """
 
     def __init__(self, upsample_factor=1, num_images_for_mean=100,
