@@ -1,3 +1,34 @@
+"""
+Motion correction of image sequences by 'efficient subpixel image registration
+by cross correlation'. A reference image is iteratively computed by aligning
+and averaging a subset of images/frames.
+Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
+
+*******************************************************************************
+Parts of the code are based on:
+skimage.feature.register_translation, which is a port of MATLAB code
+by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
+subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+
+Relating to implementation of skimage.feature.register_translation:
+Copyright (C) 2011, the scikit-image team
+All rights reserved.
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+*******************************************************************************
+@author: llerussell
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from builtins import next
@@ -32,31 +63,57 @@ import time
 
 class DiscreteFourier2D(motion.MotionEstimationStrategy):
     """
-Motion correction of image sequences by 'efficient subpixel image registration
-by cross correlation'. A reference image is iteratively computed by aligning
-and averaging a subset of images/frames.
-Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
-*******************************************************************************
-Implements skimage.feature.register_translation, which is a port of MATLAB code
-by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
-subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+    Motion correction of image sequences by 'efficient subpixel image registration
+    by cross correlation'. A reference image is iteratively computed by aligning
+    and averaging a subset of images/frames.
+    Lloyd Russell 2015 (and Christoph, and Marius (Adam?) for initial MATLAB implementation?)
 
-Relating to implementation of skimage.feature.register_translation:
-Copyright (C) 2011, the scikit-image team
-All rights reserved.
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
-INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
-IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
 
-*******************************************************************************
+    Parameters
+    ----------
+    upsample_factor : int
+        upsample factor. final pixel alignment has resolution of
+        1/upsample_factor. if 1 only pixel level shifts are made - faster -
+        and no interpolation (optional, default=1)
+    num_images_for_mean : int
+        number of images to use to make the aligned mean image (optional,
+        default=100)
+    randomise_frames : bool
+        randomise the images selected to make the mean image? if false the
+        first 'num_frames_for_mean' frames will be used (optional,
+        default=True)
+    err_thresh : float
+        the error threshold level at which to stop iterating over the mean
+        image alignment (optional, default=0.02)
+    max_iterations : int
+        the maximum number of iterations to compute the aligned mean image
+        (optional, default=5)
+    use_fftw : bool
+        choose whether to use fftw methods (slightly faster) requires PyFFTW3.
+        if false, will use numpy methods. (optional, default=False)
+    rotation_scaling : bool
+        not yet implemented. (optional, default=false)
+    save : bool
+        choose whether to save the final registered array of images to disk
+        from within method (optional, default=False)
+    save_name : string
+        the filename for saved file (optional, default='none')
+    save_fmt : string
+        the tiff format to save as. options include 'mptiff', 'bigtiff',
+        'singles' (optional, default='mptiff'
+    n_processes : int or 'auto'
+        number of workers to use (multiprocessing). if 'auto' number of workers
+        is number of cpus. (optional, default=1)
+    verbose : bool
+        enable verbose mode (optional, default:False)
+
+    References
+    ----------
+    Parts of the code are based on:
+    skimage.feature.register_translation, which is a port of MATLAB code
+    by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient
+    subpixel image registration algorithms," Optics Letters 33, 156-158 (2008).
+
     """
 
     def __init__(self, upsample_factor=1, num_images_for_mean=100,
@@ -192,14 +249,16 @@ def register(input_array, upsample_factor=1, num_images_for_mean=100,
                               randomise_frames=randomise_frames,
                               err_thresh=err_thresh,
                               max_iterations=max_iterations,
-                              upsample_factor=upsample_factor)
+                              upsample_factor=upsample_factor,
+                              n_processes=n_processes)
     e1 = time.time() - t0
     if verbose_state:
         print('    Time taken: ' + str(e1) + ' s')
 
     # register all frames
     dx, dy, registered_frames = _register_all_frames(
-        input_array, mean_img, upsample_factor=upsample_factor)
+        input_array, mean_img, upsample_factor=upsample_factor,
+        n_processes=n_processes)
     e2 = time.time() - t0 - e1
     if verbose_state:
         print('    Time taken: ' + str(e2) + ' s')
@@ -261,9 +320,19 @@ def _configure(input_array, use_fftw=False, verbose=False, n_processes=1):
     im_dim = input_array.shape
     im_dtype = input_array.dtype
 
+class _ParallelRegister(object):
+
+    def __init__(self, mean_img, upsample_factor):
+        self.mean_img = mean_img
+        self.upsample_factor = upsample_factor
+
+    def __call__(self, frame):
+        return _register_frame(frame, mean_img=self.mean_img,
+                               upsample_factor=self.upsample_factor)
 
 def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
-                   err_thresh=0.02, max_iterations=5, upsample_factor=10):
+                   err_thresh=0.02, max_iterations=5, upsample_factor=10,
+                   n_processes=1):
     """
     Make an aligned mean image to use as reference to which all frames are
     later aligned.
@@ -282,6 +351,9 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     max_iterations : int
         number of maximum iterations, if error threshold is never met
         (default = 5)
+    n_processes : int, optional
+        number of processes to work on the registration in parallel
+
     Returns
     -------
     mean_img : np.ndarray (size of input images)
@@ -312,16 +384,14 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     mean_img_err = 9999
 
     while mean_img_err > err_thresh and iteration < max_iterations:  # not final conditions
-        # # configure pool of workers (multiprocessing)
-        # pool = multiprocessing.Pool(n_workers, maxtasksperchild=1)
-        # map_func = partial(_register_frame, mean_img=mean_img,
-        #                 upsample_factor=upsample_factor)
-        # results = pool.map(map_func, frames_for_mean)
-        # pool.close()
-        # pool.join()
-
-        results = [_register_frame(frame, mean_img=mean_img,
-                           upsample_factor=upsample_factor) for frame in frames_for_mean]
+        map_func = _ParallelRegister(mean_img, upsample_factor)
+        if n_processes > 1:
+            # configure pool of workers (multiprocessing)
+            pool = multiprocessing.Pool(n_processes, maxtasksperchild=1)
+            results = pool.map(map_func, frames_for_mean)
+            pool.close()
+        else:
+            results = map(map_func, frames_for_mean)
 
         # preallocate the results array
         mean_img_dx = np.zeros(num_images_for_mean, dtype=np.float)
@@ -346,7 +416,8 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     return mean_img
 
 
-def _register_all_frames(input_array, mean_img, upsample_factor=10):
+def _register_all_frames(input_array, mean_img, upsample_factor=10,
+                         n_processes=1):
     """
     Register all input frames to the computed aligned mean image.
 
@@ -358,20 +429,20 @@ def _register_all_frames(input_array, mean_img, upsample_factor=10):
         array of y pixel offsets for each frame
     registered_frames : np.ndarray (size of input images)
         array containing each aligned frame
+    n_processes : int, optional
+        number of processes to work on the registration in parallel
     """
     if verbose_state:
         print('Registering all ' + str(im_dim[0]) + ' frames...')
 
-    # configure pool of workers (multiprocessing)
-    # pool = multiprocessing.Pool(n_workers)
-    # map_func = partial(
-    #     _register_frame, mean_img=mean_img, upsample_factor=upsample_factor)
-    # results = pool.map(map_func, input_array)
-    # pool.close()
-    # pool.join()
-
-    results = [_register_frame(frame, mean_img=mean_img,
-                   upsample_factor=upsample_factor) for frame in input_array]
+    map_func = _ParallelRegister(mean_img, upsample_factor)
+    if n_processes > 1:
+        # configure pool of workers (multiprocessing)
+        pool = multiprocessing.Pool(n_processes, maxtasksperchild=1)
+        results = pool.map(map_func, input_array)
+        pool.close()
+    else:
+        results = map(map_func, frames_for_mean)
 
     # preallocate arrays
     dx = np.zeros(im_dim[0], dtype=np.float)
