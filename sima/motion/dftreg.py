@@ -249,14 +249,16 @@ def register(input_array, upsample_factor=1, num_images_for_mean=100,
                               randomise_frames=randomise_frames,
                               err_thresh=err_thresh,
                               max_iterations=max_iterations,
-                              upsample_factor=upsample_factor)
+                              upsample_factor=upsample_factor,
+                              n_processes=n_processes)
     e1 = time.time() - t0
     if verbose_state:
         print('    Time taken: ' + str(e1) + ' s')
 
     # register all frames
     dx, dy, registered_frames = _register_all_frames(
-        input_array, mean_img, upsample_factor=upsample_factor)
+        input_array, mean_img, upsample_factor=upsample_factor,
+        n_processes=n_processes)
     e2 = time.time() - t0 - e1
     if verbose_state:
         print('    Time taken: ' + str(e2) + ' s')
@@ -318,9 +320,19 @@ def _configure(input_array, use_fftw=False, verbose=False, n_processes=1):
     im_dim = input_array.shape
     im_dtype = input_array.dtype
 
+class _ParallelRegister(object):
+
+    def __init__(self, mean_img, upsample_factor):
+        self.mean_img = mean_img
+        self.upsample_factor = upsample_factor
+
+    def __call__(self, frame):
+        return _register_frame(frame, mean_img=self.mean_img,
+                               upsample_factor=self.upsample_factor)
 
 def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
-                   err_thresh=0.02, max_iterations=5, upsample_factor=10):
+                   err_thresh=0.02, max_iterations=5, upsample_factor=10,
+                   n_processes=1):
     """
     Make an aligned mean image to use as reference to which all frames are
     later aligned.
@@ -339,6 +351,9 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     max_iterations : int
         number of maximum iterations, if error threshold is never met
         (default = 5)
+    n_processes : int, optional
+        number of processes to work on the registration in parallel
+
     Returns
     -------
     mean_img : np.ndarray (size of input images)
@@ -369,16 +384,14 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     mean_img_err = 9999
 
     while mean_img_err > err_thresh and iteration < max_iterations:  # not final conditions
-        # # configure pool of workers (multiprocessing)
-        # pool = multiprocessing.Pool(n_workers, maxtasksperchild=1)
-        # map_func = partial(_register_frame, mean_img=mean_img,
-        #                 upsample_factor=upsample_factor)
-        # results = pool.map(map_func, frames_for_mean)
-        # pool.close()
-        # pool.join()
-
-        results = [_register_frame(frame, mean_img=mean_img,
-                           upsample_factor=upsample_factor) for frame in frames_for_mean]
+        map_func = _ParallelRegister(mean_img, upsample_factor)
+        if n_processes > 1:
+            # configure pool of workers (multiprocessing)
+            pool = multiprocessing.Pool(n_processes, maxtasksperchild=1)
+            results = pool.map(map_func, frames_for_mean)
+            pool.close()
+        else:
+            results = map(map_func, frames_for_mean)
 
         # preallocate the results array
         mean_img_dx = np.zeros(num_images_for_mean, dtype=np.float)
@@ -403,7 +416,8 @@ def _make_mean_img(input_array, num_images_for_mean=100, randomise_frames=True,
     return mean_img
 
 
-def _register_all_frames(input_array, mean_img, upsample_factor=10):
+def _register_all_frames(input_array, mean_img, upsample_factor=10,
+                         n_processes=1):
     """
     Register all input frames to the computed aligned mean image.
 
@@ -415,20 +429,20 @@ def _register_all_frames(input_array, mean_img, upsample_factor=10):
         array of y pixel offsets for each frame
     registered_frames : np.ndarray (size of input images)
         array containing each aligned frame
+    n_processes : int, optional
+        number of processes to work on the registration in parallel
     """
     if verbose_state:
         print('Registering all ' + str(im_dim[0]) + ' frames...')
 
-    # configure pool of workers (multiprocessing)
-    # pool = multiprocessing.Pool(n_workers)
-    # map_func = partial(
-    #     _register_frame, mean_img=mean_img, upsample_factor=upsample_factor)
-    # results = pool.map(map_func, input_array)
-    # pool.close()
-    # pool.join()
-
-    results = [_register_frame(frame, mean_img=mean_img,
-                   upsample_factor=upsample_factor) for frame in input_array]
+    map_func = _ParallelRegister(mean_img, upsample_factor)
+    if n_processes > 1:
+        # configure pool of workers (multiprocessing)
+        pool = multiprocessing.Pool(n_processes, maxtasksperchild=1)
+        results = pool.map(map_func, input_array)
+        pool.close()
+    else:
+        results = map(map_func, frames_for_mean)
 
     # preallocate arrays
     dx = np.zeros(im_dim[0], dtype=np.float)
