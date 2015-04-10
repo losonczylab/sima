@@ -597,7 +597,8 @@ def _upsampled_dft(data, upsampled_region_size,
             np.floor(data.shape[0] / 2))
     )
 
-    return row_kernel.dot(data).dot(col_kernel)  # for some reason this is the point it hangs when multiprocessing
+    row_kernel_dot = row_kernel.dot(data)
+    return row_kernel_dot.dot(col_kernel)  # for some reason this is the point it hangs when multiprocessing
 
 
 def _compute_phasediff(cross_correlation_max):
