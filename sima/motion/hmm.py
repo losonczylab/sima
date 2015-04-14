@@ -330,7 +330,8 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
 class _HiddenMarkov(MotionEstimationStrategy):
 
     def __init__(self, granularity=2, num_states_retained=50,
-                 max_displacement=None, n_processes=1, verbose=True):
+                 max_displacement=None, n_processes=1, restarts=None,
+                 verbose=True):
         if isinstance(granularity, int) or isinstance(granularity, str):
             granularity = (granularity, 1)
         elif not isinstance(granularity, tuple):
@@ -371,11 +372,17 @@ class _HiddenMarkov(MotionEstimationStrategy):
             imdata = NormalizedIterator(sequence, gains, pixel_means,
                                         pixel_variances, granularity)
             positions = PositionIterator(sequence.shape[:-1], granularity)
+            restarts = self._params['restarts']
+            if restarts is not None:
+                restart_period = np.prod(
+                    sequence.shape[restarts:granularity[0]]) / granularity[1]
+            else:
+                restart_period = None
             disp = _beam_search(
                 imdata, positions,
                 it.repeat((transition_tbl, log_markov_tbl)), scaled_refs,
                 displacement_tbl, (tmp_states, log_p),
-                self._params['num_states_retained'])
+                self._params['num_states_retained'], restart_period)
             new_shape = sequence.shape[:granularity[0]] + \
                 (sequence.shape[granularity[0]] // granularity[1],) + \
                 (disp.shape[-1],)
@@ -445,7 +452,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
 class HiddenMarkov2D(_HiddenMarkov):
 
     """
-    Row-wise hidden Markov model (HMM).
+    Hidden Markov model (HMM) in two dimensions.
 
     Parameters
     ----------
@@ -466,6 +473,12 @@ class HiddenMarkov2D(_HiddenMarkov):
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
+    restarts : int, optional
+        How often to reinitialize the hidden Markov model. This can be useful
+        if there are long breaks between frames or planes. Parameter values of
+        0 or 1 reinitialize the hidden states every frame or plane,
+        respectively.  default, the hidden distribution of positions is never
+        reinitialized during the sequence.
     verbose : bool, optional
         Whether to print information about progress.
 
@@ -748,7 +761,7 @@ class PositionIterator(object):
 
 
 def _beam_search(imdata, positions, transitions, references, state_table,
-                 initial_dist, num_retained=50):
+                 initial_dist, num_retained=50, restart_period=None):
     """Perform a beam search (modified Viterbi algorithm).
 
     Parameters
@@ -772,7 +785,9 @@ def _beam_search(imdata, positions, transitions, references, state_table,
     states = []
     states.append(initial_dist[0])
     log_p_old = initial_dist[1]
+    estimates = []
     assert np.any(np.isfinite(log_p_old))
+    t = 0
     for data, pos, trans in zip(imdata, positions, transitions):
         transition_table, log_transition_probs = trans
         tmp_states, log_p, tmp_backpointer = mc.transitions(
@@ -795,26 +810,55 @@ def _beam_search(imdata, positions, transitions, references, state_table,
             warnings.warn('No finite observation probabilities.')
             states.append(states[-1])
             backpointer.append(np.arange(num_retained))
-    end_state_idx = np.argmax(log_p_old)
-    return _backtrace(end_state_idx, backpointer[1:], states[1:], state_table)
+
+        # reinitialize if necessary
+        t += 1
+        if restart_period is not None and (t % restart_period) == 0:
+            end_state_idx = np.argmax(log_p_old)
+            estimates.append(_backtrace(end_state_idx, backpointer[1:],
+                                        states[1:], state_table))
+            states = [initial_dist[0]]
+            log_p_old = initial_dist[1]
+    if len(states) > 1:
+        end_state_idx = np.argmax(log_p_old)
+        estimates.append(_backtrace(end_state_idx, backpointer[1:],
+                                    states[1:], state_table))
+        states = [initial_dist[0]]
+        log_p_old = initial_dist[1]
+    return np.concatenate(estimates, axis=1)
 
 
 class HiddenMarkov3D(_HiddenMarkov):
 
     """
-    Row-wise hidden Markov model (HMM).
+    Hidden Markov model (HMM) with displacements in three dimensions.
 
     Parameters
     ----------
-    num_states_retained : int, optional
+    granularity : int, str, or tuple, optional
+        The granularity of the calculated displacements. A separate
+        displacement can be calculated for each frame (granularity=0
+        or granularity='frame'), each plane (1 or 'plane'), each
+        row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
+        displacement can be calculated for every n consecutive elements
+        (e.g.\ granularity=('row', 8) for every 8 rows).
+        Defaults to one displacement per row.    num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
     max_displacement : array of int, optional
-        The maximum allowed displacement magnitudes in [y,x]. By
+        The maximum allowed displacement magnitudes in [z, y,x]. By
         default, arbitrarily large displacements are allowed.
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
+    restarts : int, optional
+        How often to reinitialize the hidden Markov model. This can be useful
+        if there are long breaks between frames or planes. Parameter values of
+        0 or 1 reinitialize the hidden states every frame or plane,
+        respectively.  default, the hidden distribution of positions is never
+        reinitialized during the sequence.
+    verbose : bool, optional
+        Whether to print information about progress.
 
     References
     ----------
