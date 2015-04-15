@@ -375,7 +375,8 @@ class _HiddenMarkov(MotionEstimationStrategy):
             restarts = self._params['restarts']
             if restarts is not None:
                 restart_period = np.prod(
-                    sequence.shape[restarts:granularity[0]]) / granularity[1]
+                    sequence.shape[restarts:(granularity[0]+1)]
+                ) // granularity[1]
             else:
                 restart_period = None
             disp = _beam_search(
@@ -823,9 +824,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
         end_state_idx = np.argmax(log_p_old)
         estimates.append(_backtrace(end_state_idx, backpointer[1:],
                                     states[1:], state_table))
-        states = [initial_dist[0]]
-        log_p_old = initial_dist[1]
-    return np.concatenate(estimates, axis=1)
+    return np.concatenate(estimates, axis=0)
 
 
 class HiddenMarkov3D(_HiddenMarkov):
