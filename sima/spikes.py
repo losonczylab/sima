@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Oct 14 10:44:55 2014
-
-@author: tamachado
-"""
 from __future__ import division
 from __future__ import print_function
 from builtins import str
@@ -19,6 +13,23 @@ from scipy.stats import uniform, norm
 def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
     """
     Generate a poisson spike train
+	
+	Parameters
+    ----------
+    seed : int, optional
+		Random number generator seed.
+    rate : int
+		Mean firing rate across the spike train (in Hz).
+    steps : int
+		Number of time steps in spike train.
+    deltat : int
+		Width of each time bin (in seconds).
+		
+	Returns
+    -------
+	spikes : array
+	    Array of length equal to steps containing binary values.
+	
     """
     np.random.seed(seed)
     spikes = np.zeros(steps)
@@ -30,6 +41,15 @@ def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
 def nextpow2(value):
     """
     Find exponent such that 2^exponent is equal to or greater than abs(value).
+	
+	Parameters
+    ----------
+    value : int
+		
+	Returns
+    -------
+	exponent : int
+		
     """
     exponent = 0
     avalue = np.abs(value)
@@ -41,6 +61,19 @@ def nextpow2(value):
 def axcov(data, maxlag=1):
     """
     Compute the autocovariance of data at lag = -maxlag:0:maxlag
+	
+	Parameters
+    ----------
+    data : array
+	    Array containing fluorescence data
+	maxlag : int
+	    Number of lags to use in autocovariance calculation
+		
+	Returns
+    -------
+	axcov : array
+	    Autocovariances computed from -maxlag:0:maxlag
+		
     """
     data = data - np.mean(data)
     bins = np.size(data)
@@ -61,12 +94,12 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     fluor : ndarray
         One dimensional array containing the fluorescence intensities with
         one entry per time-bin.
-    gamma : float, optional
-        Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
-        process.  If no value is given, then gamma is estimated from the data.
     sigma : float, optional
         Standard deviation of the noise distribution.  If no value is given,
         then sigma is estimated from the data.
+    gamma : float, optional
+        Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
+        process.  If no value is given, then gamma is estimated from the data.
     mode : {'correct', 'robust'}, optional
         The method for estimating sigma. The 'robust' method overestimates the
         noise by assuming that gamma = 1. Default: 'correct'.
@@ -82,7 +115,13 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         The inferred denoised fluorescence signal at each time-bin.
     parameters : dict
         Dictionary with values for 'sigma', 'gamma', and 'baseline'.
-
+		
+	References
+    ----------
+    * Pnevmatikakis et al. 2015. Submitted (arXiv:1409.2903).
+    * Machado et al. 2015. Submitted.
+	* Vogelstein et al. 2010. Journal of Neurophysiology. 104(6): 3691-3704.
+	
     """
     try:
         import cvxopt.umfpack as umfpack
