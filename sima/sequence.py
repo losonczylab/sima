@@ -316,8 +316,14 @@ class Sequence(with_metaclass(ABCMeta, object)):
         **TIFFs**
 
         paths : list of list of str
-            The string paths[i][j] is a unix style expression for the the
-            filenames for plane i and channel j. See glob for details.
+            The string paths[i][j] is a unix style expression for the
+            filenames for plane i and channel j. See
+            `glob <https://docs.python.org/2/library/glob.html>`_ for
+            details on how to format such a string.
+
+        >>> from sima import Sequence
+        >>> seq = Sequence.create('TIFFs', [['example/example_??.tif']])
+        >>> seq = Sequence.create('TIFFs', [['example/example_*.tif']])
 
         Warning
         -------
@@ -527,14 +533,20 @@ class _Sequence_TIFFs(Sequence):
     """
 
     def __init__(self, paths):
-        if not isinstance(paths, list):
-            raise ValueError('paths must be a list of list of str')
+        if isinstance(paths, np.ndarray):  # special case: loading saved data
+            assert paths.ndim == 3
+            self._paths = paths
+        else:
+            if not isinstance(paths, list):
+                raise ValueError('paths must be a list of list of str')
             if not all(isinstance(p, list) for p in paths):
                 raise ValueError('paths must be a list of list of str')
-        self._paths = np.array(
-            [[glob.glob(channel) if isinstance(channel, str) else channel
-              for channel in plane] for plane in paths]
-        ).reshape(-1, len(paths), len(paths[0]))  # frames X planes X channels
+            # save paths as an array of shape (frames, planes, channels)
+            self._paths = np.array(
+                [[sorted(glob.glob(channel))
+                  if isinstance(channel, str) else channel
+                  for channel in plane] for plane in paths]
+            ).reshape(-1, len(paths), len(paths[0]))
 
     def __len__(self):
         return len(self._paths)

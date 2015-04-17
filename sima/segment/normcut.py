@@ -244,79 +244,12 @@ class AffinityMatrixMethod(with_metaclass(abc.ABCMeta, object)):
         return
 
 
-class DatasetIterable(object):
-
-    def __init__(self, dataset, channel):
-        self.dataset = dataset
-        self.channel = sima.misc.resolve_channels(
-            channel, dataset.channel_names)
-        self.means = dataset.time_averages[..., self.channel].reshape(-1)
-
-    def __iter__(self):
-        for cycle in self.dataset:
-            for frame in cycle:
-                yield np.nan_to_num(
-                    frame[..., self.channel].reshape(-1) - self.means)
-        raise StopIteration
-
-
-def _OPCA(dataset, ch=0, num_pcs=75, path=None, verbose=False):
-    """Perform offset principal component analysis on the dataset.
-
-    Parameters
-    ----------
-    dataset : ImagingDataset
-        The dataset to which the offset PCA will be applied.
-    channel : int, optional
-        The index of the channel whose signals are used. Defaults
-        to using the first channel.
-    num_pcs : int, optional
-        The number of PCs to calculate. Default is 75.
-    path : str
-        Directory for saving or loading OPCA results.
-
-    Returns
-    -------
-    oPC_vars : array
-        The offset variance accounted for by each oPC. Shape: num_pcs.
-    oPCs : array
-        The spatial representations of the oPCs.
-        Shape: (num_rows, num_columns, num_pcs).
-    oPC_signals : array
-        The temporal representations of the oPCs.
-        Shape: (num_times, num_pcs).
-    """
-    ret = None
-    if path is not None:
-        try:
-            data = np.load(path)
-        except IOError:
-            pass
-        else:
-            if data['oPC_signals'].shape[1] >= num_pcs:
-                ret = (
-                    data['oPC_vars'][:num_pcs],
-                    data['oPCs'][:, :, :num_pcs],
-                    data['oPC_signals'][:, :num_pcs]
-                )
-            data.close()
-    if ret is not None:
-        return ret
-    shape = dataset.frame_shape[1:3]
-    oPC_vars, oPCs, oPC_signals = oPCA.EM_oPCA(
-        DatasetIterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
-    oPCs = oPCs.reshape(shape + (-1,))
-    if path is not None:
-        np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
-    return oPC_vars, oPCs, oPC_signals
-
-
 def _direction(vects, weights=None):
     if weights is None:
         vects_ = vects
     else:
         vects_ = vects * weights
-    return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=2).T)).T
+    return (vects_.T / np.sqrt((vects_ ** 2).sum(axis=-1).T)).T
 
 
 def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
@@ -357,10 +290,10 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
                 dataset.savedir, 'opca_' + str(channel) + '.npz')
         else:
             path = None
-        oPC_vars, oPCs, _ = _OPCA(dataset, channel, num_pcs, path,
-                                  verbose=verbose)
+        oPC_vars, oPCs, _ = oPCA.dataset_opca(dataset, channel, num_pcs, path,
+                                              verbose=verbose)
         weights = np.sqrt(np.maximum(0, oPC_vars))
-        D = _direction(oPCs, weights)
+        D = _direction(oPCs[0], weights)  # TODO: Generalize to 3D datasets
         return {
             ((u, v), (w, x)): np.dot(D[u, v, :], D[w, x, :])
             for u, v, w, x in pixel_pairs

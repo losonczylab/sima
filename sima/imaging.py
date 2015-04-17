@@ -438,7 +438,7 @@ class ImagingDataset(object):
                         break
                 if trg_coords is None:
                     transforms.append(None)
-                    break
+                    continue
 
                 src_coords = None
                 for roi in source_dataset.ROIs[anchor_label]:
@@ -447,7 +447,7 @@ class ImagingDataset(object):
                         break
                 if src_coords is None:
                     transforms.append(None)
-                    break
+                    continue
 
                 assert len(src_coords) == len(trg_coords)
 

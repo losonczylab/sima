@@ -10,6 +10,7 @@ branches:
     - master
     - 0.3.x
     - 1.0.x
+    - 1.1.x
 
 #---------------------------------#
 #    environment configuration    #
@@ -46,7 +47,7 @@ install:
   - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
   - activate test-environment
   - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip future
-  - conda install -q --yes -c https://conda.binstar.org/rsignell shapely
+  - conda install -q --yes -c https://conda.binstar.org/scitools shapely
   - conda install -q --yes -c https://conda.binstar.org/menpo opencv
   - pip install wheel
 

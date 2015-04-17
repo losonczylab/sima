@@ -14,6 +14,7 @@ from scipy.linalg import eig, eigh, inv, norm
 from scipy.sparse.linalg import eigsh, eigs
 import warnings
 
+import sima.misc
 from . import _opca
 
 
@@ -221,3 +222,74 @@ def offsetPCA(data, num_pcs=None):
         return _method_1(data, num_pcs)
     else:
         return _method_2(data, num_pcs)
+
+
+"""
+BELOW IS CODE FOR RUNNING OPCA ON A SIMA DATASET
+"""
+
+
+class DatasetIterable(object):
+
+    def __init__(self, dataset, channel):
+        self.dataset = dataset
+        self.channel = sima.misc.resolve_channels(
+            channel, dataset.channel_names)
+        self.means = dataset.time_averages[..., self.channel].reshape(-1)
+
+    def __iter__(self):
+        for cycle in self.dataset:
+            for frame in cycle:
+                yield np.nan_to_num(
+                    frame[..., self.channel].reshape(-1) - self.means)
+        raise StopIteration
+
+
+def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
+    """Perform offset principal component analysis on the dataset.
+
+    Parameters
+    ----------
+    dataset : ImagingDataset
+        The dataset to which the offset PCA will be applied.
+    channel : int, optional
+        The index of the channel whose signals are used. Defaults
+        to using the first channel.
+    num_pcs : int, optional
+        The number of PCs to calculate. Default is 75.
+    path : str
+        Directory for saving or loading OPCA results.
+
+    Returns
+    -------
+    oPC_vars : array
+        The offset variance accounted for by each oPC. Shape: num_pcs.
+    oPCs : array
+        The spatial representations of the oPCs.
+        Shape: (num_rows, num_columns, num_pcs).
+    oPC_signals : array
+        The temporal representations of the oPCs.
+        Shape: (num_times, num_pcs).
+    """
+    ret = None
+    if path is not None:
+        try:
+            data = np.load(path)
+        except IOError:
+            pass
+        else:
+            if data['oPC_signals'].shape[1] >= num_pcs:
+                ret = (
+                    data['oPC_vars'][:num_pcs],
+                    data['oPCs'][..., :num_pcs],
+                    data['oPC_signals'][:, :num_pcs]
+                )
+            data.close()
+    if ret is not None:
+        return ret
+    oPC_vars, oPCs, oPC_signals = EM_oPCA(
+        DatasetIterable(dataset, ch), num_pcs=num_pcs, verbose=verbose)
+    oPCs = oPCs.reshape(dataset.frame_shape[:3] + (-1,))
+    if path is not None:
+        np.savez(path, oPCs=oPCs, oPC_vars=oPC_vars, oPC_signals=oPC_signals)
+    return oPC_vars, oPCs, oPC_signals

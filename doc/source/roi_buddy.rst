@@ -57,16 +57,28 @@ the output of the installation command to determine the directory where the
 executable was placed, and either add this directory to your path or run
 the executable directly from that location.
 
+Windows
+-------
+After installing `SIMA <install.html>`__, we recommend installing pre-compiled
+wheels from (http://www.lfd.uci.edu/~gohlke/pythonlibs/) for
+`PyQt4 <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyqt4>`__,
+`PyQwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyqwt>`__,
+`quidata <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`__, and
+`guiqwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`__ (in that order),
+before installing ROI Buddy from the
+`Python Package Index <https://pypi.python.org/pypi/roibuddy>`__.
+
+
 Mac OS X
 --------
 We recommend using MacPorts for installing the dependencies. 
-After installing SIMA using MacPorts as described `here <install>`__,
+After installing SIMA using MacPorts as described `here <install.html>`__,
 run the following command in Terminal to install an additional dependency::
 
     $ sudo port install py27-pyqwt
 
 Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
-`guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROIbuddy from
+`guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROI Buddy from
 the `Python Package Index <https://pypi.python.org/pypi/roibuddy>`__.
 
 
