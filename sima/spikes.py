@@ -13,23 +13,23 @@ from scipy.stats import uniform, norm
 def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
     """
     Generate a poisson spike train
-	
-	Parameters
+
+    Parameters
     ----------
     seed : int, optional
-		Random number generator seed.
+        Random number generator seed.
     rate : int
-		Mean firing rate across the spike train (in Hz).
+        Mean firing rate across the spike train (in Hz).
     steps : int
-		Number of time steps in spike train.
+        Number of time steps in spike train.
     deltat : int
-		Width of each time bin (in seconds).
-		
-	Returns
+        Width of each time bin (in seconds).
+
+    Returns
     -------
-	spikes : array
-	    Array of length equal to steps containing binary values.
-	
+    spikes : array
+        Array of length equal to steps containing binary values.
+
     """
     np.random.seed(seed)
     spikes = np.zeros(steps)
@@ -41,15 +41,15 @@ def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
 def nextpow2(value):
     """
     Find exponent such that 2^exponent is equal to or greater than abs(value).
-	
-	Parameters
+
+    Parameters
     ----------
     value : int
-		
-	Returns
+
+    Returns
     -------
-	exponent : int
-		
+    exponent : int
+
     """
     exponent = 0
     avalue = np.abs(value)
@@ -61,19 +61,19 @@ def nextpow2(value):
 def axcov(data, maxlag=1):
     """
     Compute the autocovariance of data at lag = -maxlag:0:maxlag
-	
-	Parameters
+
+    Parameters
     ----------
     data : array
-	    Array containing fluorescence data
-	maxlag : int
-	    Number of lags to use in autocovariance calculation
-		
-	Returns
+        Array containing fluorescence data
+    maxlag : int
+        Number of lags to use in autocovariance calculation
+
+    Returns
     -------
-	axcov : array
-	    Autocovariances computed from -maxlag:0:maxlag
-		
+    axcov : array
+        Autocovariances computed from -maxlag:0:maxlag
+
     """
     data = data - np.mean(data)
     bins = np.size(data)
@@ -87,7 +87,8 @@ def axcov(data, maxlag=1):
 def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
                     verbose=False):
     """
-    Infer most likely discretized spike train underlying a fluorescence trace
+    Infer the most likely discretized spike train underlying a fluorescence
+    trace.
 
     Parameters
     ----------
@@ -115,13 +116,13 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         The inferred denoised fluorescence signal at each time-bin.
     parameters : dict
         Dictionary with values for 'sigma', 'gamma', and 'baseline'.
-		
-	References
+
+    References
     ----------
     * Pnevmatikakis et al. 2015. Submitted (arXiv:1409.2903).
     * Machado et al. 2015. Submitted.
-	* Vogelstein et al. 2010. Journal of Neurophysiology. 104(6): 3691-3704.
-	
+    * Vogelstein et al. 2010. Journal of Neurophysiology. 104(6): 3691-3704.
+
     """
     try:
         import cvxopt.umfpack as umfpack

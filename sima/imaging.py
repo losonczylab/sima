@@ -789,8 +789,8 @@ class ImagingDataset(object):
 
     def infer_spikes(self, channel=0, label=None, sigma=None, gamma=None,
                      mode='correct', verbose=False):
-        """Infer most likely discretized spike train underlying a fluorescence
-        trace
+        """Infer the most likely discretized spike train underlying a
+        fluorescence trace.
 
         Parameters
         ----------
@@ -821,6 +821,13 @@ class ImagingDataset(object):
             Shape: (num_rois, num_timebins).
         parameters : dict of (str, ndarray of float)
             Dictionary with values for 'sigma', 'gamma', and 'baseline'.
+
+        References
+        ----------
+        * Pnevmatikakis et al. 2015. Submitted (arXiv:1409.2903).
+        * Machado et al. 2015. Submitted.
+        * Vogelstein et al. 2010. Journal of Neurophysiology. 104(6):
+          3691-3704.
 
         """
         import sima.spikes
