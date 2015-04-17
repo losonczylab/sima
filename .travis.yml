@@ -31,7 +31,7 @@ before_install:
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION $deps
   - source activate test-environment
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then conda install -c https://conda.binstar.org/anaconda opencv; fi
-  - pip install sphinxcontrib-napoleon 
+  - pip install sphinxcontrib-napoleon picos
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
   - echo $PATH
