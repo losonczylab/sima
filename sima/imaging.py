@@ -9,6 +9,7 @@ from builtins import range
 from builtins import object
 from past.utils import old_div
 from past.builtins import basestring
+import collections
 import warnings
 import itertools as it
 import os
@@ -785,6 +786,74 @@ class ImagingDataset(object):
                 return pickle.load(f)
         except (IOError, pickle.UnpicklingError):
             return {}
+
+    def infer_spikes(self, channel=0, label=None, sigma=None, gamma=None,
+                     mode='correct', verbose=False):
+        """Infer most likely discretized spike train underlying a fluorescence
+        trace
+
+        Parameters
+        ----------
+        channel : int, optional
+            The channel to be used for spike inference.
+        label :
+        gamma : float, optional
+            Gamma is 1 - timestep/tau, where tau is the time constant of the
+            AR(1) process.  If no value is given, then gamma is estimated from
+            the data.
+        sigma : float, optional
+            Standard deviation of the noise distribution.  If no value is
+            given, then sigma is estimated from the data.
+        mode : {'correct', 'robust'}, optional
+            The method for estimating sigma. The 'robust' method overestimates
+            the noise by assuming that gamma = 1. Default: 'correct'.
+        verbose : bool, optional
+            Whether to print status updates. Default: False.
+
+        Returns
+        -------
+        spikes : ndarray of float
+            The inferred normalized spike count at each time-bin.  Values are
+            normalized to the maximium value over all time-bins.
+            Shape: (num_rois, num_timebins).
+        fits : ndarray of float
+            The inferred denoised fluorescence signal at each time-bin.
+            Shape: (num_rois, num_timebins).
+        parameters : dict of (str, ndarray of float)
+            Dictionary with values for 'sigma', 'gamma', and 'baseline'.
+
+        """
+        import sima.spikes
+        all_signals = self.signals(channel)
+        if label is None:
+            label = most_recent_key(all_signals)
+        signals = all_signals[label]
+
+        spikes = np.zeros_like(signals['raw'])
+        fits = np.zeros_like(signals['raw'])
+        parameters = collections.defaultdict(list)
+        for i, trace in enumerate(signals['raw']):
+            spikes[i], fits[i], p = sima.spikes.spike_inference(
+                trace, sigma, gamma, mode, verbose)
+            for k, v in p.iteritems():
+                parameters[k].append(v)
+        for v in parameters.itervalues():
+            assert len(v) == len(spikes)
+
+        if self.savedir:
+            signals['spikes'] = spikes
+            signals['spikes_fits'] = fits
+            signals['spikes_params'] = parameters
+            all_signals[label] = signals
+
+            signals_filename = os.path.join(
+                self.savedir,
+                'signals_{}.pkl'.format(signals['signal_channel']))
+
+            pickle.dump(all_signals,
+                        open(signals_filename, 'wb'), pickle.HIGHEST_PROTOCOL)
+
+        return spikes, fits, parameters
 
     def __str__(self):
         return '<ImagingDataset>'
