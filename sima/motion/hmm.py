@@ -841,7 +841,8 @@ class HiddenMarkov3D(_HiddenMarkov):
         row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
         displacement can be calculated for every n consecutive elements
         (e.g.\ granularity=('row', 8) for every 8 rows).
-        Defaults to one displacement per row.    num_states_retained : int, optional
+        Defaults to one displacement per row.
+    num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
     max_displacement : array of int, optional
