@@ -85,4 +85,12 @@ any of the classes listed below.
 .. autoclass:: sima.segment.CircularityFilter
     :members:
     :show-inheritance:
-
+.. autoclass:: sima.segment.MergeOverlapping
+    :members:
+    :show-inheritance:
+.. autoclass:: sima.segment.SmoothROIBoundaries
+    :members:
+    :show-inheritance:
+.. autoclass:: sima.segment.SparseROIsFromMasks
+    :members:
+    :show-inheritance:

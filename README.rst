@@ -45,7 +45,7 @@ Dependencies
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14 (**Windows users**: be sure to install from `Christophe Gohlke's built wheels <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>`_)
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
-* `future <https://pypi.python.org/pypi/future>`_
+* `future <https://pypi.python.org/pypi/future>`_ >= 0.14
 
 Optional dependencies
 ---------------------

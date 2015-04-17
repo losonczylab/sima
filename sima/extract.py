@@ -211,8 +211,14 @@ def _save_extract_summary(signals, save_directory, rois):
                        right=False, labelbottom=False, labeltop=False,
                        labelleft=False, labelright=False)
 
-        ax.set_title('Extraction summary: {}\n{}\nPlane {}'.format(
-            signals['timestamp'], save_directory, str(plane_idx)))
+        figtitle = 'Extraction summary: {}\n{}\nPlane {}'.format(
+            signals['timestamp'], save_directory, str(plane_idx))
+        if 'text.usetex' in mpl.rcParams.keys() and \
+           mpl.rcParams['text.usetex']:
+            figtitle = figtitle.replace('\\', '\\\\').replace('_', '\_')
+
+        ax.set_title(figtitle)
+
         figs.append(fig)
 
     pp = PdfPages(os.path.join(save_directory, 'extractSummary_{}.pdf'.format(

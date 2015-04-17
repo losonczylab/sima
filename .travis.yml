@@ -46,6 +46,7 @@ branches:
     - master
     - 0.3.x
     - 1.0.x
+    - 1.1.x
 after_success:
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       if [ "${TESTMODE}" == "full" ]; then cp build/test/.coverage . && coveralls; fi; fi

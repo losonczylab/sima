@@ -102,7 +102,7 @@ class TestMaskedSequence(object):
         assert_equal(masked.shape, (5, 2, 128, 256, 2))
         assert_(np.all(np.isnan(masked)[self.masked_mask]))
         assert_(np.all(np.isfinite(masked)[~self.masked_mask]))
-    
+
     def test_all_1_plane_list(self):
         masked = self.tiff_seq.mask([(None, [0], None, None)])
 
@@ -120,9 +120,9 @@ class TestMaskedSequence(object):
         assert_equal(masked.shape, (5, 2, 128, 256, 2))
         assert_(np.all(np.isnan(masked)[self.masked_mask]))
         assert_(np.all(np.isfinite(masked)[~self.masked_mask]))
-        
+
     def test_all_1_channel(self):
-        masked = self.tiff_seq.mask([(None, None, None, 1)]) 
+        masked = self.tiff_seq.mask([(None, None, None, 1)])
 
         self.masked_mask[:, :, :, :, 1] = True
 
