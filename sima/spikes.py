@@ -8,6 +8,9 @@ from __future__ import division
 from __future__ import print_function
 from builtins import str
 from builtins import range
+
+import time
+
 import numpy as np
 from scipy import signal
 from scipy.stats import uniform, norm
@@ -212,7 +215,6 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
 
 if __name__ == '__main__':
 
-    import time as time
     import sys as sys
     import seaborn as sns
     import matplotlib.mlab as ml
@@ -269,7 +271,7 @@ if __name__ == '__main__':
             tau=DELTAT/(1-gamma_est), sigma=sigma_est))
 
         # Run spike inference
-        INFERENCE[:, x], FITS[:, x] = spike_inference(
+        INFERENCE[:, x], FITS[:, x], params = spike_inference(
             FLUORS[x, ], sigma=sigma_est, gamma=joint_gamma_est, verbose=True)
 
     #########
