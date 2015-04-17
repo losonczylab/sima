@@ -22,8 +22,8 @@ def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
     """
     np.random.seed(seed)
     spikes = np.zeros(steps)
-    spikes[[step for step in range(steps) if uniform.rvs()
-            <= rate*deltat]] = 1.0
+    spikes[
+        [step for step in range(steps) if uniform.rvs() <= rate*deltat]] = 1.0
     return spikes
 
 
@@ -132,13 +132,13 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     if verbose:
         sys.stdout.write("done!\n" +
                          "Status: " + prob.status +
-                         "; Value: " + str(prob.obj_value())
-                         + "; Time: " + str(time.time()-start_time) +
+                         "; Value: " + str(prob.obj_value()) +
+                         "; Time: " + str(time.time()-start_time) +
                          "; Baseline = " + str(baseline.value) + "\n")
 
     # Return calcium model fit and spike inference
-    fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)]
-                     + baseline.value)
+    fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)] +
+                     baseline.value)
     inference = np.squeeze(np.asarray(gen*matrix(fit)))
     parameters = {'gamma': gamma, 'sigma': sigma, 'baseline': baseline.value}
     return inference, fit, parameters
