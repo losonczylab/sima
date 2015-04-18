@@ -11,7 +11,7 @@ from scipy.stats import uniform, norm
 import sys
 
 
-def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
+def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1 / 30):
     """
     Generate a poisson spike train
 
@@ -34,8 +34,8 @@ def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
     """
     np.random.seed(seed)
     spikes = np.zeros(steps)
-    spikes[
-        [step for step in range(steps) if uniform.rvs() <= rate*deltat]] = 1.0
+    spikes[[
+        step for step in range(steps) if uniform.rvs() <= rate * deltat]] = 1.0
     return spikes
 
 
@@ -78,10 +78,10 @@ def axcov(data, maxlag=1):
     """
     data = data - np.mean(data)
     bins = np.size(data)
-    xcov = np.fft.fft(data, np.power(2, nextpow2(2*bins-1)))
+    xcov = np.fft.fft(data, np.power(2, nextpow2(2 * bins - 1)))
     xcov = np.fft.ifft(np.square(np.abs(xcov)))
-    xcov = np.concatenate([xcov[np.arange(xcov.size-maxlag, xcov.size)],
-                           xcov[np.arange(0, maxlag+1)]])
+    xcov = np.concatenate([xcov[np.arange(xcov.size - maxlag, xcov.size)],
+                           xcov[np.arange(0, maxlag + 1)]])
     return np.real(xcov)
 
 
@@ -142,10 +142,10 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     gen = spdiag([1 for step in range(fluor.size)])
     for step in range(fluor.size):
         if step > 0:
-            gen[step, step-1] = -gamma
+            gen[step, step - 1] = -gamma
 
     # Use spike generating matrix to initialize other constraint variables
-    gen_vec = gen*matrix(np.ones(fluor.size))
+    gen_vec = gen * matrix(np.ones(fluor.size))
     gen_ones = matrix(np.ones(fluor.size))
     umfpack.linsolve(gen, gen_ones)
 
@@ -157,8 +157,8 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
 
     # Define constraints and objective
     prob.add_constraint(init_calcium > 0)
-    prob.add_constraint(gen*calcium_fit > 0)
-    res = abs(matrix(fluor.astype(float))-calcium_fit-baseline-gen_ones*
+    prob.add_constraint(gen * calcium_fit > 0)
+    res = abs(matrix(fluor.astype(float)) - calcium_fit - baseline - gen_ones *
               init_calcium)
     prob.add_constraint(res < sigma * np.sqrt(fluor.size))
     prob.set_objective('min', calcium_fit.T * gen_vec)
@@ -175,13 +175,13 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         sys.stdout.write("done!\n" +
                          "Status: " + prob.status +
                          "; Value: " + str(prob.obj_value()) +
-                         "; Time: " + str(time.time()-start_time) +
+                         "; Time: " + str(time.time() - start_time) +
                          "; Baseline = " + str(baseline.value) + "\n")
 
     # Return calcium model fit and spike inference
     fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)] +
                      baseline.value)
-    inference = np.squeeze(np.asarray(gen*matrix(fit)))
+    inference = np.squeeze(np.asarray(gen * matrix(fit)))
     parameters = {'gamma': gamma, 'sigma': sigma, 'baseline': baseline.value}
     return inference, fit, parameters
 
@@ -224,7 +224,7 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     if gamma is None:
         lags = min(50, len(fluor) // 2 - 1)
         covar = axcov(fluor, lags) / fluor.size
-        gamma = covar[lags+3] / covar[lags+2]
+        gamma = covar[lags + 3] / covar[lags + 2]
 
     # Use autocovariance (cv) to estimate sigma:
     #     sqrt((gamma*cv(t-1)-cv(t))/gamma) = gamma, if t == 1
@@ -240,11 +240,11 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
 
         # Correct method; assumes gamma estimate is accurate
         if mode == "correct":
-            sigma = np.sqrt((gamma*covar[1]-covar[0]) / gamma)
+            sigma = np.sqrt((gamma * covar[1] - covar[0]) / gamma)
 
         # Robust method; assumes gamma is approximately 1
         if mode == "robust":
-            sigma = np.sqrt(covar[1]-covar[0])
+            sigma = np.sqrt(covar[1] - covar[0])
 
         # Ensure we aren't returning garbage
         # We should hit this case in the true noiseless data case
@@ -257,7 +257,6 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
 
 if __name__ == '__main__':
 
-    import sys as sys
     import seaborn as sns
     import matplotlib.mlab as ml
     import matplotlib.pyplot as plt
@@ -270,14 +269,14 @@ if __name__ == '__main__':
     RATE = 1       # mean firing rate of poisson spike train (Hz)
     STEPS = 5000   # number of time steps in data
     TAU = 0.6      # time constant of calcium indicator (seconds)
-    DELTAT = 1/30  # time step duration (seconds)
+    DELTAT = 1 / 30  # time step duration (seconds)
     SIGMA = 0.1    # standard deviation of gaussian noise
     SEED = 2222    # random number generator seed
     NTRACE = 5     # number of data traces to generate
 
     # Make a poisson spike trains
     SPIKES = [get_poisson_spikes(deltat=DELTAT, rate=RATE,
-                                 steps=STEPS, seed=SEED+i)
+                                 steps=STEPS, seed=SEED + i)
               for i in range(NTRACE)]
     SPIKES = np.asarray(SPIKES)
 
@@ -285,7 +284,7 @@ if __name__ == '__main__':
     np.random.seed(SEED)
     GAMMA = 1 - (DELTAT / TAU)
     CALCIUM = signal.lfilter([1], [1, -GAMMA], SPIKES)
-    TIME = np.linspace(0, STEPS*DELTAT, STEPS)
+    TIME = np.linspace(0, STEPS * DELTAT, STEPS)
 
     # Make fluorescence traces with random gaussian noise and baseline
     FLUORS = [CALCIUM[i, ] + norm.rvs(scale=SIGMA, size=STEPS) + uniform.rvs()
@@ -310,7 +309,7 @@ if __name__ == '__main__':
         [gamma_est, sigma_est] = estimate_parameters(
             FLUORS[x, ], mode="correct", gamma=joint_gamma_est)
         print("tau = {tau},  sigma = {sigma}".format(
-            tau=DELTAT/(1-gamma_est), sigma=sigma_est))
+            tau=DELTAT / (1 - gamma_est), sigma=sigma_est))
 
         # Run spike inference
         INFERENCE[:, x], FITS[:, x], params = spike_inference(
@@ -354,7 +353,8 @@ if __name__ == '__main__':
     sInds = np.intersect1d(i_times, t_times)  # indices of true positives
     wInds = np.setdiff1d(i_times, t_times)   # indices of false positives
     tp = float(sInds.size) / float(i_times.size)  # true positive rate
-    fp = float(wInds.size) / (STEPS-float(t_times.size))  # false positive rate
+    fp = float(wInds.size) / \
+        (STEPS - float(t_times.size))  # false positive rate
 
     # Plot the spike inference
     plt.axes(ax3)
