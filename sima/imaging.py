@@ -796,7 +796,9 @@ class ImagingDataset(object):
         ----------
         channel : int, optional
             The channel to be used for spike inference.
-        label :
+        label : string or None, optional
+            Text string indicating the signals from which spikes should be
+            inferred. Defaults to the most recently extracted signals.
         gamma : float, optional
             Gamma is 1 - timestep/tau, where tau is the time constant of the
             AR(1) process.  If no value is given, then gamma is estimated from
@@ -814,7 +816,7 @@ class ImagingDataset(object):
         -------
         spikes : ndarray of float
             The inferred normalized spike count at each time-bin.  Values are
-            normalized to the maximium value over all time-bins.
+            normalized to the maximum value over all time-bins.
             Shape: (num_rois, num_timebins).
         fits : ndarray of float
             The inferred denoised fluorescence signal at each time-bin.
@@ -836,16 +838,19 @@ class ImagingDataset(object):
             label = most_recent_key(all_signals)
         signals = all_signals[label]
 
-        spikes = np.zeros_like(signals['raw'])
-        fits = np.zeros_like(signals['raw'])
-        parameters = collections.defaultdict(list)
-        for i, trace in enumerate(signals['raw']):
-            spikes[i], fits[i], p = sima.spikes.spike_inference(
-                trace, sigma, gamma, mode, verbose)
-            for k, v in p.iteritems():
-                parameters[k].append(v)
-        for v in parameters.itervalues():
-            assert len(v) == len(spikes)
+        spikes, fits, parameters = [], [], []
+        for seq_idx, seq_signals in enumerate(signals['raw']):
+            spikes.append(np.zeros_like(seq_signals))
+            fits.append(np.zeros_like(seq_signals))
+            parameters.append(collections.defaultdict(list))
+            for i, trace in enumerate(seq_signals):
+                spikes[-1][i], fits[-1][i], p = sima.spikes.spike_inference(
+                    trace, sigma, gamma, mode, verbose)
+                for k, v in p.iteritems():
+                    parameters[-1][k].append(v)
+            for v in parameters[-1].itervalues():
+                assert len(v) == len(spikes[-1])
+            parameters[-1] = dict(parameters[-1])
 
         if self.savedir:
             signals['spikes'] = spikes

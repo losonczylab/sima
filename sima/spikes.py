@@ -8,6 +8,7 @@ import time
 import numpy as np
 from scipy import signal
 from scipy.stats import uniform, norm
+import sys
 
 
 def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1/30):
@@ -157,7 +158,8 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     # Define constraints and objective
     prob.add_constraint(init_calcium > 0)
     prob.add_constraint(gen*calcium_fit > 0)
-    res = abs(matrix(fluor)-calcium_fit-baseline-gen_ones*init_calcium)
+    res = abs(matrix(fluor.astype(float))-calcium_fit-baseline-gen_ones*
+              init_calcium)
     prob.add_constraint(res < sigma * np.sqrt(fluor.size))
     prob.set_objective('min', calcium_fit.T * gen_vec)
 
