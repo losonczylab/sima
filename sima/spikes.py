@@ -182,7 +182,8 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)] +
                      baseline.value)
     inference = np.squeeze(np.asarray(gen * matrix(fit)))
-    parameters = {'gamma': gamma, 'sigma': sigma, 'baseline': baseline.value}
+    parameters = {'gamma': gamma, 'sigma': sigma,
+                  'baseline': baseline.value[0]}
     return inference, fit, parameters
 
 
