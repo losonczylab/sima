@@ -846,7 +846,7 @@ class ImagingDataset(object):
             for i, trace in enumerate(seq_signals):
                 spikes[-1][i], fits[-1][i], p = sima.spikes.spike_inference(
                     trace, sigma, gamma, mode, verbose)
-                for k, v in p.iteritems():
+                for k, v in p.items():
                     parameters[-1][k].append(v)
             for v in parameters[-1].itervalues():
                 assert len(v) == len(spikes[-1])
