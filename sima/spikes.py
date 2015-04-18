@@ -11,6 +11,7 @@ from scipy.stats import uniform, norm
 import sys
 from warnings import warn
 
+
 def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1 / 30):
     """
     Generate a poisson spike train
