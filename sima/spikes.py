@@ -9,7 +9,7 @@ import numpy as np
 from scipy import signal
 from scipy.stats import uniform, norm
 import sys
-
+from warnings import warn
 
 def get_poisson_spikes(seed=11111, rate=5, steps=1000, deltat=1 / 30):
     """
@@ -250,8 +250,7 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
         # Ensure we aren't returning garbage
         # We should hit this case in the true noiseless data case
         if np.isnan(sigma):
-            sys.stderr.write(
-                "Warning: sigma parameter is estimated to be zero!\n")
+            warn('Warning: sigma parameter is estimated to be zero!')
             sigma = 0
     return (gamma, sigma)
 

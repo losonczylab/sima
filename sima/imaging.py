@@ -2,6 +2,7 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
+from future.utils import iteritems, itervalues
 from builtins import str
 from builtins import input
 from builtins import zip
@@ -846,9 +847,9 @@ class ImagingDataset(object):
             for i, trace in enumerate(seq_signals):
                 spikes[-1][i], fits[-1][i], p = sima.spikes.spike_inference(
                     trace, sigma, gamma, mode, verbose)
-                for k, v in p.items():
+                for k, v in iteritems(p):
                     parameters[-1][k].append(v)
-            for v in parameters[-1].itervalues():
+            for v in itervalues(parameters[-1]):
                 assert len(v) == len(spikes[-1])
             parameters[-1] = dict(parameters[-1])
 
