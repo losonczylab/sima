@@ -25,6 +25,11 @@ import sima
 import sima.spikes
 import numpy as np
 
+_has_picos = True
+try:
+    import picos
+except ImportError:
+    _has_picos = False
 
 def setup():
     pass
@@ -74,16 +79,19 @@ class Test_Spike_Inference(object):
     def teardown(self):
         pass
 
+    @dec.skipif(not _has_picos)
     def test_estimate_parameters(self):
         gamma_est, sigma_est = sima.spikes.estimate_parameters(
             self.fluors_long, mode="correct")
         assert_(abs(gamma_est - self.gamma) < 0.01)
         assert_(abs(sigma_est - self.sigma) < 0.01)
 
+    @dec.skipif(not _has_picos)
     def test_spike_inference(self):
         inference, fits, params = sima.spikes.spike_inference(self.fluors)
         assert_(np.linalg.norm(inference - self.spikes) < 0.6)
 
+    @dec.skipif(not _has_picos)
     def test_spike_inference_correct_parameters(self):
 
         # Run spike inference

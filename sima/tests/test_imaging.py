@@ -28,8 +28,14 @@ import numpy as np
 from PIL import Image
 import h5py
 
-tmp_dir = None
+_has_picos = True
+try:
+    import picos
+except ImportError:
+    _has_picos = False
 
+
+tmp_dir = None
 
 def setup():
     global tmp_dir
@@ -151,6 +157,7 @@ class TestImagingDataset(object):
         assert_equal(len(extracted['raw']), 2)
         assert_equal(len(extracted['raw'][0]), 2)
 
+    dec.skipif(not _has_picos)
     def test_infer_spikes(self):
         self.ds.extract(self.rois, label='rois')
         spikes, fits, parameters = self.ds.infer_spikes()
