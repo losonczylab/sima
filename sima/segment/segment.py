@@ -12,7 +12,6 @@ from scipy import sparse, ndimage
 from skimage.measure import approximate_polygon
 
 from sima.ROI import ROI, ROIList, mask2poly
-import sima.ROI as ROIClass
 from future.utils import with_metaclass
 
 
