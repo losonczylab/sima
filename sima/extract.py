@@ -124,7 +124,7 @@ def _roi_extract(inputs):
             constants['mask_stack'][:, imaged_pixels].nonzero()[0])
         if len(imaged_rois) < n_rois:
             A = A.tocsc()[:, imaged_rois].tocsr()
-        # First assume ROIs are independent, if not fallback to full pseudo-inv
+        # First assume ROIs are independent, else fall back to full pseudo-inv
         try:
             weights = inv(A.T * A) * A.T
         except RuntimeError:

@@ -16,9 +16,9 @@ from future.utils import with_metaclass
 
 class SegmentationStrategy(with_metaclass(abc.ABCMeta, object)):
 
-    """Abstract class implementing the inteface for segmentation strategies.
+    """Abstract class implementing the interface for segmentation strategies.
 
-    This class can be subclassed to create a concreate segmentation
+    This class can be subclassed to create a concrete segmentation
     strategy by implementing a :func:`_segment()` method. As well,
     any existing segmentation strategy can be extended by adding a
     :class:`PostProcessingStep` with the :func:`append` method.
@@ -59,7 +59,7 @@ class SegmentationStrategy(with_metaclass(abc.ABCMeta, object)):
 
     @abc.abstractmethod
     def _segment(self, dataset):
-        """Implemetnation of the segmentation strategy.
+        """Implementation of the segmentation strategy.
 
         This abstract method must be implemented by any subclass of
         SegmentationStrategy.
@@ -194,7 +194,7 @@ class PostProcessingStep(with_metaclass(abc.ABCMeta, object)):
 
 class ROIFilter(PostProcessingStep):
 
-    """Postprocessing step for generic filtering of ROIs.
+    """Post-processing step for generic filtering of ROIs.
 
     ROIs produced by the segmentation are filtered to retain
     only the ROIs that cause the specified function to evaluate
@@ -226,7 +226,7 @@ class ROIFilter(PostProcessingStep):
 
 class CircularityFilter(ROIFilter):
 
-    """Postprocessing step to filter ROIs based on circularity.
+    """Post-processing step to filter ROIs based on circularity.
 
     Parameters
     ----------
@@ -249,12 +249,12 @@ class CircularityFilter(ROIFilter):
 
 
 class MergeOverlapping(PostProcessingStep):
-    """Postprocessing step to merge overlapping ROIs.
+    """Post-processing step to merge overlapping ROIs.
 
     Parameters
     ----------
     threshold : float
-        Minimimum percent of the smaller ROIs total area which must be covered
+        Minimum percent of the smaller ROIs total area which must be covered
         in order for the ROIs to be evaluated as overlapping.
 
     """
@@ -307,7 +307,7 @@ class _FilterParallel(object):
     threshold : float
         threshold on gradient measures to cut off
     x_smoothing : int
-        number of times to apply gaussiian blur smoothing process to
+        number of times to apply Gaussian blur smoothing process to
         each component.
     """
     def __init__(self, threshold, x_smoothing):
@@ -364,14 +364,14 @@ class SparseROIsFromMasks(PostProcessingStep):
     min_size : int, optional
         The minimum size in number of pixels that an ROI can be. Default: 50.
     static_threshold : float, optional
-        threhold on the static allowable in an ICA components, eliminating
+        threshold on the static allowable in an ICA components, eliminating
         high scoring components speeds the ROI extraction and may improve
         the results. Default: 0.5
     smooth_size : int, optional
-        number of itereations of static removial and gaussian blur to
-        perform on each stICA component. 0 provides no gaussian blur,
+        number of iterations of static removal and Gaussian blur to
+        perform on each stICA component. 0 provides no Gaussian blur,
         larger values produce stICA components with less static but the
-        ROIs loose defination. Default: 4
+        ROIs lose definition. Default: 4
     sign_split : bool, optional
         Whether to split each mask into its positive and negative components.
     n_processes : int, optional
@@ -436,7 +436,7 @@ class SparseROIsFromMasks(PostProcessingStep):
         threshold : float
             threshold on gradient measures to cut off
         x_smoothing : int
-            number of times to apply gaussiian blur smoothing process to
+            number of times to apply Gaussian blur smoothing process to
             each component. Default: 4
         sign_split : bool, optional
             Whether to split each mask into its positive and negative
@@ -522,12 +522,12 @@ class _SmoothBoundariesParallel(object):
 
         radius = self.radius
 
-        # store wether the radius of search is increased aboved the initial
+        # store whether the radius of search is increased above the initial
         # value
         tmp_rad = False
         for _ in range(limit - 1):
             b.append(p)
-            # find the ist of all points at the given radius and adjust to be
+            # find the list of all points at the given radius and adjust to be
             # lined up for clockwise traversal
             x = np.roll(
                 np.array(list(p[0] + list(range(-radius, radius))) +
@@ -560,8 +560,8 @@ class _SmoothBoundariesParallel(object):
                                  np.where(np.roll(vals, 1) == 0)[0])[0]
             p = [x[idx], y[idx]]
 
-            # check if the traveral is near to the starting point indicating
-            # that the algirthm has completed. If less then 3 points are found
+            # check if the traversal is near to the starting point indicating
+            # that the algorithm has completed. If less then 3 points are found
             # this is not yet a valid ROI
             if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
                     1.5 * radius and len(b) > 3:

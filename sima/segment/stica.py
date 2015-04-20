@@ -64,7 +64,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
     if ret is not None:
         return ret
 
-    # preprocess the PCA data
+    # pre-process the PCA data
     space_factor = mu / np.max(space_pcs)
     time_factor = (1 - mu) / np.max(time_pcs)
     for i in range(space_pcs.shape[-1]):
@@ -100,7 +100,7 @@ def _stica(space_pcs, time_pcs, mu=0.01, n_components=30, path=None):
 class STICA(SegmentationStrategy):
 
     """
-    Segmentation using spatiotemporial indepenent component analysis (stICA).
+    Segmentation using spatiotemporal independent component analysis (stICA).
 
     Parameters
     ----------
@@ -112,13 +112,13 @@ class STICA(SegmentationStrategy):
         weight to temporal information. Default: 0.01
     components : int or list, optional
         Number of principal components to use. If list is given, then use
-        only the principcal componenets indexed by the list Default: 75
+        only the principal components indexed by the list Default: 75
     verbose : bool, optional
         Whether to print progress updates.
 
     Notes
     -----
-    Spatiotemporal (stICA) [1]_ is a procedure which applys ICA to
+    Spatiotemporal (stICA) [1]_ is a procedure which applies ICA to
     extracted PCA components in a process that takes into consideration
     both the spatial and temporal character of these components. This
     method has been used to segment calcium imaging data [2]_, and can be
@@ -140,7 +140,7 @@ class STICA(SegmentationStrategy):
     dimensions :math:`N_x`, pixels, by :math:`k` principal components and
     :math:`V` corresponds to the :math:`N_t`, time frames, by :math:`k`
     temporal PCA component matrix. :math:`\\mu` is a weighting parameter
-    to balance the tradeoff between the spatio and temporal information
+    to balance the trade-off between the spatial and temporal information
     with low values of :math:`\\mu` giving higher weight to the signals
     temporal components. ICA is performed on :math:`y_i` to extract the
     independent components :math:`z_i`.

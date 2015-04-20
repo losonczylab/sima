@@ -81,7 +81,7 @@ class ImagingDataset(object):
     ----------
     sequences : list of sima.Sequence
         Imaging sequences that can each be iterated over to yield
-        the imaging data from each acquistion time.
+        the imaging data from each acquisition time.
     savedir : str
         The directory used to store the dataset. If the directory
         name does not end with .sima, then this extension will
@@ -604,7 +604,7 @@ class ImagingDataset(object):
         filenames : list of list of list of string or list of string
             Path to the locations where the output files will be saved.
             If fmt is TIFF, filenames[i][j][k] is the path to the file
-            for sequence i, plane j, chanel k.  If fmt is 'HDF5', filenames[i]
+            for sequence i, plane j, channel k.  If fmt is 'HDF5', filenames[i]
             is the path to the file for the ith sequence.
         fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.

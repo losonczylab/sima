@@ -26,7 +26,7 @@ The included ROI Buddy software provides a graphical user interface
 - registration of ROIs across separate imaging sessions
 
 
-Documenation
+Documentation
 ------------
 
 .. toctree::

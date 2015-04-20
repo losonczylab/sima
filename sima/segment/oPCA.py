@@ -113,7 +113,7 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000, verbose=False):
         eivals_old = eivals[order]
         # Although part of the original OPCA algorithm, the line below
         # causes problems with convergence for large numbers of PCs,
-        # presumably because of inaccuracies in the inverse. Therfore
+        # presumably because of inaccuracies in the inverse. Therefore
         # we have replaced it with QR decomposition to obtain orthogonal
         # eigenvectors via Gram-Schmidt.
         # U = np.dot(np.dot(np.dot(U, U.T), inv(ZUT)), Z)[order]

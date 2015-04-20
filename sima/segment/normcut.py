@@ -228,7 +228,7 @@ class AffinityMatrixMethod(with_metaclass(abc.ABCMeta, object)):
 
     @abc.abstractmethod
     def calculate(self, dataset):
-        """Calculate the afinity matrix for a dataset.
+        """Calculate the affinity matrix for a dataset.
 
         Parameters
         ----------
