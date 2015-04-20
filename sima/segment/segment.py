@@ -512,7 +512,7 @@ class _SmoothBoundariesParallel(object):
             if polygon.shape[0] > self.min_verts:
                 plane = polygon[0, -1]
                 smoothed_coords = approximate_polygon(polygon[:, :2],
-                    self.tolerance)
+                                                      self.tolerance)
                 smoothed_coords = np.hstack(
                     (smoothed_coords, plane*np.ones(
                         (smoothed_coords.shape[0], 1))))
@@ -535,7 +535,8 @@ class SmoothROIBoundaries(PostProcessingStep):
     tolerance : float
         Maximum distance from original points of polygon to approximated
         polygonal chain. If tolerance is 0, the original roi coordinates array
-        are returned. (See skimage.measure.approximate_polygon). Defauly is 0.5.
+        are returned. (See skimage.measure.approximate_polygon).
+        Default is 0.5.
     min_verts : int
         Minimum number of verticies an ROI polygon can have prior to attemting
         smoothing. Defaults is 8.
