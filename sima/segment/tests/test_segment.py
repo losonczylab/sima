@@ -59,7 +59,7 @@ def test_STICA():
     ds = ImagingDataset.load(example_data())
     method = segment.STICA(components=5)
     method.append(segment.SparseROIsFromMasks(min_size=50))
-    method.append(segment.SmoothROIBoundaries(radius=3))
+    method.append(segment.SmoothROIBoundaries(tolerance=1,min_verts=8))
     method.append(segment.MergeOverlapping(0.5))
     ds.segment(method)
 

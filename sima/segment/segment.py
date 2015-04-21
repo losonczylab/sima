@@ -9,6 +9,7 @@ from multiprocessing import Pool
 
 import numpy as np
 from scipy import sparse, ndimage
+from skimage.measure import approximate_polygon
 
 from sima.ROI import ROI, ROIList, mask2poly
 from future.utils import with_metaclass
@@ -486,118 +487,41 @@ class _SmoothBoundariesParallel(object):
 
     Parameters
     ----------
-    radius : initial radius of the smoothing
+    tolerance : float
+        Maximum distance from original points of polygon to approximated
+        polygonal chain. If tolerance is 0, the original roi coordinates array
+        are returned. (See skimage.measure.approximate_polygon).
+    min_verts : int
+        Minimum number of verticies an ROI polygon can have prior to attemting
+        smoothing
+
 
     Returns
     -------
     roi : sima.ROI
-        If successful, an ROI object which have been smoothed, otherwise,
-        the original ROI is returned
-    success : bool
-        True if the smoothing has been successful, False otherwise
+        An ROI object which has been smoothed.
     """
-    def __init__(self, radius):
-        self.radius = radius
+    def __init__(self, tolerance, min_verts):
+        self.tolerance = tolerance
+        self.min_verts = min_verts
 
     def __call__(self, roi):
+        smoothed_polygons = []
+        coords = roi.coords
+        for polygon in coords:
+            if polygon.shape[0] > self.min_verts:
+                plane = polygon[0, -1]
+                smoothed_coords = approximate_polygon(polygon[:, :2],
+                                                      self.tolerance)
+                smoothed_coords = np.hstack(
+                    (smoothed_coords, plane*np.ones(
+                        (smoothed_coords.shape[0], 1))))
+            else:
+                smoothed_coords = polygon
 
-        frame = roi.mask[0].todense().copy()
+            smoothed_polygons += [smoothed_coords]
 
-        frame[frame > 0] = 1
-        check = frame[:-2, :-2] + frame[1:-1, :-2] + frame[2:, :-2] + \
-            frame[:-2, 1:-1] + frame[2:, 1:-1] + frame[:-2:, 2:] + \
-            frame[1:-1, 2:] + frame[2:, 2:]
-        z = np.zeros(frame.shape)
-        z[1:-1, 1:-1] = check
-
-        # initialize and array to hold the new polygon and find the first point
-        b = []
-        rows, cols = np.where(z > 0)
-        p = [cols[0], rows[0]]
-        base = p
-
-        # establish an iteration limit to ensue the loop terminates if
-        # smoothing is unsuccessful
-        limit = 1500
-
-        radius = self.radius
-
-        # store whether the radius of search is increased above the initial
-        # value
-        tmp_rad = False
-        for _ in range(limit - 1):
-            b.append(p)
-            # find the list of all points at the given radius and adjust to be
-            # lined up for clockwise traversal
-            x = np.roll(
-                np.array(list(p[0] + list(range(-radius, radius))) +
-                         [p[0] + radius] * (2 * radius + 1) +
-                         list(p[0] + list(range(-radius, radius))[::-1]) +
-                         [p[0] - (radius + 1)] * (2 * radius + 1)), -2)
-            y = np.roll(np.array([p[1] - radius] * (2 * radius) +
-                                 list(p[1] + list(range(-radius, radius))) +
-                                 [p[1] + radius] * (2 * radius + 1) +
-                                 list(
-                                     p[1] + list(
-                                         range(-radius, (radius + 1)))[::-1])),
-                        -radius)
-
-            # insure that the x and y points are within the image
-            x[x < 0] = 0
-            y[y < 0] = 0
-            x[x >= z.shape[1]] = z.shape[1] - 1
-            y[y >= z.shape[0]] = z.shape[0] - 1
-
-            vals = z[y, x]
-
-            # ensure that the vals array has a valid transition from 0 to 1
-            # otherwise the algorithm has failed
-            if len(np.where(np.roll(vals, 1) == 0)[0]) == 0 or \
-                    len(np.where(vals > 0)[0]) == 0:
-                return roi, False
-
-            idx = np.intersect1d(np.where(vals > 0)[0],
-                                 np.where(np.roll(vals, 1) == 0)[0])[0]
-            p = [x[idx], y[idx]]
-
-            # check if the traversal is near to the starting point indicating
-            # that the algorithm has completed. If less then 3 points are found
-            # this is not yet a valid ROI
-            if ((p[0] - base[0]) ** 2 + (p[1] - base[1]) ** 2) ** 0.5 < \
-                    1.5 * radius and len(b) > 3:
-                new_roi = ROI(polygons=[b], im_shape=roi.im_shape)
-                if new_roi.mask[0].size != 0:
-                    # "well formed ROI"
-                    return new_roi, True
-
-            # if p is already in the list of polygon points, increase the
-            # radius of search. if radius is already larger then 6, blur the
-            # mask and try again
-            if p in b:
-                if radius > 6:
-                    radius = 3
-                    z = ndimage.gaussian_filter(z, sigma=1)
-
-                    b = []
-                    rows, cols = np.where(z > 0)
-                    p = [cols[0], rows[0]]
-                    base = p
-                    tmp_rad = False
-
-                else:
-                    radius = radius + 1
-                    tmp_rad = True
-                    if len(b) > 3:
-                        p = b[-3]
-                        del b[-3:]
-
-            elif tmp_rad:
-                tmp_rad = False
-                radius = 3
-
-        # The maximum number of cycles has completed and no suitable smoothed
-        # ROI has been determined
-        return roi, False
+        return ROI(polygons=smoothed_polygons, im_shape=roi.im_shape)
 
 
 class SmoothROIBoundaries(PostProcessingStep):
@@ -608,8 +532,14 @@ class SmoothROIBoundaries(PostProcessingStep):
 
     Parameters
     ----------
-    radius : int
-        The smoothing radius, in pixels.
+    tolerance : float
+        Maximum distance from original points of polygon to approximated
+        polygonal chain. If tolerance is 0, the original roi coordinates array
+        are returned. (See skimage.measure.approximate_polygon).
+        Default is 0.5.
+    min_verts : int
+        Minimum number of verticies an ROI polygon can have prior to attemting
+        smoothing. Defaults is 8.
     n_processes : int, optional
         Number of processes to farm out the roi smoothing across.
         Should be at least 1 and at most one less than the number
@@ -617,15 +547,13 @@ class SmoothROIBoundaries(PostProcessingStep):
 
     """
 
-    def __init__(self, radius=3, n_processes=1):
-        self.radius = radius
+    def __init__(self, tolerance=0.5, min_verts=8, n_processes=1):
+        self.tolerance = tolerance
+        self.min_verts = min_verts
         self.n_processes = n_processes
 
     def apply(self, rois, dataset=None):
-        if not all(len(r.mask) == 1 for r in rois):
-            raise ValueError('SmoothROIBoundaries applies only to 2D ROIs.')
-
-        SmoothFunc = _SmoothBoundariesParallel(self.radius)
+        SmoothFunc = _SmoothBoundariesParallel(self.tolerance, self.min_verts)
         if self.n_processes > 1:
             pool = Pool(processes=self.n_processes)
             smooth_rois = pool.map(SmoothFunc, rois)
@@ -633,4 +561,4 @@ class SmoothROIBoundaries(PostProcessingStep):
         else:
             smooth_rois = map(SmoothFunc, rois)
 
-        return ROIList([roi[0] for roi in smooth_rois])
+        return ROIList(smooth_rois)
