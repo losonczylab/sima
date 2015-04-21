@@ -40,10 +40,10 @@ import itertools as it
 import glob
 import warnings
 from distutils.version import StrictVersion
-import os
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
 from abc import ABCMeta, abstractmethod
+import uuid
 
 import numpy as np
 
@@ -606,8 +606,7 @@ class _Sequence_ndarray(Sequence):
 
     def _todict(self, savedir=None):
         if self._path is None:
-            self._path = 'seq_' + ''.join(
-                '%02x' % ord(x) for x in os.urandom(8)) + '.npy'
+            self._path = 'seq_' + uuid.uuid4().hex + '.npy'
             if savedir is not None:
                 self._path = join(savedir, self._path)
             with open(self._path, 'wb') as f:
