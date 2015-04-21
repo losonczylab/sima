@@ -25,6 +25,7 @@ Testing / Bug Fixes
 * Masatoshi Kasai
 * Yoshiyuki Yamada
 * Christoph Schmidt-Hieber
+* Maximilian Hoffmann
 
 
 External code
