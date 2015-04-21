@@ -82,7 +82,7 @@ class Test_Spike_Inference(object):
     @dec.skipif(not _has_picos)
     def test_estimate_parameters(self):
         gamma_est, sigma_est = sima.spikes.estimate_parameters(
-            self.fluors_long, mode="correct")
+            [self.fluors_long], mode="correct")
         assert_(abs(gamma_est - self.gamma) < 0.01)
         assert_(abs(sigma_est - self.sigma) < 0.01)
 

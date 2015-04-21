@@ -788,8 +788,8 @@ class ImagingDataset(object):
         except (IOError, pickle.UnpicklingError):
             return {}
 
-    def infer_spikes(self, channel=0, label=None, sigma=None, gamma=None,
-                     mode='correct', verbose=False):
+    def infer_spikes(self, channel=0, label=None, gamma=None,
+                     share_gamma=True, mode='correct', verbose=False):
         """Infer the most likely discretized spike train underlying a
         fluorescence trace.
 
@@ -804,9 +804,9 @@ class ImagingDataset(object):
             Gamma is 1 - timestep/tau, where tau is the time constant of the
             AR(1) process.  If no value is given, then gamma is estimated from
             the data.
-        sigma : float, optional
-            Standard deviation of the noise distribution.  If no value is
-            given, then sigma is estimated from the data.
+        share_gamma : bool, optional
+            Whether to apply the same gamma estimate to all ROIs. Defaults to
+            True.
         mode : {'correct', 'robust'}, optional
             The method for estimating sigma. The 'robust' method overestimates
             the noise by assuming that gamma = 1. Default: 'correct'.
@@ -839,6 +839,21 @@ class ImagingDataset(object):
             label = most_recent_key(all_signals)
         signals = all_signals[label]
 
+        # estimate gamma for all cells
+        gamma = [sima.spikes.estimate_parameters(sigs, gamma, sigma=0)[0]
+                 for sigs in zip(*signals['raw'])]
+        if share_gamma:
+            gamma = np.median(gamma)
+
+        # ensure that gamma is a list, one value per ROI
+        if isinstance(gamma, float):
+            gamma = [gamma for _ in signals['raw'][0]]
+
+        # estimate sigma values
+        sigma = [sima.spikes.estimate_parameters(sigs, g)[1]
+                 for g, sigs in zip(gamma, zip(*signals['raw']))]
+
+        # perform spike inference
         spikes, fits, parameters = [], [], []
         for seq_idx, seq_signals in enumerate(signals['raw']):
             spikes.append(np.zeros_like(seq_signals))
@@ -846,7 +861,7 @@ class ImagingDataset(object):
             parameters.append(collections.defaultdict(list))
             for i, trace in enumerate(seq_signals):
                 spikes[-1][i], fits[-1][i], p = sima.spikes.spike_inference(
-                    trace, sigma, gamma, mode, verbose)
+                    trace, sigma[i], gamma[i], mode, verbose)
                 for k, v in iteritems(p):
                     parameters[-1][k].append(v)
             for v in itervalues(parameters[-1]):

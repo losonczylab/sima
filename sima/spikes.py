@@ -6,8 +6,7 @@ from builtins import range
 import time
 
 import numpy as np
-from scipy import signal
-from scipy.stats import uniform, norm
+from scipy.stats import uniform
 import sys
 from warnings import warn
 
@@ -137,7 +136,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         sys.stdout.write('Spike inference...')
 
     if sigma is None or gamma is None:
-        gamma, sigma = estimate_parameters(fluor, gamma, sigma, mode)
+        gamma, sigma = estimate_parameters([fluor], gamma, sigma, mode)
 
     # Make spike generating matrix (eye, but with -g on diag below main diag)
     gen = spdiag([1 for step in range(fluor.size)])
@@ -194,9 +193,10 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
 
     Parameters
     ----------
-    fluor : ndarray
-        One dimensional array containing the fluorescence intensities with
-        one entry per time-bin.
+    fluor : list of ndarray
+        One dimensional arrays containing the fluorescence intensities with
+        one array entry per time-bin, and one list entry per fluorescence
+        time-series for which the same parameters are to be fit.
     gamma : float, optional
         Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
         process.  If no value is given, then gamma is estimated from the data.
@@ -224,9 +224,15 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     #
     # Note that this equation is only strictly true if spiking is Poisson
     if gamma is None:
-        lags = min(50, len(fluor) // 2 - 1)
-        covar = axcov(fluor, lags) / fluor.size
-        gamma = covar[lags + 3] / covar[lags + 2]
+        covars = []
+        for trace in fluor:
+            lags = min(50, len(trace) // 2 - 1)
+            covars.append(axcov(trace, lags)[(lags+2):(lags+4)])
+        covar = np.sum(covars, axis=0)
+        gamma = covar[1] / covar[0]
+        if gamma >= 1.0:
+            warn('Warning: gamma parameter is estimated to be one!')
+            gamma = 0.98
 
     # Use autocovariance (cv) to estimate sigma:
     #     sqrt((gamma*cv(t-1)-cv(t))/gamma) = gamma, if t == 1
@@ -236,7 +242,10 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
     # more "robust" spike inference output
     if sigma is None:
         lags = 1
-        covar = axcov(fluor, lags) / fluor.size
+        covar = np.sum(
+            [axcov(trace, lags) for trace in fluor],
+            axis=0
+        ) / sum(len(trace) for trace in fluor)
         if np.logical_not(set([mode]).issubset(["correct", "robust"])):
             mode = "correct"
 
@@ -250,7 +259,7 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct"):
 
         # Ensure we aren't returning garbage
         # We should hit this case in the true noiseless data case
-        if np.isnan(sigma):
+        if np.isnan(sigma) or sigma < 0:
             warn('Warning: sigma parameter is estimated to be zero!')
             sigma = 0
-    return (gamma, sigma)
+    return gamma, sigma
