@@ -342,8 +342,11 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         [idx for idx, mask in enumerate(masks) if mask.nnz > 0])
     n_rois = len(rois_to_include)
     if n_rois != original_n_rois:
-        warnings.warn("Empty ROIs will return all NaN values: " +
-                      "{} empty ROIs found".format(original_n_rois - n_rois))
+        with warnings.catch_warnings():
+            warnings.simplefilter("always")
+            warnings.warn("Empty ROIs will return all NaN values: " +
+                          "{} empty ROIs found".format(
+                              original_n_rois - n_rois))
     if not n_rois:
         raise ValueError('No valid ROIs found.')
 
