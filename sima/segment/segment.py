@@ -516,6 +516,10 @@ class _SmoothBoundariesParallel(object):
                 smoothed_coords = np.hstack(
                     (smoothed_coords, plane*np.ones(
                         (smoothed_coords.shape[0], 1))))
+
+                if smoothed_coords.shape[0] < self.min_verts:
+                    smoothed_coords = polygon
+
             else:
                 smoothed_coords = polygon
 
