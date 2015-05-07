@@ -1087,7 +1087,8 @@ def _resolve_paths(d, savedir):
         elif len(valid_paths) > 1:
             testfile = list(valid_paths)[0]
             if all(path_compare(testfile, p) for p in valid_paths):
-                valid_paths = set().add(testfile)
+                valid_paths = set()
+                valid_paths.add(testfile)
             else:
                 error_msg = (
                     'Data has been moved, and the file path could not be '
