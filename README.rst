@@ -43,7 +43,7 @@ Dependencies
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
-* `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14 (**Windows users**: be sure to install from `Christophe Gohlke's built wheels <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>`__)
+* `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14 (**Windows users**: be sure to install from `Christophe Gohlke's built wheels <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>`_)
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
 * `future <https://pypi.python.org/pypi/future>`_ >= 0.14
 
@@ -52,6 +52,7 @@ Optional dependencies
 
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
+* `picos <http://picos.zib.de>`_ >= 1.0.2, required for spike inference (>= 1.1 required for Python 3)
 * `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
 * `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
 * `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
@@ -62,6 +63,9 @@ If you build the package from source, you may also need:
 
 * `Cython <http://cython.org>`_
 
+If you are using the spike inference feature, we strongly recommend installing
+`MOSEK <https://www.mosek.com/>`_ (free for academic use) which greatly speeds
+up the inference.
 
 Citing SIMA
 -----------

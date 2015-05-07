@@ -27,7 +27,7 @@ The included ROI Buddy software provides a graphical user interface
 
 
 Documentation
-------------
+-------------
 
 .. toctree::
    :maxdepth: 2

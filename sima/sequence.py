@@ -43,6 +43,7 @@ from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
 from abc import ABCMeta, abstractmethod
+import uuid
 
 import numpy as np
 
@@ -585,8 +586,17 @@ class _Sequence_TIFFs(Sequence):
 
 class _Sequence_ndarray(Sequence):
 
-    def __init__(self, array):
-        self._array = array
+    def __init__(self, array=None, path=None):
+        if (array is None) == (path is None):
+            raise ValueError(
+                'Exactly one of array and path must be provided.')
+        if array is None:
+            self._path = path
+            with open(self._path, 'rb') as f:
+                self._array = np.load(f)
+        elif path is None:
+            self._path = None
+            self._array = array
 
     def __len__(self):
         return len(self._array)
@@ -595,7 +605,19 @@ class _Sequence_ndarray(Sequence):
         return self._array[t].astype(float)
 
     def _todict(self, savedir=None):
-        return {'__class__': self.__class__, 'array': self._array}
+        if self._path is None:
+            self._path = 'seq_' + uuid.uuid4().hex + '.npy'
+            if savedir is not None:
+                self._path = join(savedir, self._path)
+            with open(self._path, 'wb') as f:
+                np.save(f, self._array)
+        d = {'__class__': self.__class__, 'array': None}
+        if savedir is None:
+            d.update({'path': abspath(self._path)})
+        else:
+            d.update({'_abspath': abspath(self._path),
+                      '_relpath': relpath(self._path, savedir)})
+        return d
 
 
 class _Sequence_HDF5(Sequence):

@@ -28,8 +28,14 @@ import numpy as np
 from PIL import Image
 import h5py
 
-tmp_dir = None
+_has_picos = True
+try:
+    import picos
+except ImportError:
+    _has_picos = False
 
+
+tmp_dir = None
 
 def setup():
     global tmp_dir
@@ -69,6 +75,7 @@ class TestImagingDataset(object):
         seq = Sequence.create('HDF5', path, 'yxt')
         self.filepath = os.path.join(tmp_dir, "test_imaging_dataset.sima")
         self.ds = ImagingDataset([seq, seq], self.filepath)
+        self.rois = ROI.ROIList.load(example_imagej_rois(), fmt='ImageJ')
 
         self.filepath_tiffs = os.path.join(tmp_dir, "test_dataset_tiffs.sima")
         seq = Sequence.create(
@@ -119,11 +126,10 @@ class TestImagingDataset(object):
         assert_equal(['z', 'y', 'x', 'c'], dim_labels)
 
     def test_add_and_delete_rois(self):
-        rois = ROI.ROIList.load(example_imagej_rois(), fmt='ImageJ')
-        self.ds.add_ROIs(rois, 'rois')
+        self.ds.add_ROIs(self.rois, 'rois')
         assert_equal(len(self.ds.ROIs), 1)
 
-        self.ds.add_ROIs(rois, 'rois2')
+        self.ds.add_ROIs(self.rois, 'rois2')
         assert_equal(len(self.ds.ROIs), 2)
 
         assert_equal(sorted(self.ds.ROIs.keys()), ['rois', 'rois2'])
@@ -142,6 +148,31 @@ class TestImagingDataset(object):
 
     def test_rois(self):
         assert_equal(len(self.ds.ROIs), 0)
+
+    def test_extract(self):
+        extracted = self.ds.extract(self.rois, label='rois')
+
+        assert_equal(len(self.ds.signals()), 1)
+        assert_equal(extracted['raw'], self.ds.signals()['rois']['raw'])
+        assert_equal(len(extracted['raw']), 2)
+        assert_equal(len(extracted['raw'][0]), 2)
+
+    @dec.skipif(not _has_picos)
+    def test_infer_spikes(self):
+        self.ds.extract(self.rois, label='rois')
+        spikes, fits, parameters = self.ds.infer_spikes()
+        signals = self.ds.signals()['rois']
+
+        assert_equal(signals['spikes'], spikes)
+        assert_equal(signals['spikes_fits'], fits)
+        # assert_equal(signals['spikes_params'], parameters)
+
+        assert_equal(len(spikes), 2)
+        assert_equal(len(fits), 2)
+        assert_equal(len(parameters), 2)
+
+        assert_equal(spikes[0].shape, (2, 20))
+        assert_equal(fits[0].shape, (2, 20))
 
     # @dec.knownfailureif(True)
     # def test_import_transformed_rois(self):

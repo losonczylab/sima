@@ -2,6 +2,7 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
+from future.utils import iteritems, itervalues
 from builtins import str
 from builtins import input
 from builtins import zip
@@ -9,6 +10,7 @@ from builtins import range
 from builtins import object
 from past.utils import old_div
 from past.builtins import basestring
+import collections
 import warnings
 import itertools as it
 import os
@@ -785,6 +787,101 @@ class ImagingDataset(object):
                 return pickle.load(f)
         except (IOError, pickle.UnpicklingError):
             return {}
+
+    def infer_spikes(self, channel=0, label=None, gamma=None,
+                     share_gamma=True, mode='correct', verbose=False):
+        """Infer the most likely discretized spike train underlying a
+        fluorescence trace.
+
+        Parameters
+        ----------
+        channel : int, optional
+            The channel to be used for spike inference.
+        label : string or None, optional
+            Text string indicating the signals from which spikes should be
+            inferred. Defaults to the most recently extracted signals.
+        gamma : float, optional
+            Gamma is 1 - timestep/tau, where tau is the time constant of the
+            AR(1) process.  If no value is given, then gamma is estimated from
+            the data.
+        share_gamma : bool, optional
+            Whether to apply the same gamma estimate to all ROIs. Defaults to
+            True.
+        mode : {'correct', 'robust'}, optional
+            The method for estimating sigma. The 'robust' method overestimates
+            the noise by assuming that gamma = 1. Default: 'correct'.
+        verbose : bool, optional
+            Whether to print status updates. Default: False.
+
+        Returns
+        -------
+        spikes : ndarray of float
+            The inferred normalized spike count at each time-bin.  Values are
+            normalized to the maximum value over all time-bins.
+            Shape: (num_rois, num_timebins).
+        fits : ndarray of float
+            The inferred denoised fluorescence signal at each time-bin.
+            Shape: (num_rois, num_timebins).
+        parameters : dict of (str, ndarray of float)
+            Dictionary with values for 'sigma', 'gamma', and 'baseline'.
+
+        References
+        ----------
+        * Pnevmatikakis et al. 2015. Submitted (arXiv:1409.2903).
+        * Machado et al. 2015. Submitted.
+        * Vogelstein et al. 2010. Journal of Neurophysiology. 104(6):
+          3691-3704.
+
+        """
+        import sima.spikes
+        all_signals = self.signals(channel)
+        if label is None:
+            label = most_recent_key(all_signals)
+        signals = all_signals[label]
+
+        # estimate gamma for all cells
+        gamma = [sima.spikes.estimate_parameters(sigs, gamma, sigma=0)[0]
+                 for sigs in zip(*signals['raw'])]
+        if share_gamma:
+            gamma = np.median(gamma)
+
+        # ensure that gamma is a list, one value per ROI
+        if isinstance(gamma, float):
+            gamma = [gamma for _ in signals['raw'][0]]
+
+        # estimate sigma values
+        sigma = [sima.spikes.estimate_parameters(sigs, g)[1]
+                 for g, sigs in zip(gamma, zip(*signals['raw']))]
+
+        # perform spike inference
+        spikes, fits, parameters = [], [], []
+        for seq_idx, seq_signals in enumerate(signals['raw']):
+            spikes.append(np.zeros_like(seq_signals))
+            fits.append(np.zeros_like(seq_signals))
+            parameters.append(collections.defaultdict(list))
+            for i, trace in enumerate(seq_signals):
+                spikes[-1][i], fits[-1][i], p = sima.spikes.spike_inference(
+                    trace, sigma[i], gamma[i], mode, verbose)
+                for k, v in iteritems(p):
+                    parameters[-1][k].append(v)
+            for v in itervalues(parameters[-1]):
+                assert len(v) == len(spikes[-1])
+            parameters[-1] = dict(parameters[-1])
+
+        if self.savedir:
+            signals['spikes'] = spikes
+            signals['spikes_fits'] = fits
+            signals['spikes_params'] = parameters
+            all_signals[label] = signals
+
+            signals_filename = os.path.join(
+                self.savedir,
+                'signals_{}.pkl'.format(signals['signal_channel']))
+
+            pickle.dump(all_signals,
+                        open(signals_filename, 'wb'), pickle.HIGHEST_PROTOCOL)
+
+        return spikes, fits, parameters
 
     def __str__(self):
         return '<ImagingDataset>'
