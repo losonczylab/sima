@@ -415,7 +415,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             save_frames = iter(self)
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
-                output_array[f_idx] = frame
+                output_array[f_idx] = np.nan_to_num(frame).astype('uint16')
             else:
                 for plane_idx, plane in enumerate(frame):
                     for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
@@ -434,7 +434,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:
-                f['imaging'].attrs['channel_names'] = np.array(channel_names)
+                f['imaging'].attrs['channel_names'] = np.array(channel_names,
+                                                               dtype='string')
             f.close()
 
 
