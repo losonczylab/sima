@@ -406,7 +406,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty(self.shape, dtype='uint16')
+            output_array = np.empty(self.shape, dtype='float32')
             # TODO: change dtype?
 
         if fill_gaps:
@@ -415,7 +415,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             save_frames = iter(self)
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
-                output_array[f_idx] = np.nan_to_num(frame).astype('uint16')
+                output_array[f_idx] = frame
             else:
                 for plane_idx, plane in enumerate(frame):
                     for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
