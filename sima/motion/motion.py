@@ -143,11 +143,11 @@ class ResonantCorrection(MotionEstimationStrategy):
     depending no whether the resonant scanner is moving in one direction
     or the other when passing over that row. This can cause problems when
     trying to motion correct the data, since even rows are collected while
-    scanning in one direction and odd rows are colleced by scanning
+    scanning in one direction and odd rows are collected by scanning
     in the other direction.
 
     The class defined here addresses this issue by using only the even
-    rows to estimate the displacments, and then uses those displacements
+    rows to estimate the displacements, and then uses those displacements
     to motion-correct the entire dataset.
 
     Parameters

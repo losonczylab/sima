@@ -53,7 +53,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.1.1",
+    version="1.2.0",
     packages=['sima',
               'sima.misc',
               'sima.motion',
@@ -72,7 +72,7 @@ setup(
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
         'pillow>=2.6.1',
-        'future',
+        'future>=0.14',
     ],
     package_data={
         'sima': [

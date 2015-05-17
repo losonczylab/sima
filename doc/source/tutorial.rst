@@ -174,7 +174,7 @@ The SIMA package implements a number of approaches for automated segmentation.
 To use one of the approaches, the first step is to create an object
 encapsulating the approach and a choice of parameters. For example, an object
 representing the approach of segmenting a single-plane dataset with
-spatiotemporal indpendent component analysis (STICA) can be created as follows:
+spatiotemporal independent component analysis (STICA) can be created as follows:
 
     >>> import sima.segment
     >>> ca1pc_approach = sima.segment.PlaneCA1PC(num_pcs=5)

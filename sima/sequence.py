@@ -43,6 +43,7 @@ from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
 from abc import ABCMeta, abstractmethod
+import uuid
 
 import numpy as np
 
@@ -258,7 +259,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         **HDF5**
 
         path : str
-            The HDF5 filename, typicaly with .h5 extension.
+            The HDF5 filename, typically with .h5 extension.
         dim_order : str
             Specification of the order of the dimensions. This
             string can contain the letters 't', 'x', 'y', 'z',
@@ -316,7 +317,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         **TIFFs**
 
         paths : list of list of str
-            The string paths[i][j] is a unix style expression for the
+            The string paths[i][j] is a Unix style expression for the
             filenames for plane i and channel j. See
             `glob <https://docs.python.org/2/library/glob.html>`_ for
             details on how to format such a string.
@@ -405,7 +406,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty(self.shape, dtype='uint16')
+            output_array = np.empty(self.shape, dtype='float32')
             # TODO: change dtype?
 
         if fill_gaps:
@@ -433,7 +434,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:
-                f['imaging'].attrs['channel_names'] = np.array(channel_names)
+                f['imaging'].attrs['channel_names'] = np.array(channel_names,
+                                                               dtype='string')
             f.close()
 
 
@@ -528,7 +530,7 @@ class _Sequence_TIFFs(Sequence):
     Parameters
     ----------
     paths : list of list of str
-        The string paths[i][j] is a unix style expression for the the
+        The string paths[i][j] is a Unix style expression for the the
         filenames for plane i and channel j. See glob for details.
     """
 
@@ -585,8 +587,17 @@ class _Sequence_TIFFs(Sequence):
 
 class _Sequence_ndarray(Sequence):
 
-    def __init__(self, array):
-        self._array = array
+    def __init__(self, array=None, path=None):
+        if (array is None) == (path is None):
+            raise ValueError(
+                'Exactly one of array and path must be provided.')
+        if array is None:
+            self._path = path
+            with open(self._path, 'rb') as f:
+                self._array = np.load(f)
+        elif path is None:
+            self._path = None
+            self._array = array
 
     def __len__(self):
         return len(self._array)
@@ -595,7 +606,19 @@ class _Sequence_ndarray(Sequence):
         return self._array[t].astype(float)
 
     def _todict(self, savedir=None):
-        return {'__class__': self.__class__, 'array': self._array}
+        if self._path is None:
+            self._path = 'seq_' + uuid.uuid4().hex + '.npy'
+            if savedir is not None:
+                self._path = join(savedir, self._path)
+            with open(self._path, 'wb') as f:
+                np.save(f, self._array)
+        d = {'__class__': self.__class__, 'array': None}
+        if savedir is None:
+            d.update({'path': abspath(self._path)})
+        else:
+            d.update({'_abspath': abspath(self._path),
+                      '_relpath': relpath(self._path, savedir)})
+        return d
 
 
 class _Sequence_HDF5(Sequence):
@@ -1087,7 +1110,8 @@ def _resolve_paths(d, savedir):
         elif len(valid_paths) > 1:
             testfile = list(valid_paths)[0]
             if all(path_compare(testfile, p) for p in valid_paths):
-                valid_paths = set().add(testfile)
+                valid_paths = set()
+                valid_paths.add(testfile)
             else:
                 error_msg = (
                     'Data has been moved, and the file path could not be '
