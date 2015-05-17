@@ -406,7 +406,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty(self.shape, dtype='uint16')
+            output_array = np.empty(self.shape, dtype='float32')
             # TODO: change dtype?
 
         if fill_gaps:
@@ -434,7 +434,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:
-                f['imaging'].attrs['channel_names'] = np.array(channel_names)
+                f['imaging'].attrs['channel_names'] = np.array(channel_names,
+                                                               dtype='string')
             f.close()
 
 
@@ -1109,7 +1110,8 @@ def _resolve_paths(d, savedir):
         elif len(valid_paths) > 1:
             testfile = list(valid_paths)[0]
             if all(path_compare(testfile, p) for p in valid_paths):
-                valid_paths = set().add(testfile)
+                valid_paths = set()
+                valid_paths.add(testfile)
             else:
                 error_msg = (
                     'Data has been moved, and the file path could not be '
