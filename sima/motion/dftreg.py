@@ -2,8 +2,7 @@
 Motion correction of image sequences by 'efficient subpixel image registration
 by cross correlation'. A reference image is iteratively computed by aligning
 and averaging a subset of images/frames.
-2015 Lloyd Russell, Christoph Schmidt-Hieber. Marius (Adam?) for initial MATLAB
-implementation?
+2015 Lloyd Russell, Christoph Schmidt-Hieber, Marius Pachitariu, Adam Packer
 
 *******************************************************************************
 Parts of the code are based on:
@@ -28,10 +27,8 @@ OF SUCH DAMAGE.
 @author: llerussell
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from builtins import map
-from builtins import range
+from __future__ import absolute_import, division
+from builtins import map, range
 from functools import partial
 import multiprocessing
 import numpy as np
@@ -45,8 +42,6 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     Motion correction of image sequences by 'efficient subpixel image
     registration by cross correlation'. A reference image is iteratively
     computed by aligning and averaging a subset of images/frames.
-    2015 Lloyd Russell, Christoph Schmidt-Hieber. Marius (Adam?) for initial
-    MATLAB implementation?
 
     Parameters
     ----------
@@ -97,7 +92,6 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     by Manuel Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup,
     "Efficient subpixel image registration algorithms," Optics Letters 33,
     156-158 (2008).
-
     """
 
     def __init__(self, upsample_factor=1, max_displacement=None,
@@ -117,7 +111,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
         Returns
         -------
-        shifts : array
+        displacements : array
             (2, num_frames*num_cycles)-array of integers giving the
             estimated displacement of each frame
         """
@@ -215,11 +209,11 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
 
 def _register(frames, upsample_factor=1, max_displacement=None,
-              num_images_for_mean=100,
-              randomise_frames=True, err_thresh=0.01, max_iterations=5,
-              use_fftw=False, rotation_scaling=False, save=False,
-              save_fmt='mptiff', save_name='none', n_processes=1,
-              verbose=False, return_registered=False, fftn=None, ifftn=None):
+              num_images_for_mean=100, randomise_frames=True,
+              err_thresh=0.01, max_iterations=5, use_fftw=False,
+              rotation_scaling=False, save=False, save_fmt='mptiff',
+              save_name='none', n_processes=1, verbose=False,
+              return_registered=False, fftn=None, ifftn=None):
     """
     Master function. Make aligned mean image. Register each frame in input
     array to aligned mean image.
@@ -501,7 +495,8 @@ def _register_frame(frame, mean_img, upsample_factor=1,
     """
     # compute the offsets
     dy, dx = _register_translation(mean_img, frame,
-        upsample_factor=upsample_factor, fftn=fftn, ifftn=ifftn)
+                                   upsample_factor=upsample_factor,
+                                   fftn=fftn, ifftn=ifftn)
 
     if max_displacement is not None:
         if dy > max_displacement[0]:
@@ -761,11 +756,11 @@ def _register_translation(src_image, target_image, upsample_factor=1,
 
 def _save_registered_frames(frames, save_name, save_fmt, verbose=False):
     """
-    Save
+    Save. Only use for debugging.
     Parameters
     ----------
     Returns
-    -------Returns
+    -------
     """
     if verbose:
         print('    Saving...')
