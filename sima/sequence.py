@@ -299,6 +299,11 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
         **TIFF**
 
+        This format is appropriate when the imaging data is stored in a single
+        multi-page TIFF file, with each page containing a different frame.  If
+        the TIFF file contains interleaved data from multiple planes or
+        channels, then the number of planes or channels should be specified.
+
         path : str
             The path to the file storing the imaging data.
         num_planes : int, optional
@@ -315,6 +320,10 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
 
         **TIFFs**
+
+        This format is appropriate when the imaging data is stored in
+        single-page TIFF files, with each file containing the data from a
+        single frame.
 
         paths : list of list of str
             The string paths[i][j] is a Unix style expression for the
