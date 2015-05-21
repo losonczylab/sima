@@ -84,9 +84,9 @@ distribution's package manager.
 NOTE: You may need to install shapely separately from the package at:
 <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>
 
-If building SIMA from source or using pip or easy_install on Windows, you may
-also need to follow these `instructions for compiling the Cython extensions
-<https://github.com/cython/cython/wiki/64BitCythonExtensionsOnWindows>`_.
+If building SIMA from source on Windows, you may also need to follow these
+`instructions for compiling the Cython extensions
+<https://github.com/cython/cython/wiki/CythonExtensionsOnWindows>`_.
 
 Mac OS X
 --------
