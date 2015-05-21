@@ -2,7 +2,8 @@
 import sys
 import os
 
-import numpy
+from setuptools.command.build_ext import build_ext as _build_ext
+from distutils.dist import Distribution
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -22,22 +23,40 @@ except ImportError:
 if not os.path.isfile('sima/motion/_motion.pyx'):
     USE_CYTHON = False
 
+# Avoid installing setup_requires dependencies if the user just
+# queries for information
+if (any('--' + opt in sys.argv for opt in
+        Distribution.display_option_names + ['help']) or
+        'clean' in sys.argv):
+    setup_requires = []
+else:
+    setup_requires = ['numpy']
 
 extensions = [
     Extension(
         'sima.motion._motion',
         sources=['sima/motion/_motion.%s' % ('pyx' if USE_CYTHON else 'c')],
-        include_dirs=[numpy.get_include()],
+        include_dirs=[],
     ),
     Extension(
         'sima.segment._opca',
         sources=['sima/segment/_opca.%s' % ('pyx' if USE_CYTHON else 'c')],
-        include_dirs=[numpy.get_include()],
+        include_dirs=[],
     )
 ]
 
 if USE_CYTHON:
     extensions = cythonize(extensions)
+
+
+class build_ext(_build_ext):
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        # Prevent numpy from thinking it is still in its setup process:
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy
+        self.include_dirs.append(numpy.get_include())
+
 
 CLASSIFIERS = """\
 Development Status :: 4 - Beta
@@ -94,6 +113,8 @@ setup(
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules=extensions,
+    cmdclass={'build_ext': build_ext},
+    setup_requires=setup_requires,
     # setup_requires=['setuptools_cython'],
     url="http://www.losonczylab.org/sima/",
     platforms=["Linux", "Mac OS-X", "Windows"],
