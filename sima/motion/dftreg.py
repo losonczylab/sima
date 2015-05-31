@@ -2,9 +2,11 @@
 Motion correction of image sequences by 'efficient subpixel image registration
 by cross correlation'. A reference image is iteratively computed by aligning
 and averaging a subset of images/frames.
-2015 Lloyd Russell, Christoph Schmidt-Hieber, Marius Pachitariu, Adam Packer
+2015 Lloyd Russell, Christoph Schmidt-Hieber
 
 *******************************************************************************
+Credit to Marius Pachitariu for concept of registering to aligned mean image.
+
 Parts of the code are based on:
 skimage.feature.register_translation, which is a port of MATLAB code by Manuel
 Guizar-Sicairos, Samuel T. Thurman, and James R. Fienup, "Efficient subpixel
