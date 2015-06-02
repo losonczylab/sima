@@ -58,14 +58,10 @@ Creating an ImagingDataset object
 ---------------------------------
 The SIMA package is centers around the :obj:`ImagingDataset` object class.  A
 single :obj:`ImagingDataset` object can contain imaging data from multiple
-simultaneously recorded optical channels, as well as from multiple cycles (i.e.
-continuous imaging epochs/trials) acquired at the same imaging location during
-the same imaging session.  Accordingly, the raw imaging data used to initialize
-the :obj:`ImagingDataset` object must be packaged into a list of lists, whose
-first index runs over the cycles and whose second index runs over the channels.
-The subsections below provide examples of how to initialize
-:obj:`ImagingDataset` objects using raw data in a variety of formats, including
-Numpy arrays, TIFF files, and HDF5 files.
+sequences (i.e.  continuous imaging epochs/trials) acquired at the same imaging
+location during the same imaging session.  The subsections below provide
+examples of how to initialize :obj:`ImagingDataset` objects using raw data in a
+variety of formats, including Numpy arrays, TIFF files, and HDF5 files.
 
 The :obj:`ImagingDataset` object is permanently stored in the location (ending
 with extension .sima) specified during initialization.  Results of
