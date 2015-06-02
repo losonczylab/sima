@@ -3,7 +3,8 @@ import sys
 import os
 
 from setuptools.command.build_ext import build_ext as _build_ext
-from distutils.dist import Distribution
+# from distutils.dist import Distribution
+from setuptools.dist import Distribution
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
