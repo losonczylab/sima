@@ -4,7 +4,6 @@ from __future__ import division
 from __future__ import unicode_literals
 from future.utils import iteritems, itervalues
 from builtins import str
-from builtins import input
 from builtins import zip
 from builtins import range
 from builtins import object
@@ -14,12 +13,10 @@ import collections
 import warnings
 import itertools as it
 import os
-import errno
 import csv
 from os.path import dirname, join, abspath
 import pickle as pickle
 from distutils.version import StrictVersion
-from distutils.util import strtobool
 
 import numpy as np
 try:

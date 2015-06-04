@@ -53,7 +53,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.2.0",
+    version="1.2.1",
     packages=['sima',
               'sima.misc',
               'sima.motion',
