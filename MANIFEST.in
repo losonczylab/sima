@@ -3,3 +3,4 @@ recursive-include sima/tests *.py
 graft sima/tests/data
 graft doc/source
 include doc/Makefile
+include examples/*.py

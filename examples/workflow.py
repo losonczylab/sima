@@ -7,6 +7,9 @@ http://www.losonczylab.org/workflow_data.zip and extract it in your
 current working directory.
 
 """
+from __future__ import print_function
+from builtins import input
+from builtins import range
 
 ##############################################################################
 #                                                                            #
@@ -31,7 +34,7 @@ tiff_filenames = [
 ]
 
 # The resulting filenames are printed for clarification.
-print "TIFF filenames:\n", tiff_filenames
+print("TIFF filenames:\n", tiff_filenames)
 
 
 # Finally, we construct a MultiPageTIFF iterable using each of the filenames.
@@ -64,7 +67,7 @@ output_filenames = [
 ]
 
 # The resulting filenames are printed for clarification.
-print "Output filenames:\n", output_filenames
+print("Output filenames:\n", output_filenames)
 
 # Export the corrected frames for a presentation.
 dataset.export_frames(output_filenames, fill_gaps=True)
@@ -72,7 +75,7 @@ dataset.export_frames(output_filenames, fill_gaps=True)
 # At this point, one may wish to inspect the exported image data to evaluate
 # the quality of the motion correction before continuing.
 while True:
-    input_ = raw_input("Continue? (y/n): ")
+    input_ = input("Continue? (y/n): ")
     if input_ == 'n':
         exit()
     elif input_ == 'y':
@@ -106,7 +109,7 @@ dataset.segment(segmentation_approach, 'auto_ROIs')
 # At this point, one may wish to edit the automatically segmented ROIs using
 # the ROI Buddy GUI before performing signal extraction.
 while True:
-    input_ = raw_input("Continue? (y/n): ")
+    input_ = input("Continue? (y/n): ")
     if input_ == 'n':
         exit()
     elif input_ == 'y':

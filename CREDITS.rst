@@ -26,6 +26,7 @@ Testing / Bug Fixes
 * Masatoshi Kasai
 * Yoshiyuki Yamada
 * Maximilian Hoffmann
+* Erik Flister
 
 
 External code
