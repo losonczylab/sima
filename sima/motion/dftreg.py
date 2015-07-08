@@ -47,44 +47,41 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
     Parameters
     ----------
-    upsample_factor : int
+    upsample_factor : int, optional
         upsample factor. final pixel alignment has resolution of
         1/upsample_factor. if 1 only pixel level shifts are made - faster -
-        and no interpolation (optional, default=1)
-    max_displacement : array of int
-        The maximum allowed displacement magnitudes in [y,x] (optional,
-        default = None)
-    num_images_for_mean : int
-        number of images to use to make the aligned mean image (optional,
-        default=100)
-    randomise_frames : bool
+        and no interpolation. Default: 1.
+    max_displacement : array of int, optional
+        The maximum allowed displacement magnitudes in [y,x]. Default: None.
+    num_images_for_mean : int, optional
+        number of images to use to make the aligned mean image. Default: 100.
+    randomise_frames : bool, optional
         randomise the images selected to make the mean image? if false the
-        first 'num_frames_for_mean' frames will be used (optional,
-        default=True)
-    err_thresh : float
+        first 'num_frames_for_mean' frames will be used. Default: True.
+    err_thresh : float, optional
         the error threshold level at which to stop iterating over the mean
-        image alignment (optional, default=0.01)
-    max_iterations : int
-        the maximum number of iterations to compute the aligned mean image
-        (optional, default=5)
-    use_fftw : bool
+        image alignment. Default: 0.01.
+    max_iterations : int, optional
+        the maximum number of iterations to compute the aligned mean image.
+        Default: 5.
+    use_fftw : bool, optional
         choose whether to use fftw methods (slightly faster) requires pyFFTW.
-        if false, will use numpy methods. (optional, default=False)
-    rotation_scaling : bool
-        not yet implemented. (optional, default=false)
-    save_name : string
+        if false, will use numpy methods. Default: False.
+    rotation_scaling : bool, optional
+        not yet implemented. Default: False.
+    save_name : string, optional
         the file name for saving the final registered array of images to disk
-        from within method. If 'none', the array will not be saved (optional, 
-        default=None)
-    save_fmt : string
+        from within method. If None or 'none', the array will not be saved. 
+        Default: None.
+    save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
-        'singles' (optional, default='mptiff'
-    n_processes : int or 'auto'
-        number of workers to use (multiprocessing). (optional, default=1)
-    verbose : bool
-        enable verbose mode (optional, default:False)
-    return_registered : bool
-        return registered frames? (optional, default = False)
+        'singles'. Default: 'mptiff'.
+    n_processes : int or 'auto', optional
+        number of workers to use (multiprocessing). Default: 1.
+    verbose : bool, optional
+        enable verbose mode. Default: False.
+    return_registered : bool, optional
+        return registered frames? Default: False.
 
     References
     ----------
@@ -220,43 +217,42 @@ def _register(frames, upsample_factor=1, max_displacement=None,
 
     Parameters
     ----------
-    input array : np.ndarray
-        the frames to align (size: frames, 1, rows, columns)
-    upsample : int
+    frames : np.ndarray
+        the frames to align (shape: frames, 1, rows, columns)
+    upsample : int, optional
         upsample factor. final pixel alignment has resolution of
         1/upsample_factor. if 1 only pixel level shifts are made - faster -
-        and no interpolation (optional, default=1)
-    num_images_for_mean : int
+        and no interpolation. Default: 1.
+    num_images_for_mean : int, optional
         number of images to use to make the aligned mean image (optional,
-        default=100)
-    randomise_frames : bool
+        default=100.
+    randomise_frames : bool, optional
         randomise the images selected to make the mean image? if false the
-        first 'num_frames_for_mean' frames will be used (optional,
-        default=True)
-    err_thresh : float
+        first 'num_frames_for_mean' frames will be used. Default: True.
+    err_thresh : float, optional
         the error threshold level at which to stop iterating over the mean
-        image alignment (optional, default=0.01)
-    max_iterations : int
-        the maximum number of iterations to compute the aligned mean image
-        (optional, default=5)
-    use_fftw : bool
+        image alignment. Default: 0.01.
+    max_iterations : int, optional
+        the maximum number of iterations to compute the aligned mean image.
+        Default: 5.
+    use_fftw : bool, optional
         choose whether to use fftw methods (slightly faster) requires pyFFTW.
-        if false, will use numpy methods. (optional, default=False)
-    rotation_scaling : bool
-        not yet implemented. (optional, default=false)
-    save_name : string
+        if false, will use numpy methods. Default: False.
+    rotation_scaling : bool, optional
+        not yet implemented. Default: False.
+    save_name : string, optional
         the file name for saving the final registered array of images to disk
-        from within method. If 'none', the array will not be saved (optional, 
-        default='none')
-    save_fmt : string
+        from within method. If None or 'none', the array will not be saved . 
+        Default: None.
+    save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
-        'singles' (optional, default='mptiff'
-    n_processes : int or 'auto'
-        number of workers to use (multiprocessing). (optional, default=1)
-    verbose : bool
-        enable verbose mode (optional, default:False)
-    return_registered : bool
-        return registered frames? (optional, default = False)
+        'singles'. Default: 'mptiff'
+    n_processes : int or 'auto', optional
+        number of workers to use (multiprocessing). Default: 1.
+    verbose : bool, optional
+        enable verbose mode. Default: False.
+    return_registered : bool, optional
+        return registered frames? Default: False.
 
     Returns
     -------
@@ -336,20 +332,23 @@ def _make_mean_img(frames, num_images_for_mean=100, randomise_frames=True,
 
     Parameters
     ----------
-    num_images_for_mean : int
-        how many images are used to make the mean reference image
-        (default=100)
-    randomise_frames : bool
+    frames : np.ndarray
+        the frames to align (shape: frames, 1, rows, columns)
+    num_images_for_mean : int, optional
+        how many images are used to make the mean reference image.
+        Default: 100.
+    randomise_frames : bool, optional
         randomise the frames used to make the mean image? If False the first
-        N images are used (default = True)
-    err_thresh : float
+        N images are used Default: True.
+    err_thresh : float, optional
         the threshold of mean pixel offset at which to stop aligning the mean
-        image (default = 0.01)
-    max_iterations : int
+        image. Default: 0.01.
+    max_iterations : int, optional
         number of maximum iterations, if error threshold is never met
-        (default = 5)
+        Default: 5.
     n_processes : int, optional
         number of processes to work on the registration in parallel
+        Default: 1
 
     Returns
     -------
@@ -541,14 +540,15 @@ def _upsampled_dft(data, upsampled_region_size,
     ----------
     data : 2D ndarray
         The input data array (DFT of original data) to upsample.
-    upsampled_region_size : integer or tuple of integers, optional
+    upsampled_region_size : integer or tuple of integers
         The size of the region to be sampled.  If one integer is provided, it
         is duplicated up to the dimensionality of ``data``.
     upsample_factor : integer, optional
-        The upsampling factor.  Defaults to 1.
+        The upsampling factor.  Default: 1.
     axis_offsets : tuple of integers, optional
-        The offsets of the region to be sampled.  Defaults to None (uses
+        The offsets of the region to be sampled.  Default: None (uses
         image center)
+
     Returns
     -------
     output : 2D ndarray
@@ -644,11 +644,12 @@ def _register_translation(src_image, target_image, upsample_factor=1,
         Upsampling factor. Images will be registered to within
         ``1 / upsample_factor`` of a pixel. For example
         ``upsample_factor == 20`` means the images will be registered
-        within 1/20th of a pixel.  Default is 1 (no upsampling)
+        within 1/20th of a pixel.  Default: 1 (no upsampling).
     space : string, one of "real" or "fourier"
         Defines how the algorithm interprets input data.  "real" means data
         will be FFT'd to compute the correlation, while "fourier" data will
-        bypass FFT of input data.  Case insensitive.
+        bypass FFT of input data.  Case insensitive. Default: "real".
+
     Returns
     -------
     shifts : ndarray
