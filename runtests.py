@@ -306,6 +306,8 @@ def build_project(args):
 
     log_filename = os.path.join(ROOT_DIR, 'build.log')
 
+    env['PYTHONPATH'] = dst_dir + '/lib/python2.7/site-packages/'
+
     if args.show_build_log:
         ret = subprocess.call(cmd, env=env, cwd=ROOT_DIR)
     else:
