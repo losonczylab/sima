@@ -72,11 +72,10 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
         if false, will use numpy methods. (optional, default=False)
     rotation_scaling : bool
         not yet implemented. (optional, default=false)
-    save : bool
-        choose whether to save the final registered array of images to disk
-        from within method (optional, default=False)
     save_name : string
-        the filename for saved file (optional, default='none')
+        the file name for saving the final registered array of images to disk
+        from within method. If 'none', the array will not be saved (optional, 
+        default=None)
     save_fmt : string
         the tiff format to save as. options include 'mptiff', 'bigtiff',
         'singles' (optional, default='mptiff'
@@ -99,9 +98,9 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     def __init__(self, upsample_factor=1, max_displacement=None,
                  num_images_for_mean=100,
                  randomise_frames=True, err_thresh=0.01, max_iterations=5,
-                 use_fftw=False, rotation_scaling=False, save=False,
-                 save_fmt='mptiff', save_name='none', n_processes=1,
-                 verbose=False, return_registered=False):
+                 use_fftw=False, rotation_scaling=False, save_fmt='mptiff',
+                 save_name=None, n_processes=1, verbose=False,
+                 return_registered=False):
         self._params = dict(locals())
         del self._params['self']
 
@@ -183,7 +182,6 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                                    err_thresh=params['err_thresh'],
                                    max_iterations=params['max_iterations'],
                                    n_processes=params['n_processes'],
-                                   save=params['save'],
                                    save_fmt=params['save_fmt'],
                                    save_name=params['save_name'],
                                    verbose=params['verbose'],
@@ -213,8 +211,8 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 def _register(frames, upsample_factor=1, max_displacement=None,
               num_images_for_mean=100, randomise_frames=True,
               err_thresh=0.01, max_iterations=5, use_fftw=False,
-              rotation_scaling=False, save=False, save_fmt='mptiff',
-              save_name='none', n_processes=1, verbose=False,
+              rotation_scaling=False, save_fmt='mptiff',
+              save_name=None, n_processes=1, verbose=False,
               return_registered=False, fftn=None, ifftn=None):
     """
     Master function. Make aligned mean image. Register each frame in input
@@ -246,11 +244,10 @@ def _register(frames, upsample_factor=1, max_displacement=None,
         if false, will use numpy methods. (optional, default=False)
     rotation_scaling : bool
         not yet implemented. (optional, default=false)
-    save : bool
-        choose whether to save the final registered array of images to disk
-        from within method (optional, default=False)
     save_name : string
-        the filename for saved file (optional, default='none')
+        the file name for saving the final registered array of images to disk
+        from within method. If 'none', the array will not be saved (optional, 
+        default='none')
     save_fmt : string
         the tiff format to save as. options include 'mptiff', 'bigtiff',
         'singles' (optional, default='mptiff'
@@ -312,7 +309,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
 
     # save?
     if return_registered:
-        if save:
+        if save_name is not None and save_name != 'none':
             _save_registered_frames(registered_frames, save_name, save_fmt,
                                     verbose=verbose)
             e3 = time.time() - t0 - e1 - e2
