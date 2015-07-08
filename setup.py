@@ -2,9 +2,7 @@
 import sys
 import os
 
-from setuptools.command.build_ext import build_ext as _build_ext
-# from distutils.dist import Distribution
-from setuptools.dist import Distribution
+from distutils.dist import Distribution
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -33,13 +31,33 @@ if (any('--' + opt in sys.argv for opt in
 else:
     setup_requires = ['numpy']
 
+
+# --- Encapsulate NumPy imports in a specialized Extension type ---------------
+
+# https://mail.python.org/pipermail/distutils-sig/2007-September/008253.html
+class NumpyExtension(Extension, object):
+    """Extension type that adds the NumPy include directory to include_dirs."""
+
+    def __init__(self, *args, **kwargs):
+        super(NumpyExtension, self).__init__(*args, **kwargs)
+
+    @property
+    def include_dirs(self):
+        from numpy import get_include
+        return self._include_dirs + [get_include()]
+
+    @include_dirs.setter
+    def include_dirs(self, include_dirs):
+        self._include_dirs = include_dirs
+
+
 extensions = [
-    Extension(
+    NumpyExtension(
         'sima.motion._motion',
         sources=['sima/motion/_motion.%s' % ('pyx' if USE_CYTHON else 'c')],
         include_dirs=[],
     ),
-    Extension(
+    NumpyExtension(
         'sima.segment._opca',
         sources=['sima/segment/_opca.%s' % ('pyx' if USE_CYTHON else 'c')],
         include_dirs=[],
@@ -48,15 +66,6 @@ extensions = [
 
 if USE_CYTHON:
     extensions = cythonize(extensions)
-
-
-class build_ext(_build_ext):
-    def finalize_options(self):
-        _build_ext.finalize_options(self)
-        # Prevent numpy from thinking it is still in its setup process:
-        __builtins__.__NUMPY_SETUP__ = False
-        import numpy
-        self.include_dirs.append(numpy.get_include())
 
 
 CLASSIFIERS = """\
@@ -114,7 +123,6 @@ setup(
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules=extensions,
-    cmdclass={'build_ext': build_ext},
     setup_requires=setup_requires,
     # setup_requires=['setuptools_cython'],
     url="http://www.losonczylab.org/sima/",
