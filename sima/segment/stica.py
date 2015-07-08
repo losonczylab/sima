@@ -195,6 +195,11 @@ class STICA(SegmentationStrategy):
             dataset, channel, components[-1] + 1, path=pca_path)
         space_pcs = np.real(space_pcs)
 
+        # Remove components greater than the number of PCs returned
+        # in case more components were asked for than the number of
+        # independent dimensions in the dataset.
+        components = [c for c in components if c < time_pcs.shape[1]]
+
         if self._params['verbose']:
             print('performing ICA...')
         st_components = _stica(

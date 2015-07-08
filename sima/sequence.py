@@ -345,6 +345,12 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
         **ndarray**
 
+        This format allows for sequences to be created from numpy arrays of
+        shape (num_frames, num_planes, num_rows, num_columns, num_channels),
+        i.e. tzyxc.  If your array is organized by of a different shape, you
+        can reorganize it using :func:`numpy.transpose()` to reorder the axes
+        and :const:`numpy.newaxis` to insert any missing axes.
+
         array : numpy.ndarray
             A numpy array of shape (num_frames, num_planes, num_rows,
             num_columns, num_channels)

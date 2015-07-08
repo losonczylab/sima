@@ -58,14 +58,10 @@ Creating an ImagingDataset object
 ---------------------------------
 The SIMA package is centers around the :obj:`ImagingDataset` object class.  A
 single :obj:`ImagingDataset` object can contain imaging data from multiple
-simultaneously recorded optical channels, as well as from multiple cycles (i.e.
-continuous imaging epochs/trials) acquired at the same imaging location during
-the same imaging session.  Accordingly, the raw imaging data used to initialize
-the :obj:`ImagingDataset` object must be packaged into a list of lists, whose
-first index runs over the cycles and whose second index runs over the channels.
-The subsections below provide examples of how to initialize
-:obj:`ImagingDataset` objects using raw data in a variety of formats, including
-Numpy arrays, TIFF files, and HDF5 files.
+sequences (i.e.  continuous imaging epochs/trials) acquired at the same imaging
+location during the same imaging session.  The subsections below provide
+examples of how to initialize :obj:`ImagingDataset` objects using raw data in a
+variety of formats, including Numpy arrays, TIFF files, and HDF5 files.
 
 The :obj:`ImagingDataset` object is permanently stored in the location (ending
 with extension .sima) specified during initialization.  Results of
@@ -74,13 +70,14 @@ segmentation, signal extraction, and other alterations to the
 
 Numpy arrays
 ............
-To begin with, we create some Numpy arrays containing random data.
+To begin with, we create some Numpy arrays containing random data. The shape of
+these arrays is (num_frames, num_planes, num_rows, num_columns, num_channels).
 
     >>> import numpy as np
-    >>> cycle1_channel1 = np.random.rand(100, 128, 128)
-    >>> cycle1_channel2 = np.random.rand(100, 128, 128)
-    >>> cycle2_channel1 = np.random.rand(100, 128, 128)
-    >>> cycle2_channel2 = np.random.rand(100, 128, 128)
+    >>> cycle1_channel1 = np.random.rand(100, 1, 128, 128, 1)
+    >>> cycle1_channel2 = np.random.rand(100, 1, 128, 128, 1)
+    >>> cycle2_channel1 = np.random.rand(100, 1, 128, 128, 1)
+    >>> cycle2_channel2 = np.random.rand(100, 1, 128, 128, 1)
 
 Once we have the Numpy arrays containing the imaging data, we create the
 ImagingDataset object as follows.
@@ -177,14 +174,22 @@ representing the approach of segmenting a single-plane dataset with
 spatiotemporal independent component analysis (STICA) can be created as follows:
 
     >>> import sima.segment
-    >>> ca1pc_approach = sima.segment.PlaneCA1PC(num_pcs=5)
+    >>> stica_approach = sima.segment.STICA(components=5)
+
+We can also add post-processing steps to this approach, for example to convert
+the STICA masks into sparse regions of interest (ROIs), smooth their boundaries, and
+merge overlapping ROIs.
+
+    >>> stica_approach.append(sima.segment.SparseROIsFromMasks())
+    >>> stica_approach.append(sima.segment.SmoothROIBoundaries())
+    >>> stica_approach.append(sima.segment.MergeOverlapping(threshold=0.5))
 
 Once the approch has been created, it can be passed as an argument to the
 :func:`segment` method of an An :class:`ImagingDataset`. The :func:`segment`
 method can also take an optional label argument for the resulting set of ROIs. 
 
     >>> dataset = sima.ImagingDataset.load('example.sima')
-    >>> rois = dataset.segment(ca1pc_approach, 'auto_ROIs')
+    >>> rois = dataset.segment(stica_approach, 'auto_ROIs')
 
 Editing, creating, and registering ROIs with ROI Buddy
 ......................................................

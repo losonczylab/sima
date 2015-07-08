@@ -4,7 +4,6 @@ from __future__ import division
 from __future__ import unicode_literals
 from future.utils import iteritems, itervalues
 from builtins import str
-from builtins import input
 from builtins import zip
 from builtins import range
 from builtins import object
@@ -14,12 +13,10 @@ import collections
 import warnings
 import itertools as it
 import os
-import errno
 import csv
 from os.path import dirname, join, abspath
 import pickle as pickle
 from distutils.version import StrictVersion
-from distutils.util import strtobool
 
 import numpy as np
 try:
@@ -247,21 +244,8 @@ class ImagingDataset(object):
             savedir = abspath(savedir)
             if not savedir.endswith('.sima'):
                 savedir += '.sima'
-            try:
-                os.makedirs(savedir)
-            except OSError as exc:
-                if exc.errno == errno.EEXIST and os.path.isdir(savedir):
-                    overwrite = strtobool(
-                        input("Overwrite existing directory ({})? ".format(
-                            savedir)))
-                    # Note: This will overwrite dataset.pkl and sequences.pkl
-                    # but will leave all other files in the directory intact
-                    if overwrite:
-                        self._savedir = savedir
-                    else:
-                        self._savedir = None
-            else:
-                self._savedir = savedir
+            os.makedirs(savedir)
+            self._savedir = savedir
             if orig_dir:
                 from shutil import copy2
                 for f in os.listdir(orig_dir):
