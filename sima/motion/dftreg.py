@@ -72,7 +72,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
         not yet implemented. Default: False.
     save_name : string, optional
         the file name for saving the final registered array of images to disk
-        from within method. If None or 'none', the array will not be saved. 
+        from within method. If None or 'none', the array will not be saved.
         Default: None.
     save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
@@ -152,18 +152,19 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                 # shifting? this may run into problems when sima then crops the
                 # final image so no empty rows/columns at edge of any frame in
                 # the video (trim_criterion)
-                output = _register(frames,
-                                   upsample_factor=params['upsample_factor'],
-                                   max_displacement=params['max_displacement'],
-                                   num_images_for_mean=params['num_images_for_mean'],
-                                   randomise_frames=params['randomise_frames'],
-                                   err_thresh=params['err_thresh'],
-                                   max_iterations=params['max_iterations'],
-                                   n_processes=params['n_processes'],
-                                   save_fmt=params['save_fmt'],
-                                   save_name=params['save_name'],
-                                   verbose=params['verbose'],
-                                   return_registered=params['return_registered'])
+                output = _register(
+                    frames,
+                    upsample_factor=params['upsample_factor'],
+                    max_displacement=params['max_displacement'],
+                    num_images_for_mean=params['num_images_for_mean'],
+                    randomise_frames=params['randomise_frames'],
+                    err_thresh=params['err_thresh'],
+                    max_iterations=params['max_iterations'],
+                    n_processes=params['n_processes'],
+                    save_fmt=params['save_fmt'],
+                    save_name=params['save_name'],
+                    verbose=params['verbose'],
+                    return_registered=params['return_registered'])
 
                 # sort results
                 if params['return_registered']:
@@ -218,7 +219,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
         not yet implemented. Default: False.
     save_name : string, optional
         the file name for saving the final registered array of images to disk
-        from within method. If None or 'none', the array will not be saved . 
+        from within method. If None or 'none', the array will not be saved.
         Default: None.
     save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
@@ -298,7 +299,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
 
 def _make_mean_img(frames, num_images_for_mean=100, randomise_frames=True,
                    err_thresh=0.01, max_iterations=5, upsample_factor=1,
-                   n_processes=1, max_displacement=None, verbose=False)
+                   n_processes=1, max_displacement=None, verbose=False):
     """
     Make an aligned mean image to use as reference to which all frames are
     later aligned.
@@ -457,7 +458,7 @@ def _register_all_frames(frames, mean_img, upsample_factor=1,
 
 def _register_frame(frame, mean_img, upsample_factor=1,
                     max_displacement=None,
-                    return_registered=False)
+                    return_registered=False):
     """
     Called by _make_mean_img and _register_all_frames
     """
