@@ -59,8 +59,8 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
         randomise the images selected to make the mean image? if false the
         first 'num_frames_for_mean' frames will be used. Default: True.
     err_thresh : float, optional
-        the error threshold level at which to stop iterating over the mean
-        image alignment. Default: 0.01.
+        the threshold of mean pixel offset at which to stop aligning the mean
+        image. Default: 0.01.
     max_iterations : int, optional
         the maximum number of iterations to compute the aligned mean image.
         Default: 5.
@@ -230,8 +230,8 @@ def _register(frames, upsample_factor=1, max_displacement=None,
         randomise the images selected to make the mean image? if false the
         first 'num_frames_for_mean' frames will be used. Default: True.
     err_thresh : float, optional
-        the error threshold level at which to stop iterating over the mean
-        image alignment. Default: 0.01.
+        the threshold of mean pixel offset at which to stop aligning the mean
+        image. Default: 0.01.
     max_iterations : int, optional
         the maximum number of iterations to compute the aligned mean image.
         Default: 5.
