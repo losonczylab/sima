@@ -37,6 +37,10 @@ import numpy as np
 from scipy.ndimage.interpolation import shift
 import time
 from . import motion
+try:
+    from pyfftw.interfaces.numpy_fft import fftn, ifftn
+except ImportError:
+    from np.fft import fftn, ifftn
 
 
 class DiscreteFourier2D(motion.MotionEstimationStrategy):
@@ -64,9 +68,6 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     max_iterations : int, optional
         the maximum number of iterations to compute the aligned mean image.
         Default: 5.
-    use_fftw : bool, optional
-        choose whether to use fftw methods (slightly faster) requires pyFFTW.
-        if false, will use numpy methods. Default: False.
     rotation_scaling : bool, optional
         not yet implemented. Default: False.
     save_name : string, optional
@@ -95,9 +96,8 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     def __init__(self, upsample_factor=1, max_displacement=None,
                  num_images_for_mean=100,
                  randomise_frames=True, err_thresh=0.01, max_iterations=5,
-                 use_fftw=False, rotation_scaling=False, save_fmt='mptiff',
-                 save_name=None, n_processes=1, verbose=False,
-                 return_registered=False):
+                 rotation_scaling=False, save_fmt='mptiff', save_name=None,
+                 n_processes=1, verbose=False, return_registered=False):
         self._params = dict(locals())
         del self._params['self']
 
@@ -115,28 +115,10 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
         """
         params = self._params
         verbose = params['verbose']
-        use_fftw = params['use_fftw']
         n_processes = params['n_processes']
 
         if verbose:
             print('Using ' + str(n_processes) + ' worker(s)')
-
-        # get fft methods
-        if use_fftw:
-            try:
-                import pyfftw
-                fftn = pyfftw.interfaces.numpy_fft.fftn
-                ifftn = pyfftw.interfaces.numpy_fft.ifftn
-                if verbose:
-                    print('Using FFTW')
-            except:
-                if verbose:
-                    print('pyFFTW not found! Using NumPy')
-                fftn = np.fft.fftn
-                ifftn = np.fft.ifftn
-        else:
-            fftn = np.fft.fftn
-            ifftn = np.fft.ifftn
 
         displacements = []
 
@@ -173,7 +155,6 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                 output = _register(frames,
                                    upsample_factor=params['upsample_factor'],
                                    max_displacement=params['max_displacement'],
-                                   use_fftw=params['use_fftw'],
                                    num_images_for_mean=params['num_images_for_mean'],
                                    randomise_frames=params['randomise_frames'],
                                    err_thresh=params['err_thresh'],
@@ -182,8 +163,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                                    save_fmt=params['save_fmt'],
                                    save_name=params['save_name'],
                                    verbose=params['verbose'],
-                                   return_registered=params['return_registered'],
-                                   fftn=fftn, ifftn=ifftn)
+                                   return_registered=params['return_registered'])
 
                 # sort results
                 if params['return_registered']:
@@ -206,11 +186,10 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
 
 def _register(frames, upsample_factor=1, max_displacement=None,
-              num_images_for_mean=100, randomise_frames=True,
-              err_thresh=0.01, max_iterations=5, use_fftw=False,
-              rotation_scaling=False, save_fmt='mptiff',
+              num_images_for_mean=100, randomise_frames=True, err_thresh=0.01,
+              max_iterations=5, rotation_scaling=False, save_fmt='mptiff',
               save_name=None, n_processes=1, verbose=False,
-              return_registered=False, fftn=None, ifftn=None):
+              return_registered=False):
     """
     Master function. Make aligned mean image. Register each frame in input
     array to aligned mean image.
@@ -235,9 +214,6 @@ def _register(frames, upsample_factor=1, max_displacement=None,
     max_iterations : int, optional
         the maximum number of iterations to compute the aligned mean image.
         Default: 5.
-    use_fftw : bool, optional
-        choose whether to use fftw methods (slightly faster) requires pyFFTW.
-        if false, will use numpy methods. Default: False.
     rotation_scaling : bool, optional
         not yet implemented. Default: False.
     save_name : string, optional
@@ -278,8 +254,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
                               upsample_factor=upsample_factor,
                               n_processes=n_processes,
                               max_displacement=max_displacement,
-                              verbose=verbose,
-                              fftn=fftn, ifftn=ifftn)
+                              verbose=verbose)
     e1 = time.time() - t0
     if verbose:
         print('        Time taken: ' + str(e1) + ' s')
@@ -290,8 +265,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
                                   n_processes=n_processes,
                                   max_displacement=max_displacement,
                                   verbose=verbose,
-                                  return_registered=return_registered,
-                                  fftn=fftn, ifftn=ifftn)
+                                  return_registered=return_registered)
 
     # sort results
     if return_registered:
@@ -324,8 +298,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
 
 def _make_mean_img(frames, num_images_for_mean=100, randomise_frames=True,
                    err_thresh=0.01, max_iterations=5, upsample_factor=1,
-                   n_processes=1, max_displacement=None, verbose=False,
-                   fftn=None, ifftn=None):
+                   n_processes=1, max_displacement=None, verbose=False)
     """
     Make an aligned mean image to use as reference to which all frames are
     later aligned.
@@ -389,8 +362,7 @@ def _make_mean_img(frames, num_images_for_mean=100, randomise_frames=True,
         map_function = partial(_register_frame, mean_img=mean_img,
                                upsample_factor=upsample_factor,
                                max_displacement=max_displacement,
-                               return_registered=True,
-                               fftn=fftn, ifftn=ifftn)
+                               return_registered=True)
 
         if n_processes > 1:
             # configure pool of workers (multiprocessing)
@@ -426,7 +398,7 @@ def _make_mean_img(frames, num_images_for_mean=100, randomise_frames=True,
 def _register_all_frames(frames, mean_img, upsample_factor=1,
                          n_processes=1, max_displacement=None,
                          return_registered=False,
-                         verbose=False, fftn=None, ifftn=None):
+                         verbose=False):
     """
     Register all input frames to the computed aligned mean image.
 
@@ -450,8 +422,7 @@ def _register_all_frames(frames, mean_img, upsample_factor=1,
     map_function = partial(_register_frame, mean_img=mean_img,
                            upsample_factor=upsample_factor,
                            max_displacement=max_displacement,
-                           return_registered=return_registered,
-                           fftn=fftn, ifftn=ifftn)
+                           return_registered=return_registered)
 
     if n_processes > 1:
         # configure pool of workers (multiprocessing)
@@ -486,15 +457,13 @@ def _register_all_frames(frames, mean_img, upsample_factor=1,
 
 def _register_frame(frame, mean_img, upsample_factor=1,
                     max_displacement=None,
-                    return_registered=False,
-                    fftn=np.fft.fftn, ifftn=np.fft.ifftn):
+                    return_registered=False)
     """
     Called by _make_mean_img and _register_all_frames
     """
     # compute the offsets
     dy, dx = _register_translation(mean_img, frame,
-                                   upsample_factor=upsample_factor,
-                                   fftn=fftn, ifftn=ifftn)
+                                   upsample_factor=upsample_factor)
 
     if max_displacement is not None:
         if dy > max_displacement[0]:
@@ -623,7 +592,7 @@ def _compute_error(cross_correlation_max, src_amp, target_amp):
 
 
 def _register_translation(src_image, target_image, upsample_factor=1,
-                          space="real", fftn=None, ifftn=None):
+                          space="real"):
     """
     *****************************************
     From skimage.feature.register_translation
