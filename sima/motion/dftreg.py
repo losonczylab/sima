@@ -77,7 +77,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
     save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
         'singles'. Default: 'mptiff'.
-    n_processes : int or 'auto', optional
+    n_processes : int, optional
         number of workers to use (multiprocessing). Default: 1.
     verbose : bool, optional
         enable verbose mode. Default: False.
@@ -224,7 +224,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
     save_fmt : string, optional
         the tiff format to save as. options include 'mptiff', 'bigtiff',
         'singles'. Default: 'mptiff'
-    n_processes : int or 'auto', optional
+    n_processes : int, optional
         number of workers to use (multiprocessing). Default: 1.
     verbose : bool, optional
         enable verbose mode. Default: False.
