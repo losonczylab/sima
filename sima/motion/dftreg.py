@@ -204,8 +204,7 @@ def _register(frames, upsample_factor=1, max_displacement=None,
         1/upsample_factor. if 1 only pixel level shifts are made - faster -
         and no interpolation. Default: 1.
     num_images_for_mean : int, optional
-        number of images to use to make the aligned mean image (optional,
-        default=100.
+        number of images to use to make the aligned mean image. Default: 100.
     randomise_frames : bool, optional
         randomise the images selected to make the mean image? if false the
         first 'num_frames_for_mean' frames will be used. Default: True.
