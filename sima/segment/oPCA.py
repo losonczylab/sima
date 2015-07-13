@@ -271,6 +271,8 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
         The temporal representations of the oPCs.
         Shape: (num_times, num_pcs).
     """
+    num_pcs = min(num_pcs, dataset.num_frames-1,
+                  np.prod(dataset.frame_shape[:3]))
     ret = None
     if path is not None:
         try:
