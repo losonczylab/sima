@@ -40,7 +40,7 @@ from . import motion
 try:
     from pyfftw.interfaces.numpy_fft import fftn, ifftn
 except ImportError:
-    from np.fft import fftn, ifftn
+    from numpy.fft import fftn, ifftn
 
 
 class DiscreteFourier2D(motion.MotionEstimationStrategy):
