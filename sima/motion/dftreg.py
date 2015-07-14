@@ -40,7 +40,7 @@ from . import motion
 try:
     from pyfftw.interfaces.numpy_fft import fftn, ifftn
 except ImportError:
-    from np.fft import fftn, ifftn
+    from numpy.fft import fftn, ifftn
 
 
 class DiscreteFourier2D(motion.MotionEstimationStrategy):
@@ -180,8 +180,8 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
             total_time = time.time() - t0
             if verbose:
-                print('    Total time for plane ' + str(plane_idx+1) + ': '
-                      + str(total_time) + ' s')
+                print('    Total time for plane ' + str(plane_idx+1) + ': ' +
+                      str(total_time) + ' s')
 
         return displacements
 
@@ -745,8 +745,8 @@ def _save_registered_frames(frames, save_name, save_fmt, verbose=False):
     if save_fmt == 'singles':
         for idx in range(frames.shape[0]):
             tifffile.imsave(
-                save_name + '_' + '{number:05d}'.format(number=idx)
-                + '_DFTreg.tif', frames[idx].astype(np.uint16))
+                save_name + '_' + '{number:05d}'.format(number=idx) +
+                '_DFTreg.tif', frames[idx].astype(np.uint16))
     if save_fmt == 'mptiff':
         tifffile.imsave(save_name + '_DFTreg.tif',
                         frames.astype(np.uint16))
