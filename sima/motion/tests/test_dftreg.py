@@ -32,8 +32,10 @@ def test_dftreg_register():
 
     # reshape estimated shifts, removing first frame results (will be 0,0)
     # so that size test does not fail
-    estimated_shifts = np.array(zip(estimated_shifts[0][1:],
-                                    estimated_shifts[1][1:]))
+    estimated_shifts = np.array(
+        list(zip(
+            estimated_shifts[0][1:],
+            estimated_shifts[1][1:])))
 
     # test
     assert_array_equal(shifts, estimated_shifts)
