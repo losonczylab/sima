@@ -164,13 +164,24 @@ class ROI(object):
                 type='mask' if self._mask is not None else 'poly',
                 im_shape=self.im_shape)
 
-    def todict(self):
+    def todict(self, type=None):
         """Returns the data in the ROI as a dictionary.
 
         ROI(**roi.todict()) will return a new ROI equivalent to the
         original roi
 
+        Parameters
+        ----------
+        type : {'mask','polygons'}, optional
+            If specified, convert the type of each ROI in the list prior to
+            saving
         """
+
+        if type == 'mask':
+            self.mask = self.mask
+        elif type == 'polygons':
+            self.polygons = self.polygons
+
         polygons = None if self._polys is None else self.coords
         return {'mask': self._mask, 'polygons': polygons, 'id': self._id,
                 'label': self._label, 'tags': self._tags,
@@ -449,7 +460,7 @@ class ROIList(list):
         return super(ROIList, self).__repr__().replace(
             '\n', '\n    ')
 
-    def save(self, path, label=None):
+    def save(self, path, label=None, save_type=None):
         """Save an ROI set to a file. The file can contain multiple
         ROIList objects with different associated labels. If the file
         already exists, the ROIList will be added without deleting the
@@ -462,12 +473,16 @@ class ROIList(list):
         label : str, optional
             The label associated with the ROIList. Defaults to using
             the timestamp as a label.
+        save_type : {'mask','polygons'}, optional
+            If specified, convert the type of each ROI in the list prior to
+            saving
+
         """
 
         time_fmt = '%Y-%m-%d-%Hh%Mm%Ss'
         timestamp = datetime.strftime(datetime.now(), time_fmt)
 
-        rois = [roi.todict() for roi in self]
+        rois = [roi.todict(type=save_type) for roi in self]
         try:
             with open(path, 'rb') as f:
                 data = pickle.load(f)

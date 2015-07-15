@@ -461,7 +461,7 @@ class HiddenMarkov2D(_HiddenMarkov):
         The granularity of the calculated displacements. A separate
         displacement can be calculated for each frame (granularity=0
         or granularity='frame'), each plane (1 or 'plane'), each
-        row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
+        row (2 or 'row'), or pixel (3 or 'column'). As well, a separate
         displacement can be calculated for every n consecutive elements
         (e.g.\ granularity=('row', 8) for every 8 rows).
         Defaults to one displacement per row.
@@ -584,7 +584,7 @@ class MovementModel(object):
     def decay_matrix(self, dt=1.):
         """
 
-        Paramters
+        Parameters
         ---------
         dt : float
 
@@ -601,7 +601,7 @@ class MovementModel(object):
     def cov_matrix(self, dt=1.):
         """
 
-        Paramters
+        Parameters
         ---------
         dt : float
 
@@ -665,7 +665,7 @@ class MovementModel(object):
 
     def initial_probs(self, displacement_tbl, min_displacements,
                       max_displacements):
-        """Give the initial probabilites for a displacement table"""
+        """Give the initial probabilities for a displacement table"""
         initial_dist = self._initial_distribution()
         states = []
         log_p = []
@@ -690,7 +690,7 @@ class PositionIterator(object):
     shape : tuple of int
         (times, planes, rows, columns)
     granularity
-    ffset : tuple of int
+    offset : tuple of int
         (z, y, x) or (y, x)
 
     Examples
@@ -800,7 +800,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
             log_p, tmp_states, obs, log_obs_p, log_obs_fac,
             references, log_references, pos, state_table)
         if np.any(np.isfinite(log_p)):
-            log_p[np.isnan(log_p)] = -np.Inf  # Remove nans to sort.
+            log_p[np.isnan(log_p)] = -np.Inf  # Remove NaNs to sort.
             ix = np.argsort(-log_p)[0:num_retained]  # Keep likely states.
             states.append(tmp_states[ix])
             log_p_old = log_p[ix] - log_p[ix[0]]
@@ -838,10 +838,11 @@ class HiddenMarkov3D(_HiddenMarkov):
         The granularity of the calculated displacements. A separate
         displacement can be calculated for each frame (granularity=0
         or granularity='frame'), each plane (1 or 'plane'), each
-        row (2 or 'row'), or pixel (3 or 'column'). As well, a seperate
+        row (2 or 'row'), or pixel (3 or 'column'). As well, a separate
         displacement can be calculated for every n consecutive elements
         (e.g.\ granularity=('row', 8) for every 8 rows).
-        Defaults to one displacement per row.    num_states_retained : int, optional
+        Defaults to one displacement per row.
+    num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
         Defaults to 50.
     max_displacement : array of int, optional

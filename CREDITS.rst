@@ -8,8 +8,9 @@ Development
 * Jeffrey Zaremba: initial development
 * Nathan Danielson: initial development
 * Jack Bowler: test suite, stICA segmentation
+* Tim Machado: spike inference
+* Christoph Schmidt-Hieber: parallelized post-processing, DFT motion correction
 * Lloyd Russell: DFT motion correction
-* Christoph Schmidt-Hieber: DFT motion correction, parallelized segmentation post-processing
 
 
 Testing / Bug Fixes
@@ -20,12 +21,12 @@ Testing / Bug Fixes
 * Matthew Lovett-Barron
 * Matthew J. Davis
 * Thomas Hainmüller
-* Tim Machado
 * Ran Rubin
 * Gokhan Ordek
 * Nathan Kern
 * Masatoshi Kasai
 * Yoshiyuki Yamada
+* Maximilian Hoffmann
 * Erik Flister
 
 

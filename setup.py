@@ -2,7 +2,7 @@
 import sys
 import os
 
-import numpy
+from distutils.dist import Distribution
 
 if 'setuptools' in sys.modules or any(
         s.startswith('bdist') for s in sys.argv) or any(
@@ -22,22 +22,51 @@ except ImportError:
 if not os.path.isfile('sima/motion/_motion.pyx'):
     USE_CYTHON = False
 
+# Avoid installing setup_requires dependencies if the user just
+# queries for information
+if (any('--' + opt in sys.argv for opt in
+        Distribution.display_option_names + ['help']) or
+        'clean' in sys.argv):
+    setup_requires = []
+else:
+    setup_requires = ['numpy']
+
+
+# --- Encapsulate NumPy imports in a specialized Extension type ---------------
+
+# https://mail.python.org/pipermail/distutils-sig/2007-September/008253.html
+class NumpyExtension(Extension, object):
+    """Extension type that adds the NumPy include directory to include_dirs."""
+
+    def __init__(self, *args, **kwargs):
+        super(NumpyExtension, self).__init__(*args, **kwargs)
+
+    @property
+    def include_dirs(self):
+        from numpy import get_include
+        return self._include_dirs + [get_include()]
+
+    @include_dirs.setter
+    def include_dirs(self, include_dirs):
+        self._include_dirs = include_dirs
+
 
 extensions = [
-    Extension(
+    NumpyExtension(
         'sima.motion._motion',
         sources=['sima/motion/_motion.%s' % ('pyx' if USE_CYTHON else 'c')],
-        include_dirs=[numpy.get_include()],
+        include_dirs=[],
     ),
-    Extension(
+    NumpyExtension(
         'sima.segment._opca',
         sources=['sima/segment/_opca.%s' % ('pyx' if USE_CYTHON else 'c')],
-        include_dirs=[numpy.get_include()],
+        include_dirs=[],
     )
 ]
 
 if USE_CYTHON:
     extensions = cythonize(extensions)
+
 
 CLASSIFIERS = """\
 Development Status :: 4 - Beta
@@ -53,7 +82,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.1.1",
+    version="1.2.1",
     packages=['sima',
               'sima.misc',
               'sima.motion',
@@ -72,7 +101,7 @@ setup(
         'shapely>=1.2.14',
         'scikit-learn>=0.11',
         'pillow>=2.6.1',
-        'future',
+        'future>=0.14',
     ],
     package_data={
         'sima': [
@@ -94,6 +123,7 @@ setup(
     keywords="imaging microscopy neuroscience segmentation",
     classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
     ext_modules=extensions,
+    setup_requires=setup_requires,
     # setup_requires=['setuptools_cython'],
     url="http://www.losonczylab.org/sima/",
     platforms=["Linux", "Mac OS-X", "Windows"],
