@@ -8,6 +8,8 @@ Development
 * Jeffrey Zaremba: initial development
 * Nathan Danielson: initial development
 * Jack Bowler: test suite, stICA segmentation
+* Lloyd Russell: DFT motion correction
+* Christoph Schmidt-Hieber: DFT motion correction, parallelized segmentation post-processing
 
 
 Testing / Bug Fixes
@@ -24,7 +26,7 @@ Testing / Bug Fixes
 * Nathan Kern
 * Masatoshi Kasai
 * Yoshiyuki Yamada
-* Christoph Schmidt-Hieber
+* Erik Flister
 
 
 External code
