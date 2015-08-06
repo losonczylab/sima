@@ -168,6 +168,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     try:
         prob.solve(solver='mosek', verbose=False)
     except ImportError:
+        warn('MOSEK is not installed. Spike inference may be VERY slow!')
         prob.solver_selection()
         prob.solve(verbose=False)
 

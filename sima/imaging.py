@@ -809,6 +809,11 @@ class ImagingDataset(object):
         parameters : dict of (str, ndarray of float)
             Dictionary with values for 'sigma', 'gamma', and 'baseline'.
 
+        Notes
+        -----
+        We strongly recommend installing MOSEK (www.mosek.com; free for
+        academic use) which greatly speeds up the inference.
+
         References
         ----------
         * Pnevmatikakis et al. 2015. Submitted (arXiv:1409.2903).
