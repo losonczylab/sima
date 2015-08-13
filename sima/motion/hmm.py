@@ -463,7 +463,7 @@ class HiddenMarkov2D(_HiddenMarkov):
         or granularity='frame'), each plane (1 or 'plane'), each
         row (2 or 'row'), or pixel (3 or 'column'). As well, a separate
         displacement can be calculated for every n consecutive elements
-        (e.g.\ granularity=('row', 8) for every 8 rows).
+        (e.g. granularity=('row', 8) for every 8 rows).
         Defaults to one displacement per row.
     num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
@@ -478,8 +478,8 @@ class HiddenMarkov2D(_HiddenMarkov):
         How often to reinitialize the hidden Markov model. This can be useful
         if there are long breaks between frames or planes. Parameter values of
         0 or 1 reinitialize the hidden states every frame or plane,
-        respectively.  default, the hidden distribution of positions is never
-        reinitialized during the sequence.
+        respectively.  By default, the hidden distribution of positions is
+        never reinitialized during the sequence.
     verbose : bool, optional
         Whether to print information about progress.
 

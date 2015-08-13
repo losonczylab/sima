@@ -267,13 +267,11 @@ class Sequence(with_metaclass(ABCMeta, object)):
             and channel, respectively.
             For example, 'tzyxc' indicates that the HDF5 data
             dimensions represent time (t), plane (z), row (y),
-            column(x), and channel (c), respectively.
-            The string 'tyx' indicates data that data for a single
+            column (x), and channel (c), respectively.
+            The string 'tyx' indicates that data for a single
             imaging plane and single channel has been stored in a
             HDF5 dataset with three dimensions representing time (t),
-            column (y), and row (x) respectively.
-            Note that SIMA 0.1.x does not support multiple z-planes,
-            although these will be supported in future versions.
+            column (y), and row (x), respectively.
         group : str, optional
             The HDF5 group containing the imaging data.
             Defaults to using the root group '/'
@@ -354,6 +352,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
         array : numpy.ndarray
             A numpy array of shape (num_frames, num_planes, num_rows,
             num_columns, num_channels)
+        path : str, optional
+            Instead of directly passing in an array, a path to a saved numpy
+            .npy file may be used to initialize the sequence.
 
         """
         if fmt == 'HDF5':
