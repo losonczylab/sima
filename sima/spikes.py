@@ -176,7 +176,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     """
     try:
         import cvxopt.umfpack as umfpack
-        from cvxopt import matrix, spdiag, spmatrix
+        from cvxopt import matrix, spdiag, spmatrix, solvers
         import picos
     except ImportError:
         raise ImportError('Spike inference requires picos package.')
@@ -273,12 +273,53 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
                          "; Time: " + str(time.time() - start_time) +
                          "; Baseline = " + str(baseline.value) + "\n")
 
-    # Return calcium model fit and spike inference
-    fit = np.squeeze(np.asarray(calcium_fit.value)[np.arange(0, fluor.size)] +
-                     baseline.value)
-    inference = np.squeeze(np.asarray(gen * matrix(fit)))
-    parameters = {'gamma': gamma, 'sigma': sigma,
-                  'baseline': baseline.value[0]}
+    # if problem in infeasible due to low noise value then project onto the
+    # cone of linear constraints with cvxopt
+    if mode == "psd" and prob.status in [
+            'prim_infeas_cer', 'dual_infeas_cer', 'primal infeasible']:
+        warn("Original problem infeasible. "
+             "Adjusting noise level and re-solving")
+        # setup quadratic problem with cvxopt
+        solvers.options['show_progress'] = verbose
+        ind_rows = range(T)
+        ind_cols = range(T)
+        vals = np.ones(T)
+
+        cnt = 2  # no of constraints (init_calcium and baseline)
+        ind_rows += range(T)
+        ind_cols += [T]*T
+        vals = np.concatenate((vals, np.ones(T)))
+
+        ind_rows += range(T)
+        ind_cols += [T+cnt-1]*T
+        vals = np.concatenate((vals, np.squeeze(gd_vec)))
+
+        P = spmatrix(vals, ind_rows, ind_cols, (T, T+cnt))
+        H = P.T*P
+        Py = P.T*matrix(fluor.astype(float))
+        sol = solvers.qp(
+            H, -Py, spdiag([-gen, -spmatrix(1., range(cnt), range(cnt))]),
+            matrix(0., (T+cnt, 1)))
+        xx = sol['x']
+        fit = np.array(xx[:T])
+        inference = np.array(gen*matrix(fit))
+        fit = np.squeeze(fit)
+
+        baseline = np.array(xx[T+1]) + b_lb
+        init_calcium = np.array(xx[-1])
+        sigma = np.linalg.norm(
+            fluor-fit-init_calcium*gd_vec-baseline)/np.sqrt(T)
+        parameters = {'gamma': gamma, 'sigma': sigma,
+                      'baseline': baseline}
+    else:
+        # Return calcium model fit and spike inference
+        fit = np.squeeze(
+            np.asarray(calcium_fit.value)[np.arange(0, fluor.size)] +
+            baseline.value)
+        inference = np.squeeze(np.asarray(gen * matrix(fit)))
+        parameters = {'gamma': gamma, 'sigma': sigma,
+                      'baseline': baseline.value[0]}
+
     return inference, fit, parameters
 
 
