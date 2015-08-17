@@ -118,7 +118,6 @@ def default_psd_opts():
 
     """
     return {  # Default option values
-        'p': 2,  # AR order
         'method': 'cvx',  # solution method (no other currently supported)
         'bas_nonneg': True,  # bseline strictly non-negative
         'noise_range': (.25, .5),  # frequency range for averaging noise PSD
@@ -131,7 +130,7 @@ def default_psd_opts():
 
 
 def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
-                    psd_opts=None, verbose=False):
+                    ar_order=2, psd_opts=None, verbose=False):
     """
     Infer the most likely discretized spike train underlying a fluorescence
     trace.
@@ -151,6 +150,9 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         The method for estimating sigma. The 'robust' method overestimates
         the noise by assuming that gamma = 1. The 'psd' method estimates
         sigma from the PSD of the fluorescence data. Default: 'correct'.
+    ar_order : int, optional
+        Autoregressive model order. Only implemented for 'psd' method.
+        Default: 2
     psd_opts : dictionary
         Dictionary of options for the psd method; if None, default options
         will be used. Default: None
@@ -201,7 +203,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         # construct deconvolution matrix  (sp = gen*c)
         gen = spmatrix(1., range(T), range(T), (T, T))
 
-        for i in range(opts['p']):
+        for i in range(ar_order):
             gen = gen + spmatrix(
                 float(-gamma[i]), range(i+1, T), range(T-i-1), (T, T))
 
@@ -411,7 +413,7 @@ def estimate_gamma(fluor, sigma, p=2, lags=5, fudge_factor=1):
 
 
 def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
-                        psd_opts=None):
+                        ar_order=2, psd_opts=None):
     """
     Use the autocovariance to estimate the scale of noise and indicator tau
 
@@ -431,6 +433,9 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
         The method for estimating sigma. The 'robust' method overestimates
         the noise by assuming that gamma = 1. The 'psd' method estimates
         sigma from the PSD of the fluorescence data. Default: 'correct'.
+    ar_order : int, optional
+        Autoregressive model order. Only implemented for 'psd' method.
+        Default: 2
     psd_opts : dictionary
         Dictionary of options for the psd method; if None, default options
         will be used. Default: None
@@ -456,7 +461,7 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
         sigma = estimate_sigma(
             mega_trace, opts['noise_range'], opts['noise_method'])
         gamma = estimate_gamma(
-            mega_trace, sigma, opts['p'], opts['lags'], opts['fudge_factor'])
+            mega_trace, sigma, ar_order, opts['lags'], opts['fudge_factor'])
 
     else:
 
