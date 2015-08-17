@@ -193,7 +193,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
 
     if sigma is None or gamma is None:
         gamma, sigma = estimate_parameters(
-            [fluor], gamma, sigma, mode, psd_opts)
+            [fluor], gamma, sigma, mode, ar_order, psd_opts)
 
     # Initialize variables in our problem
     prob = picos.Problem()
