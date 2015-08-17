@@ -285,7 +285,12 @@ def estimate_sigma(fluor, range_ff=(0.25, 0.5), method='logmexp'):
     sigma       : noise standard deviation
     """
 
-    ff, Pxx = welch(fluor)
+    if len(fluor) < 256:
+        nperseg = len(fluor)
+    else:
+        nperseg = 256
+
+    ff, Pxx = welch(fluor, nperseg=nperseg)
     ind1 = ff > range_ff[0]
     ind2 = ff < range_ff[1]
     ind = np.logical_and(ind1, ind2)
