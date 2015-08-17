@@ -183,7 +183,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
 
         for i in range(opts['p']):
             gen = gen + spmatrix(
-                -gamma[i], np.arange(i+1, T), np.arange(T-i-1), (T, T))
+                float(-gamma[i]), range(i+1, T), range(T-i-1), (T, T))
 
         gr = np.roots(np.concatenate([np.array([1]), -gamma.flatten()]))
         # decay vector for initial fluorescence
