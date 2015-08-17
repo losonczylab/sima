@@ -88,8 +88,15 @@ class Test_Spike_Inference(object):
 
     @dec.skipif(not _has_picos)
     def test_spike_inference(self):
-        inference, fits, params = sima.spikes.spike_inference(self.fluors)
-        assert_(np.linalg.norm(inference - self.spikes) < 0.6)
+        inference, fits, params = sima.spikes.spike_inference(
+            self.fluors, mode='correct')
+        assert_(np.linalg.norm(inference - self.spikes) < 1.0)
+
+    @dec.skipif(not _has_picos)
+    def test_spike_inference_epnev(self):
+        inference, fits, params = sima.spikes.spike_inference(
+            self.fluors, mode='epnev')
+        assert_(np.linalg.norm(inference - self.spikes) < 1.0)
 
     @dec.skipif(not _has_picos)
     def test_spike_inference_correct_parameters(self):
