@@ -791,9 +791,10 @@ class ImagingDataset(object):
         share_gamma : bool, optional
             Whether to apply the same gamma estimate to all ROIs. Defaults to
             True.
-        mode : {'correct', 'robust'}, optional
+        mode : {'correct', 'robust', 'epnev'}, optional
             The method for estimating sigma. The 'robust' method overestimates
-            the noise by assuming that gamma = 1. Default: 'correct'.
+            the noise by assuming that gamma = 1. The 'epnev' method estimates
+            sigma from the PSD of the fluorescence data. Default: 'correct'.
         verbose : bool, optional
             Whether to print status updates. Default: False.
 

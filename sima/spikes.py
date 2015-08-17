@@ -129,8 +129,9 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
         process.  If no value is given, then gamma is estimated from the data.
     mode : {'correct', 'robust', 'epnev'}, optional
-        The method for estimating sigma. The 'robust' method overestimates the
-        noise by assuming that gamma = 1. Default: 'correct'.
+        The method for estimating sigma. The 'robust' method overestimates
+        the noise by assuming that gamma = 1. The 'epnev' method estimates
+        sigma from the PSD of the fluorescence data. Default: 'correct'.
     epnev_opts : dictionary
         Dictionary of options for the epnev method; if None, default options
         will be used. Default: None
@@ -362,8 +363,9 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
         Standard deviation of the noise distribution.  If no value is given,
         then sigma is estimated from the data.
     mode : {'correct', 'robust', 'epnev'}, optional
-        The method for estimating sigma. The 'robust' method overestimates the
-        noise by assuming that gamma = 1. Default: 'correct'.
+        The method for estimating sigma. The 'robust' method overestimates
+        the noise by assuming that gamma = 1. The 'epnev' method estimates
+        sigma from the PSD of the fluorescence data. Default: 'correct'.
     epnev_opts : dictionary
         Dictionary of options for the epnev method; if None, default options
         will be used. Default: None
