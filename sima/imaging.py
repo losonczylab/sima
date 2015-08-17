@@ -791,9 +791,9 @@ class ImagingDataset(object):
         share_gamma : bool, optional
             Whether to apply the same gamma estimate to all ROIs. Defaults to
             True.
-        mode : {'correct', 'robust', 'epnev'}, optional
+        mode : {'correct', 'robust', 'psd'}, optional
             The method for estimating sigma. The 'robust' method overestimates
-            the noise by assuming that gamma = 1. The 'epnev' method estimates
+            the noise by assuming that gamma = 1. The 'psd' method estimates
             sigma from the PSD of the fluorescence data. Default: 'correct'.
         verbose : bool, optional
             Whether to print status updates. Default: False.
@@ -830,7 +830,7 @@ class ImagingDataset(object):
         signals = all_signals[label]
 
         # estimate gamma for all cells
-        if mode == "epnev":
+        if mode == "psd":
             if share_gamma:
                 mega_trace = np.concatenate(
                     [sigs for sigs in signals['raw'][0]])

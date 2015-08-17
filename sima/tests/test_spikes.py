@@ -93,9 +93,9 @@ class Test_Spike_Inference(object):
         assert_(np.linalg.norm(inference - self.spikes) < 1.0)
 
     @dec.skipif(not _has_picos)
-    def test_spike_inference_epnev(self):
+    def test_spike_inference_psd(self):
         inference, fits, params = sima.spikes.spike_inference(
-            self.fluors, mode='epnev')
+            self.fluors, mode='psd')
         assert_(np.linalg.norm(inference - self.spikes) < 1.0)
 
     @dec.skipif(not _has_picos)

@@ -106,15 +106,15 @@ def axcov(data, maxlag=1):
     return np.real(xcov)
 
 
-def default_epnev_opts():
+def default_psd_opts():
     """
-    Return default options for epnev's method
+    Return default options for psd method
 
 
     Returns
     -------
     dict : dictionary
-        Default options for epnev's method
+        Default options for psd method
 
     """
     return {  # Default option values
@@ -131,7 +131,7 @@ def default_epnev_opts():
 
 
 def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
-                    epnev_opts=None, verbose=False):
+                    psd_opts=None, verbose=False):
     """
     Infer the most likely discretized spike train underlying a fluorescence
     trace.
@@ -147,12 +147,12 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     gamma : float, optional
         Gamma is 1 - timestep/tau, where tau is the time constant of the AR(1)
         process.  If no value is given, then gamma is estimated from the data.
-    mode : {'correct', 'robust', 'epnev'}, optional
+    mode : {'correct', 'robust', 'psd'}, optional
         The method for estimating sigma. The 'robust' method overestimates
-        the noise by assuming that gamma = 1. The 'epnev' method estimates
+        the noise by assuming that gamma = 1. The 'psd' method estimates
         sigma from the PSD of the fluorescence data. Default: 'correct'.
-    epnev_opts : dictionary
-        Dictionary of options for the epnev method; if None, default options
+    psd_opts : dictionary
+        Dictionary of options for the psd method; if None, default options
         will be used. Default: None
     verbose : bool, optional
         Whether to print status updates. Default: False.
@@ -184,19 +184,19 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
     if verbose:
         sys.stdout.write('Spike inference...')
 
-    if epnev_opts is None:
-        opts = default_epnev_opts()
+    if psd_opts is None:
+        opts = default_psd_opts()
     else:
-        opts = epnev_opts
+        opts = psd_opts
 
     if sigma is None or gamma is None:
         gamma, sigma = estimate_parameters(
-            [fluor], gamma, sigma, mode, epnev_opts)
+            [fluor], gamma, sigma, mode, psd_opts)
 
     # Initialize variables in our problem
     prob = picos.Problem()
 
-    if mode == "epnev":
+    if mode == "psd":
         T = len(fluor)
         # construct deconvolution matrix  (sp = gen*c)
         gen = spmatrix(1., range(T), range(T), (T, T))
@@ -370,7 +370,7 @@ def estimate_gamma(fluor, sigma, p=2, lags=5, fudge_factor=1):
 
 
 def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
-                        epnev_opts=None):
+                        psd_opts=None):
     """
     Use the autocovariance to estimate the scale of noise and indicator tau
 
@@ -386,12 +386,12 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
     sigma : float, optional
         Standard deviation of the noise distribution.  If no value is given,
         then sigma is estimated from the data.
-    mode : {'correct', 'robust', 'epnev'}, optional
+    mode : {'correct', 'robust', 'psd'}, optional
         The method for estimating sigma. The 'robust' method overestimates
-        the noise by assuming that gamma = 1. The 'epnev' method estimates
+        the noise by assuming that gamma = 1. The 'psd' method estimates
         sigma from the PSD of the fluorescence data. Default: 'correct'.
-    epnev_opts : dictionary
-        Dictionary of options for the epnev method; if None, default options
+    psd_opts : dictionary
+        Dictionary of options for the psd method; if None, default options
         will be used. Default: None
 
     Returns
@@ -404,11 +404,11 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
 
     """
 
-    if mode == "epnev":
-        if epnev_opts is None:
-            opts = default_epnev_opts()
+    if mode == "psd":
+        if psd_opts is None:
+            opts = default_psd_opts()
         else:
-            opts = epnev_opts
+            opts = psd_opts
 
         mega_trace = np.concatenate([trace for trace in fluor])
 
