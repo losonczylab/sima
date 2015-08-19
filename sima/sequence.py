@@ -124,7 +124,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
         The yielded structures are numpy arrays of the shape (num_planes,
         num_rows, num_columns, num_channels).
+
         """
+
         for t in range(len(self)):
             yield self._get_frame(t)
 
@@ -141,7 +143,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
         -------
         frame : np.ndarray
             The desired frame of image data.
+
         """
+
         raise NotImplementedError
 
     @abstractmethod
@@ -206,6 +210,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         >>> masked_seq = seq.mask([(None, mask, 0)])
 
         """
+
         return _MaskedSequence(self, masks)
 
     @staticmethod
@@ -236,6 +241,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         True
 
         """
+
         return _Joined_Sequence(sequences)
 
     @classmethod
@@ -357,6 +363,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             .npy file may be used to initialize the sequence.
 
         """
+
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
         elif fmt == 'TIFF':
@@ -379,6 +386,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         True
 
         """
+
         return np.concatenate([np.expand_dims(frame, 0) for frame in self])
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
@@ -401,7 +409,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
             adjacent frames. Default: False.
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
+
         """
+
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
         if (fmt in ['TIFF16', 'TIFF8']) and not np.array(filenames).ndim == 2:
@@ -548,6 +558,7 @@ class _Sequence_TIFFs(Sequence):
     paths : list of list of str
         The string paths[i][j] is a Unix style expression for the the
         filenames for plane i and channel j. See glob for details.
+
     """
 
     def __init__(self, paths):
@@ -643,6 +654,7 @@ class _Sequence_HDF5(Sequence):
     Iterable for an HDF5 file containing imaging data.
 
     See sima.Sequence.create() for details.
+
     """
 
     def __init__(self, path, dim_order, group=None, key=None):
@@ -803,7 +815,9 @@ class _MotionCorrectedSequence(_WrapperSequence):
         The _D displacement of each row in the image cycle.
         Shape: (num_frames, num_planes, num_rows, 2).
 
-    This object has the same attributes and methods as the class it wraps."""
+    This object has the same attributes and methods as the class it wraps.
+
+    """
 
     def __init__(self, base, displacements, extent=None):
         super(_MotionCorrectedSequence, self).__init__(base)
@@ -891,7 +905,6 @@ class _MotionCorrectedSequence(_WrapperSequence):
 
 
 class _MaskedSequence(_WrapperSequence):
-
     """Sequence for masking invalid data with NaN's.
 
     Parameters
@@ -1080,7 +1093,9 @@ def _fill_gaps(frame_iter1, frame_iter2):
     ------
     list of array
         The corrected and filled frames.
+
     """
+
     first_obs = next(frame_iter1)
     for frame in frame_iter1:
         for frame_chan, fobs_chan in zip(frame, first_obs):

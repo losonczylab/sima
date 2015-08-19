@@ -45,6 +45,7 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
+
     """
 
     def __init__(self, max_displacement=None, method='correlation',
@@ -63,6 +64,7 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         shifts : array
             (2, num_frames*num_cycles)-array of integers giving the
             estimated displacement of each frame
+
         """
         params = self._params
         return _frame_alignment_base(
@@ -90,6 +92,7 @@ def _frame_alignment_base(
     n_processes : int, optional
         Number of pool processes to spawn to parallelize frame alignment.
         Defaults to 1.
+
     """
 
     if n_processes < 1:
@@ -334,6 +337,7 @@ class VolumeTranslation(motion.MotionEstimationStrategy):
         a frame's correlation can have following displacement for the
         displacement to be considered valid. Invalid displacements will be
         masked.
+
     """
 
     def __init__(self, max_displacement=None, criterion=None):
@@ -408,7 +412,9 @@ def shifted_corr(reference, image, displacement):
     Returns
     -------
     correlation : float
+
     """
+
     ref_cuts = np.maximum(0, displacement)
     ref = reference[ref_cuts[0]:, ref_cuts[1]:, ref_cuts[2]:]
     im_cuts = np.maximum(0, -displacement)
@@ -437,7 +443,9 @@ def pyr_down_3d(image, axes=None):
     axes : tuple of int
         The axes along which the downsampling is to occur.  Defaults to
         downsampling on all axes.
+
     """
+
     stdevs = [1.05 if i in axes else 0 for i in range(image.ndim)]
     filtered_image = scipy.ndimage.filters.gaussian_filter(image, stdevs)
     slices = tuple(slice(None, None, 2) if i in axes else slice(None)
@@ -465,7 +473,9 @@ def pyramid_align(reference, target, min_shape=32, max_levels=None,
     min_shape : int or tuple of int
     bounds : ndarray of int
         Shape: (2, D).
+
     """
+
     if max_levels is None:
         max_levels = np.inf
     assert bounds is None or np.all(bounds[0] < bounds[1])
