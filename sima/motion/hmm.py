@@ -223,7 +223,7 @@ def _threshold_gradient(im):
     array
         Binary values indicating whether the magnitude of the gradient is below
         the 10th percentile.  Same size as im.
- 
+
     """
 
     if im.shape[0] > 1:
