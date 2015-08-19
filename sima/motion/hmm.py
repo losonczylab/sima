@@ -62,7 +62,9 @@ def _pixel_distribution(dataset, tolerance=0.001, min_frames=1000):
         Mean intensities of each channel.
     var_est :
         Variances of the intensity of each channel.
+
     """
+
     # TODO: separate distributions for each plane
     sums = np.zeros(dataset.frame_shape[-1]).astype(float)
     sum_squares = np.zeros_like(sums)
@@ -105,7 +107,9 @@ def _whole_frame_shifting(dataset, shifts):
     offset : array
         The displacement to add to each shift to align the minimal shift
         with the edge of the corrected image.
+
     """
+
     min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
                             for s in shifts], 0)
     assert np.all(min_shifts == 0)
@@ -171,7 +175,9 @@ def _discrete_transition_prob(r, log_transition_probs, n):
     -------
     float
         The discrete transition probability between the two states.
+
     """
+
     def _log_add(a, b):
         """Add two log probabilities to get a new log probability.
 
@@ -217,7 +223,9 @@ def _threshold_gradient(im):
     array
         Binary values indicating whether the magnitude of the gradient is below
         the 10th percentile.  Same size as im.
+
     """
+
     if im.shape[0] > 1:
         # Calculate directional relative derivatives
         _, g_x, g_y = np.gradient(np.log(im))
@@ -272,7 +280,9 @@ def _lookup_tables(position_bounds, log_markov_matrix):
     log_markov_matrix_tbl : array
         Lookup table used to find the transition probability of the transitions
         from transition_tbl.
+
     """
+
     position_tbl = np.array(
         list(it.product(*[list(range(m, M))
              for m, M in zip(*position_bounds)])),
@@ -314,7 +324,9 @@ def _backtrace(start_idx, backpointer, states, position_tbl):
     trajectory : array
         The maximum aposteriori trajectory of displacements.
         Shape: (2, len(states))
+
     """
+
     T = len(states)
     dim = len(position_tbl[0])
     i = start_idx
@@ -350,9 +362,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
             self, dataset, references, gains, movement_model,
             min_displacements, max_displacements, pixel_means, pixel_variances,
             max_step=1):
-        """Estimate the MAP trajectory with the Viterbi Algorithm.
-
-        """
+        """Estimate the MAP trajectory with the Viterbi Algorithm."""
         assert references.ndim == 4
         granularity = self._params['granularity']
         scaled_refs = references / gains
@@ -407,7 +417,9 @@ class _HiddenMarkov(MotionEstimationStrategy):
         dict
             The estimated displacements and partial results of motion
             correction.
+
         """
+
         params = self._params
         if params['verbose']:
             print('Estimating model parameters.')
@@ -463,7 +475,7 @@ class HiddenMarkov2D(_HiddenMarkov):
         or granularity='frame'), each plane (1 or 'plane'), each
         row (2 or 'row'), or pixel (3 or 'column'). As well, a separate
         displacement can be calculated for every n consecutive elements
-        (e.g.\ granularity=('row', 8) for every 8 rows).
+        (e.g. granularity=('row', 8) for every 8 rows).
         Defaults to one displacement per row.
     num_states_retained : int, optional
         Number of states to retain at each time step of the HMM.
@@ -478,8 +490,8 @@ class HiddenMarkov2D(_HiddenMarkov):
         How often to reinitialize the hidden Markov model. This can be useful
         if there are long breaks between frames or planes. Parameter values of
         0 or 1 reinitialize the hidden states every frame or plane,
-        respectively.  default, the hidden distribution of positions is never
-        reinitialized during the sequence.
+        respectively.  By default, the hidden distribution of positions is
+        never reinitialized during the sequence.
     verbose : bool, optional
         Whether to print information about progress.
 
@@ -592,7 +604,9 @@ class MovementModel(object):
         -------
         mov_decay : array
             The per-line decay-term in the AR(1) motion model
+
         """
+
         decay_matrix = np.dot(self._U, np.dot(self._s ** dt, self._U))
         if not np.all(np.isfinite(decay_matrix)):
             raise Exception
@@ -609,7 +623,9 @@ class MovementModel(object):
         -------
         mov_cov : array
             The per-line covariance-term in the AR(1) motion model
+
         """
+
         return self._cov_matrix * dt
 
     def log_transition_matrix(self, max_distance=1, dt=1.):
@@ -622,6 +638,7 @@ class MovementModel(object):
         dt : float
 
         """
+
         cov_matrix = self.cov_matrix(dt)
         assert np.linalg.det(cov_matrix) > 0
 
@@ -779,6 +796,7 @@ def _beam_search(imdata, positions, transitions, references, state_table,
     num_retained : int
 
     """
+
     if state_table.shape[1] != 3:
         raise ValueError
     log_references = np.log(references)

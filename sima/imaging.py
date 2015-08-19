@@ -346,6 +346,7 @@ class ImagingDataset(object):
         >>> dataset.add_ROIs(rois, 'from_ImageJ')
 
         """
+
         if self.savedir is None:
             raise Exception('Cannot add ROIs unless savedir is set.')
         ROIs.save(join(self.savedir, 'rois.pkl'), label)
@@ -537,7 +538,9 @@ class ImagingDataset(object):
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
+
         """
+
         if fmt == 'HDF5':
             if not isinstance(filenames, basestring):
                 raise ValueError(
@@ -600,7 +603,9 @@ class ImagingDataset(object):
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
+
         """
+
         try:
             depth = np.array(filenames).ndim
         except:
@@ -621,13 +626,15 @@ class ImagingDataset(object):
             The name of the file that will store the exported data.
         fmt : {'csv'}, optional
             The export format. Currently, only 'csv' export is available.
-        channel : string or int
+        channel : string or int, optional
             The channel from which to export signals, either an integer
             index or a string in self.channel_names.
         signals_label : str, optional
             The label of the extracted signal set to use. By default,
             the most recently extracted signals are used.
+
         """
+
         try:
             csvfile = open(path, 'w', newline='')
         except TypeError:  # Python 2
@@ -668,7 +675,7 @@ class ImagingDataset(object):
             ROIList of rois to extract
         signal_channel : string or int, optional
             Channel containing the signal to be extracted, either an integer
-            index or a name in self.channel_names
+            index or a name in self.channel_names.
         label : string or None, optional
             Text label to describe this extraction, if None defaults to a
             timestamp.
@@ -686,12 +693,33 @@ class ImagingDataset(object):
 
         Return
         ------
-        dict of arrays
-            Keys: raw, demixed_raw, mean_frame, overlap, signal_channel, rois,
-            timestamp
+        signals: dict
+            The extracted signals along with parameters and values calculated
+            during extraction.
+            Contains the following keys:
+                raw, demixed_raw : list of arrays
+                    The raw/demixed extracted signal. List of length
+                    num_sequences, each element is an array of shape
+                    (num_ROIs, num_frames).
+                mean_frame : array
+                    Time-averaged mean frame of entire dataset.
+                overlap : tuple of arrays
+                    Tuple of (rows, cols) such that zip(*overlap) returns
+                    row, col pairs of pixel coordinates that are in more than
+                    one mask. Note: coordinates are for the **flattened**
+                    image, so 'rows' is always 0s.
+                signal_channel : int
+                    The index of the channel that was extracted.
+                rois : list of dict
+                    All the ROIs used for the extraction with the order matched
+                    to the order of the rows in 'raw'.
+                    See sima.ROI.todict for details of dictionary format.
+                timestamp : string
+                    Date and time of extraction in '%Y-%m-%d-%Hh%Mm%Ss' format
 
         See also
         --------
+        sima.ROI.ROI
         sima.ROI.ROIList
 
         """
@@ -748,7 +776,9 @@ class ImagingDataset(object):
         -------
         ROIs : sima.ROI.ROIList
             The segmented regions of interest.
+
         """
+
         rois = strategy.segment(self)
         if self.savedir is not None:
             rois.save(join(self.savedir, 'rois.pkl'), label)
@@ -764,6 +794,7 @@ class ImagingDataset(object):
             string in self.channel_names
 
         """
+
         channel = self._resolve_channel(channel)
         try:
             with open(join(self.savedir, 'signals_{}.pkl'.format(channel)),
@@ -779,7 +810,7 @@ class ImagingDataset(object):
 
         Parameters
         ----------
-        channel : int, optional
+        channel : string or int, optional
             The channel to be used for spike inference.
         label : string or None, optional
             Text string indicating the signals from which spikes should be
@@ -822,6 +853,9 @@ class ImagingDataset(object):
           3691-3704.
 
         """
+
+        channel = self._resolve_channel(channel)
+
         import sima.spikes
         all_signals = self.signals(channel)
         if label is None:

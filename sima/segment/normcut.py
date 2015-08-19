@@ -56,7 +56,9 @@ def normcut_vectors(affinity_matrix, k):
     -------
     array
         The normcut vectors.  Shape (num_nodes, k).
+
     """
+
     node_degrees = np.array(affinity_matrix.sum(axis=0)).flatten()
     transformation_matrix = diags(np.sqrt(old_div(1., node_degrees)), 0)
     normalized_affinity_matrix = transformation_matrix * affinity_matrix * \
@@ -81,6 +83,7 @@ class CutRegion(object):
         CutRegion.
     shape : tuple
         The shape of the image represented by the graph.
+
     """
 
     def __init__(self, affinity_matrix, indices, shape):
@@ -111,7 +114,9 @@ class CutRegion(object):
         ----------
         cut : ndarray of bool
             True/False indicating one of the segments.
+
         """
+
         node_degrees = self.affinity_matrix.sum(axis=0)
         k = old_div(node_degrees[:, cut].sum(), node_degrees.sum())
         node_degrees = diags(np.array(node_degrees).flatten(), 0)
@@ -129,7 +134,9 @@ class CutRegion(object):
             The regions created by splitting.
         float
             The normalized cut cost.
+
         """
+
         if not cv2_available:
             raise ImportError('OpenCV >= 2.4.8 required')
         tmp_im = np.zeros(self.shape[0] * self.shape[1])
@@ -202,6 +209,7 @@ def itercut(affinity_matrix, shape, max_pen=0.01, min_size=40, max_size=200):
     -------
     list of CutRegion
         The regions produced by the iterative cutting procedure.
+
     """
     cut_cue = [CutRegion(affinity_matrix, np.arange(affinity_matrix.shape[0]),
                          shape)]
@@ -240,6 +248,7 @@ class AffinityMatrixMethod(with_metaclass(abc.ABCMeta, object)):
         -------
         affinities : scipy.sparse.coo_matrix
             The affinities between the image pixels.
+
         """
         return
 
@@ -264,9 +273,9 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
     pixel_pairs : ndarray of int
         The pairs of pixels, indexed ((y0, x0), (y1, x1)) for
         which the correlation is to be calculated.
-    channel : int, optional
-        The channel to be used for estimating the pixel correlations.
-        Defaults to 0.
+    channel : string or int, optional
+        Channel to be used for estimating the pixel correlations, either an
+        integer index or a channel name. Default: 0.
     method : {'EM', 'fast'}, optional
         The method for estimating the correlations. EM uses the EM
         algorithm to perform OPCA. Fast calculates the offset correlations
@@ -283,7 +292,11 @@ def _offset_corrs(dataset, pixel_pairs, channel=0, method='EM',
         A dictionary whose keys are the elements of the pixel_pairs
         input list, and whose values are the calculated offset
         correlations.
+
     """
+
+    channel = sima.misc.resolve_channels(channel, dataset.channel_names)
+
     if method == 'EM':
         if dataset.savedir is not None:
             path = os.path.join(
@@ -335,8 +348,9 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
 
     Parameters
     ----------
-    channel : int, optional
-        The channel whose signals will be used in the calculations.
+    channel : string or int, optional
+        Channel containing the signal to be processed, either an integer
+        index or a channel name. Default: 0.
     max_dist : tuple of int, optional
         Defaults to (2, 2).
     spatial_decay : tuple of int, optional
@@ -345,6 +359,7 @@ class BasicAffinityMatrix(AffinityMatrixMethod):
         The number of principal component to use. Default: 75.
     verbose : bool, optional
         Whether to print progress status. Default: False.
+
     """
 
     def __init__(self, channel=0, max_dist=None, spatial_decay=None,

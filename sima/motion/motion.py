@@ -55,7 +55,9 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
         Returns
         -------
         displacements : list of ndarray of int
+
         """
+
         shifts = self._estimate(dataset)
         assert np.any(np.all(x is not np.ma.masked for x in shift)
                       for shift in it.chain.from_iterable(shifts))
@@ -103,7 +105,9 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
         -------
         dataset : sima.ImagingDataset
             The motion-corrected dataset.
+
         """
+
         sequences = [s for s in dataset]
         if correction_channels:
             correction_channels = [
@@ -158,6 +162,7 @@ class ResonantCorrection(MotionEstimationStrategy):
         Horizontal displacement to be added to odd rows. Note the
         convention that row 0 (i.e. the "first" row) is considered
         even.
+
     """
 
     def __init__(self, base_strategy, offset=0):

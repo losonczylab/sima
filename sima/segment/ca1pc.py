@@ -36,8 +36,9 @@ class CA1PCNucleus(PostProcessingStep):
     min_cut_size : int, optional
         No ROIs are made from cuts with fewer than min_cut_size pixels.
         Default: 30.
-    channel : int, optional
-        The index of the channel to be used.
+    channel : string or int, optional
+        Channel containing the signal to be segmented, either an integer
+        index or a channel name. Default: 0.
     x_diameter : int, optional
         The estimated x-diameter of the nuclei in pixels
     y_diameter : int, optional
@@ -187,7 +188,8 @@ class PlaneCA1PC(SegmentationStrategy):
     Parameters
     ----------
     channel : int, optional
-        The channel whose signals will be used in the calculations.
+        Channel containing the signal to be segmented, either an integer
+        index or a channel name. Default: 0.
     num_pcs : int, optional
         The number of principle components to be used in the calculations.
         Default: 75.
