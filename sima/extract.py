@@ -333,7 +333,6 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
 
     # Find overlapping pixels
     overlap = _identify_overlapping_pixels(masks)
-    from pudb import set_trace; set_trace()
 
     # Remove pixels that overlap between ROIs
     if remove_overlap:
