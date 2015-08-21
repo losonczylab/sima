@@ -28,7 +28,7 @@ possible, we recommend installing these dependencies with your operating
 system's or Python distribution's package manager prior to installing SIMA.
 
 * `Python <http://python.org>`_ 2.7 
-* `numpy <http://www.scipy.org>`_ >= 1.6.2
+* `numpy <http://www.scipy.org>`_ >= 1.8
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
@@ -52,6 +52,10 @@ to install the following packages:
 If you build the package from source, you may also need:
 
 * `Cython <http://cython.org>`_
+
+If you want to generate the documentation, you will also need:
+
+* `Sphinx <http://sphinx-doc.org>`_ >= 1.3.1
 
 If you are using the spike inference feature, we strongly recommend installing
 `MOSEK <https://www.mosek.com/>`_ (free for academic use) which greatly speeds
