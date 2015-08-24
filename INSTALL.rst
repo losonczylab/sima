@@ -42,7 +42,7 @@ to install the following packages:
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
 * `picos <http://picos.zib.de>`_ >= 1.0.2, required for spike inference (>= 1.1 required for Python 3)
-* `pyfftw <https://pypi.python.org/pypi/pyFFTW>`, allows faster performance of some motion correction methods when installed together with FFTW.
+* `pyfftw <https://pypi.python.org/pypi/pyFFTW>`_, allows faster performance of some motion correction methods when installed together with FFTW.
 * `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
 * `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
 * `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
