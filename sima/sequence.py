@@ -827,7 +827,7 @@ class _MotionCorrectedSequence(_WrapperSequence):
         if extent is None:
             max_disp = np.nanmax([np.nanmax(d.reshape(-1, d.shape[-1]), 0)
                                   for d in displacements], 0)
-            extent = np.array(base._sequences[0].shape)[1:-1]
+            extent = np.array(base.shape)[1:-1]
             extent[1:3] += max_disp
         assert len(extent) == 3
         self._frame_shape_zyx = tuple(extent)   # (planes, rows, columns)
