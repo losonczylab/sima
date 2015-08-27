@@ -62,6 +62,41 @@ class TestSequence(object):
     # def test_export_tiff16(self):
     #     raise NotImplemented
 
+
+class TestMotionCorrectedSequence(object):
+
+    def setup(self):
+        self.base_seq = sima.Sequence.create('TIFF', example_tiff(), 2, 2)
+        self.displacements = np.random.randint(
+            0, 10, self.base_seq.shape[:3] + (2,))
+
+        max_disp = np.amax([np.amax(d.reshape(-1, d.shape[-1]), 0)
+                            for d in self.displacements], 0)
+        self.final_shape = np.array(self.base_seq.shape)[1:-1]
+        self.final_shape[1:3] += max_disp
+
+    def test_init(self):
+        mc_seq = self.base_seq.apply_displacements(
+            self.displacements, frame_shape=self.final_shape)
+
+        assert_equal(len(mc_seq), len(self.base_seq))
+        assert_equal(len([1 for _ in iter(mc_seq)]), len(self.base_seq))
+
+    def test_negative_displacements(self):
+        neg_disp = np.random.randint(-10, 10, self.base_seq.shape[:3] + (2,))
+
+        assert_raises(ValueError, self.base_seq.apply_displacements, neg_disp)
+
+    def test_no_frame_shape(self):
+        mc_seq = self.base_seq.apply_displacements(
+            self.displacements, frame_shape=None)
+
+        expected_shape = (len(self.base_seq),) + tuple(self.final_shape) + \
+            (self.base_seq.shape[-1],)
+
+        assert_equal(mc_seq.shape, expected_shape)
+
+
 class TestMaskedSequence(object):
 
     def setup(self):
