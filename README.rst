@@ -11,8 +11,9 @@
    :alt: Join the chat at https://gitter.im/losonczylab/sima
    :target: https://gitter.im/losonczylab/sima?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
 
-.. image:: https://readthedocs.org/projects/sima/badge/?version=latest
-   :target: https://sima.readthedocs.org/en/latest/
+.. Removed until the docs are building properly
+    .. image:: https://readthedocs.org/projects/sima/badge/?version=latest
+       :target: https://sima.readthedocs.org/en/latest/
 
 Overview
 --------
