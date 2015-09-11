@@ -572,8 +572,8 @@ def poly2mask(polygons, im_size):
         points_in_poly = list(filter(shifted_poly.contains, points))
         for point in points_in_poly:
             xx, yy = point.xy
-            x = int(xx)
-            y = int(yy)
+            x = int(xx[0])
+            y = int(yy[0])
             if 0 <= y < im_size[1] and 0 <= x < im_size[2]:
                 mask[z, y, x] = True
     masks = []
