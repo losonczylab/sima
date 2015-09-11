@@ -35,11 +35,14 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
 
     @classmethod
     def _make_nonnegative(cls, displacements):
-        min_displacement = np.min(
-            list(it.chain.from_iterable(d.reshape(-1, d.shape[-1])
-                                        for d in displacements)),
-            axis=0)
-        return [d - min_displacement for d in displacements]
+        min_displacement = np.nanmin(
+            [np.nanmin(s.reshape(-1, s.shape[-1]), 0) for s in displacements],
+            0)
+        new_displacements = [d - min_displacement for d in displacements]
+        min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                                for s in new_displacements], 0)
+        assert np.all(min_shifts == 0)
+        return new_displacements
 
     @abc.abstractmethod
     def _estimate(self, dataset):
