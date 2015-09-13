@@ -35,11 +35,14 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
 
     @classmethod
     def _make_nonnegative(cls, displacements):
-        min_displacement = np.min(
-            list(it.chain.from_iterable(d.reshape(-1, d.shape[-1])
-                                        for d in displacements)),
-            axis=0)
-        return [d - min_displacement for d in displacements]
+        min_displacement = np.nanmin(
+            [np.nanmin(s.reshape(-1, s.shape[-1]), 0) for s in displacements],
+            0)
+        new_displacements = [d - min_displacement for d in displacements]
+        min_shifts = np.nanmin([np.nanmin(s.reshape(-1, s.shape[-1]), 0)
+                                for s in new_displacements], 0)
+        assert np.all(min_shifts == 0)
+        return new_displacements
 
     @abc.abstractmethod
     def _estimate(self, dataset):
@@ -55,7 +58,9 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
         Returns
         -------
         displacements : list of ndarray of int
+
         """
+
         shifts = self._estimate(dataset)
         assert np.any(np.all(x is not np.ma.masked for x in shift)
                       for shift in it.chain.from_iterable(shifts))
@@ -103,7 +108,9 @@ class MotionEstimationStrategy(with_metaclass(abc.ABCMeta, object)):
         -------
         dataset : sima.ImagingDataset
             The motion-corrected dataset.
+
         """
+
         sequences = [s for s in dataset]
         if correction_channels:
             correction_channels = [
@@ -158,6 +165,7 @@ class ResonantCorrection(MotionEstimationStrategy):
         Horizontal displacement to be added to odd rows. Note the
         convention that row 0 (i.e. the "first" row) is considered
         even.
+
     """
 
     def __init__(self, base_strategy, offset=0):

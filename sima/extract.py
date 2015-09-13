@@ -37,7 +37,9 @@ def _demixing_matrix(dataset):
     -------
     array
         Matrix by which the data can be (left) multiplied to be demixed.
+
     """
+
     from mdp.nodes import FastICANode
 
     # Make matrix of the time averaged channels.
@@ -86,6 +88,7 @@ def _roi_extract(inputs):
         image.
 
     """
+
     frame, frame_idx, constants = inputs
 
     def put_back_nans(values, imaged_rois, n_rois):
@@ -243,6 +246,7 @@ def _identify_overlapping_pixels(masks):
         Returns the points that were overlapping
 
     """
+
     master_mask = np.zeros(masks[0].shape, dtype='uint16')
     for mask in masks:
         master_mask += (mask.todense() != 0).astype('uint16')
@@ -267,6 +271,7 @@ def _remove_pixels(masks, pixels_to_remove):
         Returns original masks with overlapping pixels removed
 
     """
+
     new_masks = []
     for mask in masks:
         new_mask = mask.copy().todok()
@@ -287,8 +292,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         The dataset from which signals are to be extracted.
     rois : ROIList
         ROIList of rois to extract
-    signal_channel : int
-        Index of the channel containing the signal to be extracted.
+    signal_channel : string or int, optional
+        Channel containing the signal to be extracted, either an integer
+        index or a name in self.channel_names.
     remove_overlap : bool, optional
         If True, remove any pixels that overlap between masks.
     n_processes : int, optional
@@ -299,18 +305,20 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
         Index of channel to demix from the signal channel. If None, do not
         demix signals.
 
-    Output - dictionary of arrays
+    Returns
     ------
-    raw : array
-    demixed_raw : array
-    _masks : array
-    mean_frame : array
-    overlap : array
-    signal_channel : int
-    rois : list of roi dictionaries
-    timestamp : string
+    signals : dict
+        The extracted signals along with parameters and values calculated
+        during extraction.
+        See sima.ImagingDataset.extract for details of the signals format.
+
+    See also
+    --------
+    sima.ImagingDataset.extract
 
     """
+
+    signal_channel = dataset._resolve_channel(signal_channel)
 
     if n_processes > 1:
         pool = Pool(processes=n_processes)
@@ -440,7 +448,9 @@ def extract_rois(dataset, rois, signal_channel=0, remove_overlap=True,
     def put_back_nan_rois(signals, included_rois, n_rois):
         """Put NaN rows back in the signals file for ROIs that were never
         imaged or entirely overlapped with other ROIs and were removed.
+
         """
+
         final_signals = []
         for cycle_signals in signals:
             signals_idx = 0
@@ -503,14 +513,18 @@ def save_extracted_signals(dataset, rois, save_path=None, label=None,
         dictionary that will be EXTENDED on to the signals dict, so keys in
         metadata will be keys in signals.pkl. No checking is done, so keys
         should not match any generated during extraction, i.e. 'raw', 'rois'
-    signal_channel : int, optional
-        Index of channel to extract, defaults to the first channel.
+    signal_channel : string or int, optional
+        Channel containing the signal to be extracted, either an integer
+        index or a name in self.channel_names.
     save_summary : boolean
         If True, additionally save a summary of the extracted ROIs.
     kwargs : dict, optional
         Additional keyword arguments will be pass directly to extract_rois.
 
     """
+
+    signal_channel = dataset._resolve_channel(signal_channel)
+
     if save_path is None:
         save_path = dataset.savedir
     if save_path is None:

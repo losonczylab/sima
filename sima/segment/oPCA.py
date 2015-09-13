@@ -86,6 +86,7 @@ def EM_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000, verbose=False):
        Information Processing Systems. 1998.
 
     """
+
     for X in (data):
         p = X.size
         break
@@ -156,6 +157,7 @@ def power_iteration_oPCA(data, num_pcs, tolerance=0.01, max_iter=1000):
 
 
     WARNING: INCOMPLETE!!!!!!!!!!!
+
     """
 
     for X in (data):
@@ -216,7 +218,9 @@ def offsetPCA(data, num_pcs=None):
         The calculated OPCs.  Shape: (num_dimensions, num_pcs).
     signals : array
         The signals for each OPC. Shape: (num_observations, num_pcs).
+
     """
+
     # Determine most efficient method of computation.
     if data.shape[0] > data.shape[1]:
         return _method_1(data, num_pcs)
@@ -252,9 +256,9 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
     ----------
     dataset : ImagingDataset
         The dataset to which the offset PCA will be applied.
-    channel : int, optional
-        The index of the channel whose signals are used. Defaults
-        to using the first channel.
+    ch : string or int, optional
+        Channel containing the signal to be used, either an integer
+        index or a channel name. Default: 0.
     num_pcs : int, optional
         The number of PCs to calculate. Default is 75.
     path : str
@@ -270,7 +274,11 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
     oPC_signals : array
         The temporal representations of the oPCs.
         Shape: (num_times, num_pcs).
+
     """
+
+    ch = sima.misc.resolve_channels(ch, dataset.channel_names)
+
     num_pcs = min(num_pcs, dataset.num_frames-1,
                   np.prod(dataset.frame_shape[:3]))
     ret = None

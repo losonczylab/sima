@@ -104,8 +104,9 @@ class STICA(SegmentationStrategy):
 
     Parameters
     ----------
-    channel : int, optional
-        The index of the channel to be used. Default: 0
+    channel : string or int, optional
+        Channel containing the signal to be segmented, either an integer
+        index or a channel name. Default: 0.
     mu : float, optional
         Weighting parameter for the trade off between spatial and temporal
         information. Must be between 0 and 1. Low values give higher

@@ -28,7 +28,7 @@ possible, we recommend installing these dependencies with your operating
 system's or Python distribution's package manager prior to installing SIMA.
 
 * `Python <http://python.org>`_ 2.7 
-* `numpy <http://www.scipy.org>`_ >= 1.6.2
+* `numpy <http://www.scipy.org>`_ >= 1.8
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
 * `scikit-image <http://scikit-image.org>`_ >= 0.9.3
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
@@ -42,7 +42,7 @@ to install the following packages:
 * `OpenCV <http://opencv.org>`_ >= 2.4.8, required for segmentation,
   registration of ROIs across multiple datasets, and the ROI Buddy GUI
 * `picos <http://picos.zib.de>`_ >= 1.0.2, required for spike inference (>= 1.1 required for Python 3)
-* `pyfftw <https://pypi.python.org/pypi/pyFFTW>`, allows faster performance of some motion correction methods when installed together with FFTW.
+* `pyfftw <https://pypi.python.org/pypi/pyFFTW>`_, allows faster performance of some motion correction methods when installed together with FFTW.
 * `h5py <http://www.h5py.org>`_ >= 2.2.1 (2.3.1 recommended), required for HDF5 file format 
 * `bottleneck <http://pypi.python.org/pypi/Bottleneck>`_ >=0.8, for faster calculations
 * `matplotlib <http://matplotlib.org>`_ >= 1.2.1, for saving extraction summary plots
@@ -52,6 +52,10 @@ to install the following packages:
 If you build the package from source, you may also need:
 
 * `Cython <http://cython.org>`_
+
+If you want to generate the documentation, you will also need:
+
+* `Sphinx <http://sphinx-doc.org>`_ >= 1.3.1
 
 If you are using the spike inference feature, we strongly recommend installing
 `MOSEK <https://www.mosek.com/>`_ (free for academic use) which greatly speeds
