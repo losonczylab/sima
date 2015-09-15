@@ -83,7 +83,7 @@ class TestSequence(object):
             data = np.array(f['imaging'])
 
         assert_array_equal(['t', 'z', 'y', 'x', 'c'], dims)
-        assert_array_equal(['Ch1', 'Ch2'], channel_names)
+        assert_array_equal(np.string_(['Ch1', 'Ch2']), channel_names)
         assert_array_equal(np.array(self.tiff_seq), data)
 
     @dec.skipif(not h5py_available)
@@ -99,7 +99,7 @@ class TestSequence(object):
             data = np.array(f['imaging'])
 
         assert_array_equal(['t', 'z', 'y', 'x', 'c'], dims)
-        assert_array_equal(['Ch1', 'Ch2'], channel_names)
+        assert_array_equal(np.string_(['Ch1', 'Ch2']), channel_names)
         assert_array_equal(np.array(self.tiff_seq), data)
 
     def test_export_tiff8(self):

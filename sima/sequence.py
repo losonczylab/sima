@@ -466,8 +466,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:
-                f['imaging'].attrs['channel_names'] = np.array(channel_names,
-                                                               dtype='str')
+                f['imaging'].attrs['channel_names'] = [
+                    np.string_(s) for s in channel_names]
             f.close()
 
 
