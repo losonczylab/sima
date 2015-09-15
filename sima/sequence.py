@@ -390,7 +390,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         return np.concatenate([np.expand_dims(frame, 0) for frame in self])
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
-               channel_names=None):
+               channel_names=None, compression=None):
         """Save frames to the indicated filenames.
 
         This function stores a multipage tiff file for each channel.
@@ -409,6 +409,10 @@ class Sequence(with_metaclass(ABCMeta, object)):
             adjacent frames. Default: False.
         channel_names : list of str, optional
             List of labels for the channels to be saved if using HDF5 format.
+        compression : {None, 'gzip', 'lzf', 'szip'}, optional
+            If not None and 'fmt' is 'HDF5', compress the data with the
+            specified lossless compression filter. See h5py docs for details on
+            each compression filter.
 
         """
 
@@ -432,7 +436,10 @@ class Sequence(with_metaclass(ABCMeta, object)):
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
-            output_array = np.empty(self.shape, dtype='float32')
+            f.create_dataset(
+                name='imaging', shape=self.shape, dtype='float32',
+                chunks=(1, 1, self.shape[2], self.shape[3], 1),
+                compression=compression)
             # TODO: change dtype?
 
         if fill_gaps:
@@ -441,7 +448,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             save_frames = iter(self)
         for f_idx, frame in enumerate(save_frames):
             if fmt == 'HDF5':
-                output_array[f_idx] = frame
+                f['imaging'][f_idx, ...] = frame
             else:
                 for plane_idx, plane in enumerate(frame):
                     for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
@@ -456,7 +463,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
             for f in it.chain.from_iterable(output_files):
                 f.close()
         elif fmt == 'HDF5':
-            f.create_dataset(name='imaging', data=output_array)
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:

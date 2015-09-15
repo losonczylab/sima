@@ -585,7 +585,7 @@ class ImagingDataset(object):
                 imsave(filename, out)
 
     def export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
-                      scale_values=False):
+                      scale_values=False, compression=None):
         """Export imaging data from the dataset.
 
         Parameters
@@ -603,6 +603,10 @@ class ImagingDataset(object):
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
+        compression : {None, 'gzip', 'lzf', 'szip'}, optional
+            If not None and 'fmt' is 'HDF5', compress the data with the
+            specified lossless compression filter. See h5py docs for details on
+            each compression filter.
 
         """
 
@@ -615,7 +619,8 @@ class ImagingDataset(object):
         if fmt == 'HDF5' and not np.array(filenames).ndim == 1:
             raise TypeError('Improperly formatted filenames')
         for sequence, fns in zip(self, filenames):
-            sequence.export(fns, fmt, fill_gaps, self.channel_names)
+            sequence.export(
+                fns, fmt, fill_gaps, self.channel_names, compression)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extracted signals to a file.
