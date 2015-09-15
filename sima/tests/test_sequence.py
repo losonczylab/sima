@@ -18,10 +18,21 @@ from numpy.testing import (
     run_module_suite,
     assert_allclose)
 
+import os
+import shutil
+
 import numpy as np
+from PIL import Image
 
 import sima
 from sima.misc import example_tiffs, example_tiff
+
+try:
+    import h5py
+except ImportError:
+    h5py_available = False
+else:
+    h5py_available = True
 
 
 def setup():
@@ -37,6 +48,16 @@ class TestSequence(object):
     def setup(self):
         self.tiff_seq = sima.Sequence.create('TIFF', example_tiff(), 2, 2)
 
+        self.tmp_dir = os.path.join(os.path.dirname(__file__), 'tmp')
+
+        try:
+            os.mkdir(self.tmp_dir)
+        except:
+            pass
+
+    def teardown(self):
+        shutil.rmtree(self.tmp_dir)
+
     def test_create_tiffs(self):
         seq = sima.Sequence.create(
             'TIFFs', [[example_tiffs(), example_tiffs()],
@@ -50,17 +71,73 @@ class TestSequence(object):
         assert_array_equal(next(it), self.tiff_seq._get_frame(0))
         assert_array_equal(next(it), self.tiff_seq._get_frame(1))
 
-    # @dec.knownfailureif(True)
-    # def test_export_hdf5(self):
-    #     raise NotImplemented
+    @dec.skipif(not h5py_available)
+    def test_export_hdf5(self):
+        self.tiff_seq.export(
+            os.path.join(self.tmp_dir, 'test_export.h5'), fmt='HDF5',
+            fill_gaps=False, channel_names=['Ch1', 'Ch2'], compression=None)
 
-    # @dec.knownfailureif(True)
-    # def test_export_tiff8(self):
-    #     raise NotImplemented
+        with h5py.File(os.path.join(self.tmp_dir, 'test_export.h5'), 'r') as f:
+            dims = [str(dim.label) for dim in f['imaging'].dims]
+            channel_names = f['imaging'].attrs['channel_names']
+            data = np.array(f['imaging'])
 
-    # @dec.knownfailureif(True)
-    # def test_export_tiff16(self):
-    #     raise NotImplemented
+        assert_array_equal(['t', 'z', 'y', 'x', 'c'], dims)
+        assert_array_equal(['Ch1', 'Ch2'], channel_names.astype('str'))
+        assert_array_equal(np.array(self.tiff_seq), data)
+
+    @dec.skipif(not h5py_available)
+    def test_export_commpressed_hdf5(self):
+        self.tiff_seq.export(
+            os.path.join(self.tmp_dir, 'test_export_compressed.h5'),
+            fmt='HDF5', channel_names=['Ch1', 'Ch2'], compression='gzip')
+
+        with h5py.File(os.path.join(
+                self.tmp_dir, 'test_export_compressed.h5'), 'r') as f:
+            dims = [str(dim.label) for dim in f['imaging'].dims]
+            channel_names = f['imaging'].attrs['channel_names']
+            data = np.array(f['imaging'])
+
+        assert_array_equal(['t', 'z', 'y', 'x', 'c'], dims)
+        assert_array_equal(['Ch1', 'Ch2'], channel_names.astype('str'))
+        assert_array_equal(np.array(self.tiff_seq), data)
+
+    def test_export_tiff8(self):
+        filenames = [[os.path.join(
+            self.tmp_dir, 'test_export_tiff8_plane{}_channel{}.tif'.format(
+                plane, channel)) for channel in range(2)]
+            for plane in range(2)]
+
+        self.tiff_seq.export(filenames, fmt='TIFF8', fill_gaps=False)
+
+        data = np.array(self.tiff_seq)
+
+        for plane, plane_files in enumerate(filenames):
+            for channel, channel_file in enumerate(plane_files):
+                with Image.open(channel_file) as f:
+                    for frame in range(5):
+                        f.seek(frame)
+                        assert_array_equal(
+                            np.array(f),
+                            data[frame, plane, :, :, channel].astype('uint8'))
+
+    def test_export_tiff16(self):
+        filenames = [[os.path.join(
+            self.tmp_dir, 'test_export_tiff16_plane{}_channel{}.tif'.format(
+                plane, channel)) for channel in range(2)]
+            for plane in range(2)]
+
+        self.tiff_seq.export(filenames, fmt='TIFF16', fill_gaps=False)
+
+        data = np.array(self.tiff_seq)
+
+        for plane, plane_files in enumerate(filenames):
+            for channel, channel_file in enumerate(plane_files):
+                with Image.open(channel_file) as f:
+                    for frame in range(5):
+                        f.seek(frame)
+                        assert_array_equal(
+                            np.array(f), data[frame, plane, :, :, channel])
 
 
 class TestMotionCorrectedSequence(object):
@@ -95,6 +172,14 @@ class TestMotionCorrectedSequence(object):
             (self.base_seq.shape[-1],)
 
         assert_equal(mc_seq.shape, expected_shape)
+
+    # @dec.knownfailureif(True)
+    # def test_export(self):
+    #     raise NotImplemented
+
+    # @dec.knownfailureif(True)
+    # def test_export_fill_gaps(self):
+    #     raise NotImplemented
 
 
 class TestMaskedSequence(object):
