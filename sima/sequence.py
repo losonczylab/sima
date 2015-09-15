@@ -467,7 +467,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
                 f['imaging'].dims[idx].label = label
             if channel_names is not None:
                 f['imaging'].attrs['channel_names'] = np.array(channel_names,
-                                                               dtype='string')
+                                                               dtype='str')
             f.close()
 
 
