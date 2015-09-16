@@ -322,6 +322,10 @@ class Sequence(with_metaclass(ABCMeta, object)):
         only be moved if the ImagingDataset path is also moved
         such that they retain the same relative position.
 
+        Warning
+        -------
+        Due to a limitation in the PIL module image read function, multi-page
+        TIFF files will fail to initialize if size exceeds 4-5 gb.
 
         **TIFFs**
 
