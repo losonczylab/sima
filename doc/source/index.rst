@@ -50,7 +50,7 @@ resulting publications:
   SIMA: Python software for analysis of dynamic fluorescence imaging data. 
   Frontiers in Neuroinformatics. 2014 Aug 27; 8:77. 
   doi: 10.3389/fninf.2014.00077.
-  <http://journal.frontiersin.org/Journal/101928>`_
+  <http://journal.frontiersin.org/article/10.3389/fninf.2014.00080/>`_
 
 
 Indices and tables
