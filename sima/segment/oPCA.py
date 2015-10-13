@@ -270,7 +270,7 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
         The offset variance accounted for by each oPC. Shape: num_pcs.
     oPCs : array
         The spatial representations of the oPCs.
-        Shape: (num_rows, num_columns, num_pcs).
+        Shape: (num_planes, num_rows, num_columns, num_pcs).
     oPC_signals : array
         The temporal representations of the oPCs.
         Shape: (num_times, num_pcs).
@@ -279,7 +279,7 @@ def dataset_opca(dataset, ch=0, num_pcs=75, path=None, verbose=False):
 
     ch = sima.misc.resolve_channels(ch, dataset.channel_names)
 
-    num_pcs = min(num_pcs, dataset.num_frames-1,
+    num_pcs = min(num_pcs, dataset.num_frames - 1,
                   np.prod(dataset.frame_shape[:3]))
     ret = None
     if path is not None:

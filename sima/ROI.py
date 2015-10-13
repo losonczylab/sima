@@ -5,11 +5,11 @@ ROI.ROI objects allow for storing of ROIs as either as a boolean mask of
 included pixels, or as multiple polygons. Masks need not be continuous and
 an ROI can be defined by multiple non-adjacent polygons.
 In addition, each ROI can be assigned any number or 'tags' used to define
-features of the ROIs, as well as a 'group' which is used for clustering or
+features of the ROIs, as well as an 'id' which is used for clustering or
 aligning ROIs across ROILists.
 
-ROI.ROIList object are a list-like container for storing multiple ROIs and
-includes methods for saving, sorting, and sub-grouping.
+ROI.ROIList objects are a list-like container for storing multiple ROIs and
+includes methods for saving, loading, and sub-grouping.
 
 """
 from builtins import filter
