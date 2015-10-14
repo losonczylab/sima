@@ -43,7 +43,7 @@ before_install:
   - ldconfig -p
   - conda list -e
 script: 
-    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/misc/align.py,sima/motion/__init__.py,sima/segment/__init__.py
+    - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/motion/__init__.py,sima/segment/__init__.py
     - python runtests.py --doctests -m $TESTMODE $COVERAGE
     - cd doc && make html && cd ..
 branches:

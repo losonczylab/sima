@@ -218,8 +218,11 @@ class Test_HiddenMarkov2D(object):
         global tmp_dir
         frames = Sequence.create('TIFF', example_tiff())
         masked_seq = frames.mask([(5, None, None)])
-        corrected = self.hm2d.correct(
-            [masked_seq], os.path.join(tmp_dir, 'test_hmm_3.sima'))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            corrected = self.hm2d.correct(
+                [masked_seq], os.path.join(
+                    tmp_dir, 'test_hmm_missing_frame.sima'))
         assert_(all(np.all(np.isfinite(seq.displacements))
                     for seq in corrected))
         assert_(np.prod(corrected.frame_shape) > 0)

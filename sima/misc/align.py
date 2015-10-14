@@ -25,7 +25,7 @@ except ImportError:
 try:
     from bottleneck import nanmean
 except ImportError:
-    from scipy import nanmean
+    from numpy import nanmean
 import scipy.ndimage as scind
 import scipy.sparse
 
@@ -43,20 +43,20 @@ def cross_correlation_3d(pixels1, pixels2):
     '''
 
     s = np.maximum(pixels1.shape, pixels2.shape)
-    fshape = s*2
+    fshape = s * 2
     #
     # Calculate the # of pixels at a particular point
     #
-    i, j, k = np.mgrid[-s[0]:s[0], -s[1]:s[1], -s[2]:s[2] ]
-    unit = np.abs(i*j*k).astype(float)
-    unit[unit < 1] = 1 # keeps from dividing by zero in some places
+    i, j, k = np.mgrid[-s[0]:s[0], -s[1]:s[1], -s[2]:s[2]]
+    unit = np.abs(i * j * k).astype(float)
+    unit[unit < 1] = 1  # keeps from dividing by zero in some places
     #
     # Normalize the pixel values around zero which does not affect the
     # correlation, keeps some of the sums of multiplications from
     # losing precision and precomputes t(x-u,y-v) - t_mean
     #
-    pixels1 = np.nan_to_num(pixels1-nanmean(pixels1))
-    pixels2 = np.nan_to_num(pixels2-nanmean(pixels2))
+    pixels1 = np.nan_to_num(pixels1 - nanmean(pixels1))
+    pixels2 = np.nan_to_num(pixels2 - nanmean(pixels2))
     #
     # Lewis uses an image, f and a template t. He derives a normalized
     # cross correlation, ncc(u,v) =
@@ -86,19 +86,28 @@ def cross_correlation_3d(pixels1, pixels2):
     #
     # The second is done as above but reflected lr and ud
     #
+
     def get_cumsums(im, fshape):
         im_si = im.shape[0]
         im_sj = im.shape[1]
         im_sk = im.shape[2]
         im_sum = np.zeros(fshape)
-        im_sum[:im_si, :im_sj, :im_sk] = cumsum_quadrant(im, False, False, False)
-        im_sum[:im_si, :im_sj, -im_sk:] = cumsum_quadrant(im, False, False, True)
-        im_sum[:im_si, -im_sj:, :im_sk] = cumsum_quadrant(im, False, True, True)
-        im_sum[:im_si, -im_sj:, -im_sk:] = cumsum_quadrant(im, False, True, False)
-        im_sum[-im_si:, :im_sj, :im_sk] = cumsum_quadrant(im, True, False, True)
-        im_sum[-im_si:, :im_sj, -im_sk:] = cumsum_quadrant(im, True, False, False)
-        im_sum[-im_si:, -im_sj:, :im_sk] = cumsum_quadrant(im, True, True, True)
-        im_sum[-im_si:, -im_sj:, -im_sk:] = cumsum_quadrant(im, True, True, False)
+        im_sum[:im_si, :im_sj, :im_sk] = cumsum_quadrant(
+            im, False, False, False)
+        im_sum[:im_si, :im_sj, -im_sk:] = cumsum_quadrant(
+            im, False, False, True)
+        im_sum[:im_si, -im_sj:, :im_sk] = cumsum_quadrant(
+            im, False, True, True)
+        im_sum[:im_si, -im_sj:, -im_sk:] = cumsum_quadrant(
+            im, False, True, False)
+        im_sum[-im_si:, :im_sj, :im_sk] = cumsum_quadrant(
+            im, True, False, True)
+        im_sum[-im_si:, :im_sj, -im_sk:] = cumsum_quadrant(
+            im, True, False, False)
+        im_sum[-im_si:, -im_sj:, :im_sk] = cumsum_quadrant(
+            im, True, True, True)
+        im_sum[-im_si:, -im_sj:, -im_sk:] = cumsum_quadrant(
+            im, True, True, False)
         #
         # Divide the sum over the # of elements summed-over
         #
@@ -112,8 +121,8 @@ def cross_correlation_3d(pixels1, pixels2):
     # the mean^2 by the # of elements being summed-over
     # to account for the mean being summed that many times.
     #
-    p1sd = np.sum(pixels1**2) - p1_mean**2 * np.product(s)
-    p2sd = np.sum(pixels2**2) - p2_mean**2 * np.product(s)
+    p1sd = np.sum(pixels1 ** 2) - p1_mean ** 2 * np.product(s)
+    p2sd = np.sum(pixels2 ** 2) - p2_mean ** 2 * np.product(s)
     #
     # There's always chance of roundoff error for a zero value
     # resulting in a negative sd, so limit the sds here
@@ -157,21 +166,21 @@ def cross_correlation_2d(pixels1, pixels2):
     # amplitude at that frequency.
     #
     s = np.maximum(pixels1.shape, pixels2.shape)
-    fshape = s*2
+    fshape = s * 2
     #
     # Calculate the # of pixels at a particular point
     #
     i, j = np.mgrid[-s[0]:s[0],
-                   -s[1]:s[1]]
-    unit = np.abs(i*j).astype(float)
-    unit[unit < 1] = 1 # keeps from dividing by zero in some places
+                    -s[1]:s[1]]
+    unit = np.abs(i * j).astype(float)
+    unit[unit < 1] = 1  # keeps from dividing by zero in some places
     #
     # Normalize the pixel values around zero which does not affect the
     # correlation, keeps some of the sums of multiplications from
     # losing precision and precomputes t(x-u,y-v) - t_mean
     #
-    pixels1 = np.nan_to_num(pixels1-nanmean(pixels1))
-    pixels2 = np.nan_to_num(pixels2-nanmean(pixels2))
+    pixels1 = np.nan_to_num(pixels1 - nanmean(pixels1))
+    pixels2 = np.nan_to_num(pixels2 - nanmean(pixels2))
     #
     # Lewis uses an image, f and a template t. He derives a normalized
     # cross correlation, ncc(u,v) =
@@ -229,8 +238,8 @@ def cross_correlation_2d(pixels1, pixels2):
     # the mean^2 by the # of elements being summed-over
     # to account for the mean being summed that many times.
     #
-    p1sd = np.sum(pixels1**2) - p1_mean**2 * np.product(s)
-    p2sd = np.sum(pixels2**2) - p2_mean**2 * np.product(s)
+    p1sd = np.sum(pixels1 ** 2) - p1_mean ** 2 * np.product(s)
+    p2sd = np.sum(pixels2 ** 2) - p2_mean ** 2 * np.product(s)
     #
     # There's always chance of roundoff error for a zero value
     # resulting in a negative sd, so limit the sds here
@@ -263,7 +272,7 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
     which is frequently cited when addressing this problem.
     '''
     s = np.maximum(pixels1.shape[:-1], pixels2.shape[:-1])
-    fshape = s*2
+    fshape = s * 2
     if len(s) == 2:
         corr = cross_correlation_2d
     elif len(s) == 3:
@@ -272,7 +281,7 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
         raise ValueError
 
     corrnorm = old_div(sum(corr(pixels1[..., c], pixels2[..., c])
-                   for c in range(pixels1.shape[-1])), pixels1.shape[-1])
+                       for c in range(pixels1.shape[-1])), pixels1.shape[-1])
     offset = fshape - np.array(pixels1.shape[:-1])
     for i in range(corrnorm.ndim):
         corrnorm = np.roll(corrnorm, offset[i], axis=i)
@@ -284,8 +293,8 @@ def align_cross_correlation(pixels1, pixels2, displacement_bounds=None):
         corrnorm[:, :idx_bounds[0][1]] = -np.Inf
         corrnorm[:, idx_bounds[1][1]:] = -np.Inf
         if idx_bounds.shape[1] == 3:
-            corrnorm[:,:, :idx_bounds[0][2]] = -np.Inf
-            corrnorm[:,:, idx_bounds[1][2]:] = -np.Inf
+            corrnorm[:, :, :idx_bounds[0][2]] = -np.Inf
+            corrnorm[:, :, idx_bounds[1][2]:] = -np.Inf
 
     idx = np.unravel_index(np.argmax(corrnorm), fshape)
     return np.array(idx) - offset, corrnorm[idx]
@@ -320,8 +329,8 @@ def align_mutual_information(pixels1, pixels2, mask1, mask2):
     while True:
         last_i = i
         last_j = j
-        for new_i in range(last_i-1, last_i+2):
-            for new_j in range(last_j-1, last_j+2):
+        for new_i in range(last_i - 1, last_i + 2):
+            for new_j in range(last_j - 1, last_j + 2):
                 if new_i == 0 and new_j == 0:
                     continue
                 p2, p1 = offset_slice(pixels2, pixels1, new_i, new_j)
@@ -333,6 +342,7 @@ def align_mutual_information(pixels1, pixels2, mask1, mask2):
                     j = new_j
         if i == last_i and j == last_j:
             return j, i
+
 
 def offset_slice(pixels1, pixels2, i, j):
     '''Return two sliced arrays where the first slice is offset by i,j
@@ -364,6 +374,7 @@ def offset_slice(pixels1, pixels2, i, j):
     p2 = pixels2[p2_imin:p2_imax, p2_jmin:p2_jmax]
     return (p1, p2)
 
+
 def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     '''Return the cumulative sum going in the i, then j direction
 
@@ -378,13 +389,14 @@ def cumsum_quadrant(x, i_forwards, j_forwards, k_forwards=None):
     if j_forwards:
         x = x.cumsum(1)
     else:
-        x =  np.fliplr(np.fliplr(x).cumsum(1))
+        x = np.fliplr(np.fliplr(x).cumsum(1))
     if k_forwards is None:
         return x
     if k_forwards:
         return x.cumsum(2)
     else:
-        return x[:,:, ::-1].cumsum(2)[:,:, ::-1]
+        return x[:, :, ::-1].cumsum(2)[:, :, ::-1]
+
 
 def entropy(x):
     '''The entropy of x as if x is a probability distribution'''
@@ -395,6 +407,7 @@ def entropy(x):
         return np.log2(n) - old_div(np.sum(histogram * np.log2(histogram)), n)
     else:
         return 0
+
 
 def entropy2(x, y):
     '''Joint entropy of paired samples X and Y'''
@@ -407,7 +420,7 @@ def entropy2(x, y):
     # create an image where each pixel with the same X & Y gets
     # the same value
     #
-    xy = 256*x+y
+    xy = 256 * x + y
     xy = xy.flatten()
     sparse = scipy.sparse.coo_matrix((np.ones(xy.shape),
                                       (xy, np.zeros(xy.shape))))
@@ -419,6 +432,7 @@ def entropy2(x, y):
     else:
         return 0
 
+
 def reshape_image(source, new_shape):
     '''Reshape an image to a larger shape, padding with zeros'''
     if tuple(source.shape) == tuple(new_shape):
@@ -428,6 +442,7 @@ def reshape_image(source, new_shape):
     result[:source.shape[0], :source.shape[1]] = source
     return result
 
+
 def stretch(image, mask=None):
     '''Normalize an image to make the minimum zero and maximum one
 
@@ -436,6 +451,7 @@ def stretch(image, mask=None):
 
     returns the stretched image
     '''
+
     image = np.array(image, float)
     if np.product(image.shape) == 0:
         return image
@@ -461,7 +477,6 @@ def stretch(image, mask=None):
         else:
             transformed_image = (old_div((significant_pixels - minval),
                                  (maxval - minval)))
-        result = image.copy()
+        # result = image.copy()
         image[mask] = transformed_image
         return image
-
