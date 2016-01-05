@@ -101,6 +101,9 @@ class ImagingDataset(object):
         The sets of ROIs saved with this ImagingDataset.
     time_averages : list of ndarray
         The time-averaged intensity for each channel.
+    time_std : ndarray
+        The standard deviation of the intensity for each channel.
+        Useful for knowing how dynamic each pixel is.
 
     """
 
@@ -592,7 +595,7 @@ class ImagingDataset(object):
             f = h5py.File(filenames, 'w')
             if mean_or_std=='mean':
                 im = self.time_averages
-            elif mean_or_Std=='std':
+            elif mean_or_std=='std':
                 im = self.time_std
             else:
                 raise ValueError("mean_or_std must be 'mean' or 'std'")
@@ -612,7 +615,7 @@ class ImagingDataset(object):
             for chan, filename in enumerate(filenames):
                 if mean_or_std=='mean':
                     im = self.time_averages[:, :, :, chan]
-                elif mean_or_Std=='std':
+                elif mean_or_std=='std':
                     im = self.time_std[:, :, :, chan]
                 if dirname(filename):
                     mkdir_p(dirname(filename))
