@@ -338,7 +338,7 @@ class ImagingDataset(object):
             try:
                 with open(join(self.savedir, 'time_kurtosis.pkl'),
                           'rb') as f:
-                    time_std = pickle.load(f)
+                    time_kurtosis = pickle.load(f)
             except IOError:
                 pass
             else:
@@ -359,11 +359,13 @@ class ImagingDataset(object):
         means = old_div(sums, counts)
         mean_of_squares = old_div(sums_squares, counts)
         std = np.sqrt(mean_of_squares-np.square(means))
-        #Now calculate the kurtosis by using z-scores
+        #Now calculate the kurtosis. Kurtosis as defined here is actually
+        #not the standard Wiki definition. This is merely the 4th moment
+        #of the mean subtracted trace for each pixel.
         sums_fourthpower = np.zeros(self.frame_shape)
+        sums_squares_meansubtracted = np.zeros(self.frame_shape)
         for frame in it.chain.from_iterable(self):
-            zscore = old_div((np.nan_to_num(frame)-means), std)
-            sums_fourthpower += np.power(zscore, 4)
+            sums_fourthpower += np.power(np.nan_to_num(frame-means), 4)
         kurtosis = old_div(sums_fourthpower, counts)
  
         if self.savedir is not None and not self._read_only:
