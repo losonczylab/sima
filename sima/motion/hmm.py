@@ -385,7 +385,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
             restarts = self._params['restarts']
             if restarts is not None:
                 restart_period = np.prod(
-                    sequence.shape[restarts:(granularity[0]+1)]
+                    sequence.shape[(restarts+1):(granularity[0]+1)]
                 ) // granularity[1]
             else:
                 restart_period = None

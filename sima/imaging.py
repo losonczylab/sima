@@ -928,9 +928,10 @@ class ImagingDataset(object):
         share_gamma : bool, optional
             Whether to apply the same gamma estimate to all ROIs. Defaults to
             True.
-        mode : {'correct', 'robust'}, optional
+        mode : {'correct', 'robust', 'psd'}, optional
             The method for estimating sigma. The 'robust' method overestimates
-            the noise by assuming that gamma = 1. Default: 'correct'.
+            the noise by assuming that gamma = 1. The 'psd' method estimates
+            sigma from the PSD of the fluorescence data. Default: 'correct'.
         verbose : bool, optional
             Whether to print status updates. Default: False.
 
@@ -969,18 +970,32 @@ class ImagingDataset(object):
         signals = all_signals[label]
 
         # estimate gamma for all cells
-        gamma = [sima.spikes.estimate_parameters(sigs, gamma, sigma=0)[0]
-                 for sigs in zip(*signals['raw'])]
-        if share_gamma:
-            gamma = np.median(gamma)
+        if mode == "psd":
+            if share_gamma:
+                mega_trace = np.concatenate(
+                    [sigs for sigs in signals['raw'][0]])
+                sigma = sima.spikes.estimate_sigma(mega_trace)
+                gamma = sima.spikes.estimate_gamma(mega_trace, sigma)
+                sigma = [sigma for _ in signals['raw'][0]]
+                gamma = [gamma for _ in signals['raw'][0]]
+            else:
+                sigma = [sima.spikes.estimate_sigma(sigs[0])
+                         for sigs in signals['raw'][0]]
+                gamma = [sima.spikes.estimate_gamma(sigs[0], sigm)
+                         for sigm, sigs in zip(sigma, signals['raw'][0])]
+        else:
+            gamma = [sima.spikes.estimate_parameters(sigs, gamma, sigma=0)[0]
+                     for sigs in zip(*signals['raw'])]
+            if share_gamma:
+                gamma = np.median(gamma)
 
-        # ensure that gamma is a list, one value per ROI
-        if isinstance(gamma, float):
-            gamma = [gamma for _ in signals['raw'][0]]
+            # ensure that gamma is a list, one value per ROI
+            if isinstance(gamma, float):
+                gamma = [gamma for _ in signals['raw'][0]]
 
-        # estimate sigma values
-        sigma = [sima.spikes.estimate_parameters(sigs, g)[1]
-                 for g, sigs in zip(gamma, zip(*signals['raw']))]
+            # estimate sigma values
+            sigma = [sima.spikes.estimate_parameters(sigs, g)[1]
+                     for g, sigs in zip(gamma, zip(*signals['raw']))]
 
         # perform spike inference
         spikes, fits, parameters = [], [], []
