@@ -125,9 +125,9 @@ class PlaneWiseSegmentation(SegmentationStrategy):
     def _segment(self, dataset):
         def set_z(roi, z):
             old_mask = roi.mask
-            return ROI(
-                mask=[sparse.lil_matrix(old_mask[0].shape, old_mask[0].dtype)
-                      for _ in range(z - 1)] + [old_mask[0]])
+            roi.mask = [
+                sparse.lil_matrix(old_mask[0].shape, dtype=old_mask[0].dtype)
+                for _ in range(z)] + [old_mask[0]]
 
         rois = ROIList([])
         if isinstance(self.strategy, list):
