@@ -324,7 +324,9 @@ for each ROI, and the extracted signal from each ROI at each frame time.
 Complete example
 ----------------
 Below are the contents of workflow.py in the examples directory provided with
-the SIMA source code.
+the SIMA source code. This example is also available as an interactive iPython
+notebook in the same location, or as a static version here:
+:download:`Example Workflow <_static/example_workflow.html>`
 
 .. include:: ../../examples/workflow.py
     :code: python

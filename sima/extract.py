@@ -171,7 +171,9 @@ def _roi_extract(inputs):
 def _save_extract_summary(signals, save_directory, rois):
     """Used to save an extract summary prototype image"""
     import matplotlib as mpl
-    mpl.use('pdf')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        mpl.use('pdf')
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
     from sima.ROI import NonBooleanMask
