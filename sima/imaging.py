@@ -101,6 +101,12 @@ class ImagingDataset(object):
         The sets of ROIs saved with this ImagingDataset.
     time_averages : list of ndarray
         The time-averaged intensity for each channel.
+    time_std : ndarray
+        The standard deviation of the intensity for each channel.
+        Useful for knowing how dynamic each pixel is.
+    time_kurtosis : ndarray
+        The kurtosis of the intensity for each channel.
+        Better than std deviation for knowing how dynamic each pixel is.
 
     """
 
@@ -288,6 +294,80 @@ class ImagingDataset(object):
                 pickle.dump(averages, f, pickle.HIGHEST_PROTOCOL)
         self._time_averages = averages
         return self._time_averages
+
+    @property
+    def time_std(self):
+        if hasattr(self, '_time_std'):
+            return self._time_std
+        if self.savedir is not None:
+            try:
+                with open(join(self.savedir, 'time_std.pkl'),
+                          'rb') as f:
+                    time_std = pickle.load(f)
+            except IOError:
+                pass
+            else:
+                # Same protocol as the averages. Make sure the
+                # std is a single 4D (zyxc) array and if not just
+                # re-calculate the time std.
+                if isinstance(time_std, np.ndarray):
+                    self._time_std = time_std
+                    return self._time_std
+
+        sums = np.zeros(self.frame_shape)
+        sums_squares = np.zeros(self.frame_shape)
+        counts = np.zeros(self.frame_shape)
+        for frame in it.chain.from_iterable(self):
+            sums += np.nan_to_num(frame)
+            sums_squares += np.square(np.nan_to_num(frame))
+            counts[np.isfinite(frame)] += 1
+        means = old_div(sums, counts)
+        mean_of_squares = old_div(sums_squares, counts)
+        std = np.sqrt(mean_of_squares-np.square(means))
+        if self.savedir is not None and not self._read_only:
+            with open(join(self.savedir, 'time_std.pkl'), 'wb') as f:
+                pickle.dump(std, f, pickle.HIGHEST_PROTOCOL)
+        self._time_std = std
+        return self._time_std
+
+    @property
+    def time_kurtosis(self):
+        if hasattr(self, '_time_kurtosis'):
+            return self._time_kurtosis
+        if self.savedir is not None:
+            try:
+                with open(join(self.savedir, 'time_kurtosis.pkl'),
+                          'rb') as f:
+                    time_kurtosis = pickle.load(f)
+            except IOError:
+                pass
+            else:
+                # Same protocol as the averages. Make sure the
+                # kurtosis is a single 4D (zyxc) array and if not just
+                # re-calculate the time kurtosis.
+                if isinstance(time_kurtosis, np.ndarray):
+                    self._time_kurtosis = time_kurtosis
+                    return self._time_kurtosis
+
+        sums = np.zeros(self.frame_shape)
+        counts = np.zeros(self.frame_shape)
+        for frame in it.chain.from_iterable(self):
+            sums += np.nan_to_num(frame)
+            counts[np.isfinite(frame)] += 1
+        means = old_div(sums, counts)
+        # Now calculate the kurtosis. Kurtosis as defined here is actually
+        # not the standard Wiki definition. This is merely the 4th moment
+        # of the mean subtracted trace for each pixel.
+        sums_fourthpower = np.zeros(self.frame_shape)
+        for frame in it.chain.from_iterable(self):
+            sums_fourthpower += np.power(np.nan_to_num(frame-means), 4)
+        kurtosis = old_div(sums_fourthpower, counts)
+
+        if self.savedir is not None and not self._read_only:
+            with open(join(self.savedir, 'time_kurtosis.pkl'), 'wb') as f:
+                pickle.dump(kurtosis, f, pickle.HIGHEST_PROTOCOL)
+        self._time_kurtosis = kurtosis
+        return self._time_kurtosis
 
     @property
     def ROIs(self):
@@ -522,7 +602,9 @@ class ImagingDataset(object):
             else:
                 os.remove(join(self.savedir, 'rois.pkl'))
 
-    def export_averages(self, filenames, fmt='TIFF16', scale_values=True):
+    def export_averages(
+           self, filenames, fmt='TIFF16', scale_values=True,
+           projection_type='average'):
         """Save TIFF files with the time average of each channel.
 
         For datasets with multiple frames, the resulting TIFF files
@@ -538,6 +620,10 @@ class ImagingDataset(object):
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.
+        projection_type : {'average', 'std', 'kurtosis'}, optional
+            Whether to take average z projection, the std z projection, or
+            the kurtosis projection. std and kurtosis are useful for
+            finding the dynamic pixels
 
         """
 
@@ -552,22 +638,35 @@ class ImagingDataset(object):
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
             f = h5py.File(filenames, 'w')
-            im = self.time_averages
+            if projection_type == 'average':
+                im = self.time_averages
+            elif projection_type == 'std':
+                im = self.time_std
+            elif projection_type == 'kurtosis':
+                im = self.time_kurtosis
+            else:
+                raise ValueError(
+                     "projection_type must be 'average', 'std' or 'kurtosis'")
             if scale_values:
                 im = sima.misc.to16bit(im)
             else:
                 im = im.astype('uint16')
-            f.create_dataset(name='time_average', data=im)
+            f.create_dataset(name='time_'+projection_type, data=im)
             for idx, label in enumerate(['z', 'y', 'x', 'c']):
-                f['time_average'].dims[idx].label = label
+                f['time_'+projection_type].dims[idx].label = label
             if self.channel_names is not None:
-                f['time_average'].attrs['channel_names'] = [
+                f['time_'+projection_type].attrs['channel_names'] = [
                     np.string_(s) for s in self.channel_names]
                 # Note: https://github.com/h5py/h5py/issues/289
             f.close()
         else:
             for chan, filename in enumerate(filenames):
-                im = self.time_averages[:, :, :, chan]
+                if projection_type == 'average':
+                    im = self.time_averages[:, :, :, chan]
+                elif projection_type == 'std':
+                    im = self.time_std[:, :, :, chan]
+                elif projection_type == 'kurtosis':
+                    im = self.time_kurtosis[:, :, :, chan]
                 if dirname(filename):
                     mkdir_p(dirname(filename))
                 if fmt == 'TIFF8':
