@@ -37,8 +37,8 @@ prior to installation of ROI Buddy:
 
 * sima>=1.0 (https://pypi.python.org/pypi/sima)
 * PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
-* guidata (https://code.google.com/p/guidata/)
-* guiqwt (https://code.google.com/p/guiqwt/)
+* guidata (https://pypi.python.org/pypi/guidata)
+* guiqwt (https://pypi.python.org/pypi/guiqwt)
 
 Once these dependencies are installed, the ROI Buddy can be installed from 
 the Python Package Index using pip.::
