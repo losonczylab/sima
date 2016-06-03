@@ -33,8 +33,9 @@ before_install:
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then conda install -c https://conda.binstar.org/anaconda opencv; fi
   # As of Sphinx 1.3.1, napoleon is now in the main Sphinx package
   # - pip install sphinxcontrib-napoleon
-  # Not really sure how the old version of Sphinx is getting installed...
-  - pip install -U Sphinx>=1.3.1
+  # Not really sure how the old version of Sphinx is getting installed.
+  # 030616 - seems fixed now
+  # - pip install -U Sphinx>=1.3.1
   - pip install picos
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage coveralls; fi
   - python -V
@@ -42,6 +43,7 @@ before_install:
   - cp /usr/lib/x86_64-linux-gnu/libm.so /home/travis/miniconda/envs/test-environment/bin/../lib/libm.so.6
   - ldconfig -p
   - conda list -e
+  - pip freeze
 script: 
     - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/motion/__init__.py,sima/segment/__init__.py
     - python runtests.py --doctests -m $TESTMODE $COVERAGE
