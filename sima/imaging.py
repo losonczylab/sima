@@ -602,9 +602,8 @@ class ImagingDataset(object):
             else:
                 os.remove(join(self.savedir, 'rois.pkl'))
 
-    def export_averages(
-           self, filenames, fmt='TIFF16', scale_values=True,
-           projection_type='average'):
+    def export_averages(self, filenames, fmt='TIFF16', scale_values=True,
+                        projection_type='average'):
         """Save TIFF files with the time average of each channel.
 
         For datasets with multiple frames, the resulting TIFF files
@@ -646,16 +645,16 @@ class ImagingDataset(object):
                 im = self.time_kurtosis
             else:
                 raise ValueError(
-                     "projection_type must be 'average', 'std' or 'kurtosis'")
+                    "projection_type must be 'average', 'std' or 'kurtosis'")
             if scale_values:
                 im = sima.misc.to16bit(im)
             else:
                 im = im.astype('uint16')
-            f.create_dataset(name='time_'+projection_type, data=im)
+            f.create_dataset(name='time_' + projection_type, data=im)
             for idx, label in enumerate(['z', 'y', 'x', 'c']):
-                f['time_'+projection_type].dims[idx].label = label
+                f['time_' + projection_type].dims[idx].label = label
             if self.channel_names is not None:
-                f['time_'+projection_type].attrs['channel_names'] = [
+                f['time_' + projection_type].attrs['channel_names'] = [
                     np.string_(s) for s in self.channel_names]
                 # Note: https://github.com/h5py/h5py/issues/289
             f.close()
@@ -701,7 +700,7 @@ class ImagingDataset(object):
             Defaults to True.
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
-            output format. Defaults to False.
+            output format. Defaults to False.  Channels are scaled separately.
         compression : {None, 'gzip', 'lzf', 'szip'}, optional
             If not None and 'fmt' is 'HDF5', compress the data with the
             specified lossless compression filter. See h5py docs for details on
@@ -719,7 +718,9 @@ class ImagingDataset(object):
             raise TypeError('Improperly formatted filenames')
         for sequence, fns in zip(self, filenames):
             sequence.export(
-                fns, fmt, fill_gaps, self.channel_names, compression)
+                fns, fmt=fmt, fill_gaps=fill_gaps,
+                channel_names=self.channel_names, compression=compression,
+                scale_values=scale_values)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extracted signals to a file.
