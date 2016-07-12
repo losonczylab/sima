@@ -13,7 +13,6 @@ import numpy as np
 from itertools import product
 import zipfile
 
-from pudb import set_trace
 
 def read_imagej_roi_zip(filename):
     """Reads an ImageJ ROI zip set and parses each ROI individually
@@ -200,7 +199,7 @@ def read_roi(roi_obj):
         coords = coords.astype('float')
         return {'polygons': coords}
     elif roi_type == 10:
-        #Single Point
+        # Single Point
         # R = L+1, B = T+1
         coords = [left, top, z]
         coords = [float(c) for c in coords]
