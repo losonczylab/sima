@@ -143,10 +143,10 @@ def read_roi(roi_obj):
     right = _get16()
     n_coordinates = _get16()
 
-    _getfloat()  # x1
-    _getfloat()  # y1
-    _getfloat()  # x2
-    _getfloat()  # y2
+    x1 = _getfloat()  # x1
+    y1 = _getfloat()  # y1
+    x2 = _getfloat()  # x2
+    y2 = _getfloat()  # y2
     _get16()  # stroke width
     _get32()  # shape roi size
     _get32()  # stroke color
@@ -188,6 +188,11 @@ def read_roi(roi_obj):
             mask[z, y, x] = ((x - x_mid) ** 2 / (width / 2.0) ** 2 +
                              (y - y_mid) ** 2 / (height / 2.0) ** 2 <= 1)
         return {'mask': mask}
+    elif roi_type == 3:
+        # Line
+        coords = [[x1, y1, z], [x2, y2, z]]
+        coords = np.array(coords).astype('float')
+        return {'polygons': coords}
     elif roi_type == 7:
         # Freehand
         coords = _getcoords(z)

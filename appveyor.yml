@@ -47,8 +47,8 @@ install:
   - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
   - activate test-environment
   - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip future
-  - conda install -q --yes -c https://conda.binstar.org/scitools shapely
-  - conda install -q --yes -c https://conda.binstar.org/menpo opencv
+  - conda install -q --yes -c scitools shapely
+  - conda install -q --yes -c menpo opencv
   - pip install wheel
 
   # - ps: cp -Force C:\conda\pkgs\opencv-2.4.9.1-np19py27_0\Lib\site-packages\cv2.pyd C:\conda\envs\test-environment\Lib\site-packages

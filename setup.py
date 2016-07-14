@@ -82,7 +82,7 @@ Topic :: Scientific/Engineering
 """
 setup(
     name="sima",
-    version="1.3.0",
+    version="1.3.1",
     packages=['sima',
               'sima.misc',
               'sima.motion',
