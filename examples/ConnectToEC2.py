@@ -87,6 +87,23 @@ http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html
  key file: load the .pem file into Puttygen, convert it, and save it in the
  same directory as the .pem file with the same file name. So mykey.pem should
  be stored as mykey.ppk. Both of these files should be present.
+
+One last thing to keep in mind is the type of instance that you
+ want to start. The default below is r3.2xlarge, which is a memory
+ optimized instance. A list of all instances can be found here:
+ http://www.ec2instances.info/ The one unintuitive thing to keep
+ in mind when choosing an instance is that with SIMA motion correction,
+ a lot of RAM might end up getting used as of July 13, 2016.
+ This issue is discussed on Github here:
+ https://github.com/losonczylab/sima/issues/216
+ So until this is resolved, users will want to launch an instance with RAM
+ larger than the size of all files combined. This is just a rough
+ approximation for the default settings of SIMA. For instance, if
+ the total size of all your files is less than ~50-55GB, you can use
+ r3.2xlarge, which has 62GB of RAM. If the RAM gets fully used, the
+ instance throws SSH connection errors. At that point, there is no
+ other option but to terminate the instance and start another one with
+ more RAM.
 """
 
 from boto import ec2
@@ -121,6 +138,8 @@ def print_error(msg="failed"):
 
 def print_remote_message(msg):
     print(colored(msg, 'cyan'))
+    with open("analysislog.txt", "a") as myfile:
+        myfile.write(msg)
 
 
 def install_anaconda(ssh_client):
@@ -128,10 +147,8 @@ def install_anaconda(ssh_client):
 
     # download anaconda
     print_status("Downloading Anaconda")
-    ssh(ssh_client, "rm -f ./Anaconda-2.3.0-Linux-x86_64.sh && "
-        "wget https://3230d63b5fc54e62148e-c95ac804525aac4b6dba79b00b39d1d3 \
-         .ssl.cf1.rackcdn.com/"
-        "Anaconda-2.3.0-Linux-x86_64.sh")
+    ssh(ssh_client, "rm -rf ./Anaconda-2.3.0-Linux-x86_64.sh && "
+        "wget https://3230d63b5fc54e62148e-c95ac804525aac4b6dba79b00b39d1d3.ssl.cf1.rackcdn.com/Anaconda-2.3.0-Linux-x86_64.sh")
     print_success()
 
     # setup anaconda
@@ -157,7 +174,7 @@ def install_anaconda(ssh_client):
     ssh(ssh_client, "/root/anaconda/bin/conda update --yes numpy scipy \
                      ipython scikit-image h5py &&"
                     "/root/anaconda/bin/conda install --yes jsonschema \
-                     pillow seaborn scikit-learn shapely bottleneck"
+                     pillow seaborn scikit-learn shapely bottleneck "
                     "future &&"
                     "/root/anaconda/bin/pip install jupyter")
     print_success()
@@ -213,6 +230,8 @@ def install_MDP(ssh_client):
 
 
 def setup_sign_of_life(ssh_client):
+    ssh(ssh_client, "sudo echo 'MaxSessions=100' >> \
+                     /etc/ssh/sshd_config")
     ssh(ssh_client, "sudo echo 'ClientAliveInterval 50' >> \
                      /etc/ssh/sshd_config")
     ssh(ssh_client, "sudo chmod 600 /etc/ssh/sshd_config && \
@@ -249,28 +268,42 @@ def ssh(ssh_client, command, block=True, get_pty=False, display=False):
         # stdout. If so, it means that the analysis actually failed even
         # though the exit flag from dtach was 0. This is caught as an
         # AnalysisError class, defined below.
+
+        duration = 0
+        timeout = 30*60  # in seconds
+        temp = ''
         if display:
-            while not ssh_chan.exit_status_ready():
+            start_time = time.time()
+            while not ssh_chan.exit_status_ready() and duration < timeout:
+                duration = time.time() - start_time
                 if ssh_chan.recv_ready():
                     temp = ssh_chan.recv(1024)
                     print_remote_message(temp)
                     if "Analysis failed" in temp:
                         analysis_failed_flag = True
+        if duration >= timeout:
+            raise TimeoutError()
+        else:
+            # Wait for remote command to complete
+            exit_code = ssh_chan.recv_exit_status()
 
-        # Wait for remote command to complete
-        exit_code = ssh_chan.recv_exit_status()
-
-        if not exit_code == 0:
-            print "Exit code: " + str(exit_code)
-            while ssh_chan.recv_stderr_ready():
-                print ssh_chan.recv_stderr(1024)
-            raise Exception('Error in SSH command.')
-        elif analysis_failed_flag:
-            raise AnalysisError(
-                 'Analysis failed. Check log file on S3 to see why')
+            if not exit_code == 0:
+                print "Exit code: " + str(exit_code)
+                while ssh_chan.recv_stderr_ready():
+                    print ssh_chan.recv_stderr(1024)
+                raise Exception('Error in SSH command.')
+            elif analysis_failed_flag:
+                raise AnalysisError(
+                     'Analysis failed. Check log file on S3 to see why')
+    return temp
 
 
 class AnalysisError(Exception):
+    def __int__(self, msg):
+        self.msg = msg
+
+
+class TimeoutError(Exception):
     def __int__(self, msg):
         self.msg = msg
 
@@ -465,13 +498,21 @@ def allow_root_ssh(ssh_client):
 
 def setup_analysis(ssh_client):
     print_status("Copying python script to run analysis")
-    ssh(ssh_client, 'mkdir -p /mnt/DATA')
+    ssh(ssh_client, 'mkdir -p /mnt/analysis/DATA')
     ssh_sftp = ssh_client.open_sftp()
     ssh_sftp.put('./runanalysis.py', 'runanalysis.py')
     # Defining path for remote destination doesn't work in Windows?
     ssh_sftp.close()
-    ssh(ssh_client, 'mv runanalysis.py /mnt/DATA &&'
-                    'chmod 700 /mnt/DATA/runanalysis.py')
+    ssh(ssh_client, 'mv runanalysis.py /mnt/analysis/DATA &&'
+                    'chmod 700 /mnt/analysis/DATA/runanalysis.py')
+
+
+def mount_volume(ssh_client):
+    print_status("Mounting ephemeral storage to /mnt/analysis")
+    ssh(ssh_client, 'mkfs /dev/xvdb')
+    ssh(ssh_client, 'mkdir -p /mnt/analysis')
+    ssh(ssh_client, 'mount /dev/xvdb /mnt/analysis')
+    print_success()
 
 
 def setup_ipythonnotebook(ssh_client, master):
@@ -492,42 +533,51 @@ def launch_ec2(conn, opts):
 
     if opts.resume:
         master_nodes = get_existing_instance(conn, opts)
+        print "Instance at " + master_nodes[0].public_dns_name
     else:
         master_nodes = launch_instance(conn, opts)
-    print "Instance at " + master_nodes[0].public_dns_name
+        print "Instance at " + master_nodes[0].public_dns_name
 
-    wait_for_instance_state(theinstance=(master_nodes[0]),
-                            instance_state='ssh-ready',
-                            opts=opts, conn=conn)
+        wait_for_instance_state(theinstance=(master_nodes[0]),
+                                instance_state='ssh-ready',
+                                opts=opts, conn=conn)
     print("")
 
     ssh_client = ssh_connect(master_nodes[0].public_dns_name, opts)
-    allow_root_ssh(ssh_client)
-
-    # After restarting ssh daemon in setup_instance, you need to get the
-    # ip address again. I (Vijay) don't understand this, but getting it
-    # again works.
-    master_nodes = get_existing_instance(conn, opts, outputflag=False)
-    master = master_nodes[0].public_dns_name
-    opts.user = "root"
-    ssh_client.close()
-    ssh_client.connect(master_nodes[0].public_dns_name,
-                       username=opts.user,
-                       key_filename=opts.identity_file)
-
-    setup_sign_of_life(ssh_client)
-    # this is to make sure the instance sends a sign of life signal to your
-    # local computer; without this, the sshd closes the connection over the
-    # analysis and the local terminal freezes
-    setup_analysis(ssh_client)
     if not opts.copyscript:
+        allow_root_ssh(ssh_client)
+        # After restarting ssh daemon in setup_instance, you need to get the
+        # ip address again. I (Vijay) don't understand this, but getting it
+        # again works.
+        master_nodes = get_existing_instance(conn, opts, outputflag=False)
+        master = master_nodes[0].public_dns_name
+        opts.user = "root"
+        ssh_client.close()
+        ssh_client.connect(master_nodes[0].public_dns_name,
+                           username=opts.user,
+                           key_filename=opts.identity_file)
+        mount_volume(ssh_client)
+        setup_sign_of_life(ssh_client)
+        # this is to make sure the instance sends a sign of life signal to
+        # your local computer; without this, the sshd closes the connection
+        # over the analysis and the local terminal freezes
         install_anaconda(ssh_client)
         install_opencv(ssh_client)
         install_picos(ssh_client)
         install_MDP(ssh_client)
         install_sima(ssh_client)
+        setup_analysis(ssh_client)
         if opts.action == 'launch':
             setup_ipythonnotebook(ssh_client, master)
+    else:
+        master_nodes = get_existing_instance(conn, opts, outputflag=False)
+        master = master_nodes[0].public_dns_name
+        opts.user = "root"
+        ssh_client.close()
+        ssh_client.connect(master_nodes[0].public_dns_name,
+                           username=opts.user,
+                           key_filename=opts.identity_file)
+        setup_analysis(ssh_client)
 
     print "Instance successfully launched!"
     return ssh_client, master
@@ -536,10 +586,67 @@ def launch_ec2(conn, opts):
 def set_up_screen(ssh_client):
     # sets up a dtach session for the runanalysis script
     ssh(ssh_client, 'sudo apt-get install dtach')
-    ssh(ssh_client, "rm -f /mnt/DATA/runanalysis.sh &&"
+    ssh(ssh_client, "rm -f /mnt/analysis/DATA/runanalysis.sh &&"
                     "echo '#!/usr/bin/env bash\npython \
-                     /mnt/DATA/runanalysis.py' >> /mnt/DATA/runanalysis.sh &&"
-                    "chmod 700 /mnt/DATA/runanalysis.sh")
+                     /mnt/analysis/DATA/runanalysis.py' \
+                     >> /mnt/analysis/DATA/runanalysis.sh &&"
+                    "chmod 700 /mnt/analysis/DATA/runanalysis.sh")
+
+
+# The function below is called every timeout period to make sure the
+# instance hasn't dropped the internet connection while analysis is
+# running
+def get_back_to_analysis(ssh_client, conn, opts):
+    print('Reconnecting to the analysis output stream')
+    try:
+        ssh(ssh_client, "dtach -a /tmp/runanalysis -r winch",
+            get_pty=True, display=True)
+    except AnalysisError as e:
+        print >> sys.stderr, (e)
+        if not opts.terminate_on_error:
+            sys.exit(1)
+    except TimeoutError:
+        print('Reconnecting session so instance does\
+              not drop connection')
+        get_back_to_analysis(ssh_client, conn, opts)
+    except KeyboardInterrupt:
+        print('Keyboard interrupt received. The analysis will \
+              continue; you can still reconnect')
+        sys.exit(1)
+    except:
+        cmd = 'if [ -f /tmp/analysisfailed.txt ]; then\n\
+               echo "Analysis Failed"\n\
+               elif [ -f /tmp/analysissuccess.txt ]; then\n\
+               echo "Analysis Success!"\n\
+               else\n\
+               echo "File not found"\n\
+               fi'
+        temp = ssh(ssh_client, cmd, display=True)
+        if 'Failed' in temp:
+            print('Analysis failed')
+            if not opts.terminate_on_error:
+                sys.exit(1)
+        elif 'Success' in temp:
+            print('Analysis success!')
+            sys.exit(1)
+        else:
+            print('There is no previous session to which you can \
+                   reattach!')
+            if not opts.terminate_on_error:
+                sys.exit(1)
+    else:
+        print("Analysis successfully completed!")
+
+    if 'terminate' in opts.action:
+        print("Terminating the EC2 instance")
+        (master_nodes) = get_existing_instance(conn, opts,
+                                               die_on_error=False)
+        for inst in master_nodes:
+            inst.terminate()
+        print("Terminated!")
+        sys.exit(1)
+    else:
+        sys.exit(1)
 
 
 def main():
@@ -665,11 +772,12 @@ def main():
     parser.add_argument("-r", "--region", default="us-east-1",
                         help="EC2 region to launch instances \
                               (default: us-east-1)")
-    parser.add_argument("-t", "--instance_type", default="c3.8xlarge",
+    parser.add_argument("-t", "--instance_type", default="r3.2xlarge",
                         help="Type of instance to launch \
-                              (default: c3.8xlarge).\n"
+                              (default: r3.2xlarge).\n"
                              "WARNING: must be 64-bit; "
-                             "small instances won't\n work")
+                             "small instances won't\n work. Pick instances\
+                              with at least one ephemeral storage device")
     parser.add_argument("--resume", default=False, action="store_true",
                         help="If this flag is present, resumes\n"
                              "installation on a previously launched \
@@ -733,9 +841,15 @@ def main():
 
         print_status('Setting up a detachable session')
         set_up_screen(ssh_client)
+        with open("analysislog.txt", "w") as myfile:
+            myfile.write("Starting analysis now at time\n")
+            t = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+            myfile.write(t)
+            myfile.write("\n")
         try:
-            ssh(ssh_client, "dtach -c /tmp/runanalysis -r winch \
-                /mnt/DATA/runanalysis.sh", get_pty=True, display=True)
+            ssh(ssh_client, "dtach -c /tmp/runanalysis -r winch\
+                /mnt/analysis/DATA/runanalysis.sh", get_pty=True,
+                display=True)
         except AnalysisError as ae:
             print >> sys.stderr, (ae)
             if not opts.terminate_on_error:
@@ -744,6 +858,8 @@ def main():
             print('Keyboard interrupt received. The analysis will continue; \
                    you can still reconnect')
             sys.exit(1)
+        except TimeoutError:
+            get_back_to_analysis(ssh_client, conn, opts)
         except:
             print('Unknown error')
             if not opts.terminate_on_error:
@@ -758,6 +874,7 @@ def main():
             for inst in master_nodes:
                 inst.terminate()
             print("Terminated!")
+            sys.exit(1)
         else:
             sys.exit(1)
     else:
@@ -815,6 +932,11 @@ def main():
             print("")
             print("Instance successfully restarted!")
             print("")
+            (master_nodes) = get_existing_instance(conn, opts)
+            master = master_nodes[0].public_dns_name
+            opts.user = "root"
+            ssh_client = ssh_connect(master, opts)
+            mount_volume(ssh_client)
 
         # Terminate the instance
         elif opts.action == "terminate":
@@ -833,36 +955,7 @@ def main():
         elif (opts.action == "reconnect" or
               opts.action == "reconnectandterminate"):
             ssh_client = ssh_connect(master, opts)
-            try:
-                ssh(ssh_client, "dtach -a /tmp/runanalysis",
-                    get_pty=True, display=True)
-            except AnalysisError as e:
-                print >> sys.stderr, (e)
-                if not opts.terminate_on_error:
-                    sys.exit(1)
-            except KeyboardInterrupt:
-                print('Keyboard interrupt received. The analysis will \
-                       continue; you can still reconnect')
-                sys.exit(1)
-            except:
-                print('There is no previous session to which you can \
-                       reattach!\nThis means that the analysis script \
-                       finished executing (successfully or not). \
-                       Check log file on S3.')
-                if not opts.terminate_on_error:
-                    sys.exit(1)
-            else:
-                print("Analysis successfully completed!")
-
-            if opts.action == "reconnectandterminate":
-                print("Terminating the EC2 instance")
-                (master_nodes) = get_existing_instance(conn, opts,
-                                                       die_on_error=False)
-                for inst in master_nodes:
-                    inst.terminate()
-                print("Terminated!")
-            else:
-                sys.exit(1)
+            get_back_to_analysis(ssh_client, conn, opts)
 
         else:
             raise NotImplementedError(

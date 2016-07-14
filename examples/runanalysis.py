@@ -50,6 +50,9 @@ Assumptions:
  the last underscore. For instance, filenames could be
  experiment151006_001.tif etc. For this case, use is_single_file = False
  in the global variables.
+4. If any filename ends with _CH1, we assume that this file was from a dual
+ channel imaging session such that there is also another corresponding file
+ whose name is the same as the above file but ends with _CH2.
 
 
 Things to note:
@@ -96,6 +99,10 @@ Our lab's workflow:
  objects are reassigned to the local path of the raw data file
  (HDF5 file in step2). Once the paths have been appropriately modified,
  SIMA can be run on the local machine using export_frames() function.
+
+NOTE: the output from the instance while running the script is redirected
+ to a local file named analysislog.txt. So users can look at this text
+ file to keep track of the printed output.
 """
 
 import sima
@@ -162,8 +169,8 @@ dim_order_for_hdf5 = 'tyx'  # dim_order for HDF5 file. It states what the axes
 
 
 # Additional global variables. Do not change any of these
-base_path_on_ec2 = '/mnt/DATA/'  # This is the working directory where the
-# analysis script is run.
+base_path_on_ec2 = '/mnt/analysis/DATA/'
+# This is the working directory where the analysis script is run.
 conn = S3Connection(AWS_ACCESS_KEY, AWS_SECRET_ACCESS_KEY)
 bucket = conn.get_bucket(s3_bucket_name)
 
@@ -172,53 +179,116 @@ def create_sequence(full_path_to_file, individualframename):
     # Retrieve S3 filename without path
     temp = os.path.splitext(os.path.basename(full_path_to_file))
     filename = temp[0]
+    if filename[-4:] == '_CH1':
+        dual_channel = True
+    else:
+        dual_channel = False
 
     if is_single_file:
         file_format = temp[-1]
 
-        # Identify file format to create SIMA Sequence object
-        if file_format == '.tif':
-            import_format = 'TIFF'
-            sequences = [sima.Sequence.create(import_format,
-                                              os.path.basename(
-                                                 full_path_to_file))]
-        else:  # i.e., if file_format == '.h5':
-            import_format = 'HDF5'
-            sequences = [sima.Sequence.create(import_format,
-                                              os.path.basename(
-                                                 full_path_to_file),
-                                              dim_order_for_hdf5)]
+        if dual_channel:
+            # Identify file format to create SIMA Sequence object
+            if file_format == '.tif':
+                import_format = 'TIFF'
+                sequences1 = sima.Sequence.create(import_format,
+                                                  filename +
+                                                  file_format)
+                sequences2 = sima.Sequence.create(import_format,
+                                                  filename[:-1] +
+                                                  '2' + file_format)
+                sequences = [sima.Sequence.join(sequences1, sequences2)]
+            else:  # i.e., if file_format == '.h5':
+                import_format = 'HDF5'
+                sequences1 = sima.Sequence.create(import_format,
+                                                  filename +
+                                                  file_format,
+                                                  dim_order_for_hdf5)
+                sequences2 = sima.Sequence.create(import_format,
+                                                  filename[:-1] +
+                                                  '2' + file_format,
+                                                  dim_order_for_hdf5)
+                sequences = [sima.Sequence.join(sequences1, sequences2)]
+
+        else:
+            # Identify file format to create SIMA Sequence object
+            if file_format == '.tif':
+                import_format = 'TIFF'
+                sequences = [sima.Sequence.create(import_format,
+                                                  os.path.basename(
+                                                     full_path_to_file))]
+            else:  # i.e., if file_format == '.h5':
+                import_format = 'HDF5'
+                sequences = [sima.Sequence.create(import_format,
+                                                  os.path.basename(
+                                                     full_path_to_file),
+                                                  dim_order_for_hdf5)]
 
     else:  # file format is tiff
         import_format = 'TIFFs'
-        # 'filename' is really the directory. An individual frame's file name
-        # prefix is defined by 'individualframename'
-        sequences = [sima.Sequence.create(import_format,
-                                          [[base_path_on_ec2 + filename +
-                                            '/' + individualframename +
-                                            '_*.tif']])]
-    return sequences, filename
+        if dual_channel:
+            # 'filename' is really the directory. An individual frame's
+            # file name prefix is defined by 'individualframename'
+            sequences1 = sima.Sequence.create(import_format,
+                                              [[base_path_on_ec2 +
+                                                filename + '/' +
+                                                individualframename +
+                                                '_*.tif']])
+            sequences2 = sima.Sequence.create(import_format,
+                                              [[base_path_on_ec2 +
+                                                filename[:-1] + '2' + '/' +
+                                                individualframename +
+                                                '_*.tif']])
+            sequences = [sima.Sequence.join(sequences1, sequences2)]
+
+        else:
+            # 'filename' is really the directory. An individual frame's
+            # file name prefix is defined by 'individualframename'
+            sequences = [sima.Sequence.create(import_format,
+                                              [[base_path_on_ec2 + filename +
+                                                '/' + individualframename +
+                                                '_*.tif']])]
+    sima.ImagingDataset(sequences, filename + '.sima')
+    return filename, dual_channel
 
 
 def motion_correction((full_path_to_file, individualframename)):
     # Create SIMA Sequence object from file(s)
-    sequences, filename = create_sequence(full_path_to_file,
-                                          individualframename)
+    filename, dual_channel = create_sequence(full_path_to_file,
+                                             individualframename)
     print "Starting motion correction for %s" % filename
+    init_data = sima.ImagingDataset.load(filename + '.sima')
 
     # Define motion correction method and run.
     mc_approach = sima.motion.HiddenMarkov2D(granularity='row',
                                              verbose=True,
-                                             max_displacement=[50, 20])
-    dataset = mc_approach.correct(sequences, filename + '_mc.sima')
+                                             max_displacement=[50, 100])
+    if dual_channel:
+        dataset = mc_approach.correct(init_data, filename + '_mc.sima',
+                                      channel_names=['1', '2'],
+                                      correction_channels=['1'])
+    else:
+        dataset = mc_approach.correct(init_data, filename + '_mc.sima')
     logging.info("Done motion correction for %s. Saving results" % filename)
     print "Done motion correction for %s. Saving results" % filename
     sys.stdout.flush()
 
-    dataset.export_averages([filename + '_mc_std.tif'], projection_type='std')
-    # Export motion corrected image as .hdf5 to avoid any memory issues
+    if dual_channel:
+        dataset.export_averages([filename + '_mc_std.tif',
+                                 filename[:-1] + '2' + '_mc_std.tif'],
+                                projection_type='std')
+    else:
+        dataset.export_averages([filename + '_mc_std.tif'],
+                                projection_type='std')
+    # Export motion corrected video as .hdf5 to avoid any memory issues
     if export_mc_frames_or_not:
-        dataset.export_frames([filename + '_mc.h5'], fmt='HDF5')
+        if dual_channel:
+            dataset.export_frames([filename + '_mc.h5',
+                                   filename[:-1] + '2' + '_mc.h5'],
+                                  fmt='HDF5')
+        else:
+            dataset.export_frames([filename + '_mc.h5'],
+                                  fmt='HDF5')
 
     logging.info("Done exporting motion corrected files for %s" % filename)
     print "Done exporting motion corrected files for %s" % filename
@@ -286,6 +356,12 @@ def download_all_files_sequentially(s3_full_filenames):
 
     for s3_full_filename in s3_full_filenames:
         filename = os.path.basename(s3_full_filename)
+        print('Downloading %s' % (filename))
+        temp = os.path.splitext(filename)
+        if temp[0][-4:] == '_CH1':
+            dual_channel = True
+        else:
+            dual_channel = False
 
         if is_single_file:
             # Check if the file has already been downloaded before
@@ -295,6 +371,11 @@ def download_all_files_sequentially(s3_full_filenames):
                 k.get_contents_to_filename(filename)
             individualframename = None
             filenames_to_check_extension = s3_full_filenames
+            if dual_channel:
+                if not os.path.isfile(temp[0][:-1] + '2' + temp[1]):
+                    temp1 = os.path.splitext(s3_full_filename)
+                    k.key = temp1[0][:-1] + '2' + temp1[1]
+                    k.get_contents_to_filename(temp[0][:-1] + '2' + temp[1])
         else:
             # 'filename' is the name of the directory with the multiple
             # files in this case. Create directory on EC2 machine.
@@ -368,6 +449,14 @@ def upload_all_files_sequentially(s3_full_filenames):
             k.key = os.path.join(s3_path, 'Results',
                                  filename + '_extractedsignals.npy')
             k.set_contents_from_filename(filename + '_extractedsignals.npy')
+            # Upload the empty text file showing that both motion correction
+            # and extraction have been performed for this file. We will also
+            # delete the previous motion correction status file.
+            os.system('touch "%s_mc_extract.txt"' % filename)
+            k.key = os.path.join(s3_path, filename + '_mc_extract.txt')
+            k.set_contents_from_filename(filename + '_mc_extract.txt')
+            k.key = os.path.join(s3_path, filename + '_mc.txt')
+            bucket.delete_key(k)
 
     logging.info('Done uploading')
     print('Done uploading')
@@ -375,17 +464,45 @@ def upload_all_files_sequentially(s3_full_filenames):
 
 def upload_mc_files(s3_full_filename):
     s3_path, filename = upload_mc_sima_objects(s3_full_filename)
+    if filename[-4:] == '_CH1':
+        dual_channel = True
+    else:
+        dual_channel = False
+
     k = Key(bucket)
     k.key = os.path.join(s3_path, 'Results', filename + '_mc_std.tif')
     k.set_contents_from_filename(filename + '_mc_std.tif')
+    # Upload the empty text file showing that motion correction
+    # has been performed for this file
+    os.system('touch "%s_mc.txt"' % filename)
+    k.key = os.path.join(s3_path, filename + '_mc.txt')
+    k.set_contents_from_filename(filename + '_mc.txt')
+    if dual_channel:
+        k.key = os.path.join(s3_path, 'Results',
+                             filename[:-1] + '2' + '_mc_std.tif')
+        k.set_contents_from_filename(filename[:-1] + '2' + '_mc_std.tif')
+        # Upload the empty text file showing that motion correction
+        # has been performed for this file
+        os.system('touch "%s2_mc.txt"' % filename[:-1])
+        k.key = os.path.join(s3_path, filename[:-1] + '2' + '_mc.txt')
+        k.set_contents_from_filename(filename[:-1] + '2' + '_mc.txt')
+
     if export_mc_frames_or_not:
         file_path_on_ec2 = os.path.join(base_path_on_ec2, filename + '_mc.h5')
         if os.stat(file_path_on_ec2).st_size < 5000 * 1024 * 1024:
             # if file size less than 5GB, use single part upload
-            k.key = s3_full_filename + '_mc.h5'
+            name_on_s3 = os.path.splitexit(s3_full_filename)[0]
+            k.key = name_on_s3 + '_mc.h5'
             k.set_contents_from_filename(filename + '_mc.h5')
+            if dual_channel:
+                k.key = name_on_s3[:-1] + '2' + '_mc.h5'
+                k.set_contents_from_filename(filename[:-1] + '2' + '_mc.h5')
         else:
             upload_file(file_path_on_ec2)
+            if dual_channel:
+                temp = os.path.join(base_path_on_ec2,
+                                    filename[:-1] + '2' + '_mc.h5')
+                upload_file(temp)
 
 
 def upload_mc_sima_objects(s3_full_filename):
@@ -463,16 +580,6 @@ def check_for_known_extensions(filenames):
     return appropriate_extension
 
 
-# This is just a debugging function. Not needed for analysis
-def ping_for_a_while(num_minutes, start_time):
-    temp_start_time = start_time
-    while (time.time() - start_time) < num_minutes*60:
-        if (time.time() - temp_start_time) > 30:
-            print('%s seconds later!' % (time.time() - start_time))
-            sys.stdout.flush()
-            temp_start_time = time.time()
-
-
 def get_filenames_to_analyze():
     # This function gets the names of all files that need to be analyzed.
     # This function checks all the files in the source_dir and classifies
@@ -519,8 +626,29 @@ def get_filenames_to_analyze():
                              if (os.path.splitext(filename)[0] +
                                  '_mc_extract.txt' not in
                                  s3_full_filenames_done)]
-
+    # Now check for dual channel files. If any file ends with _CH1, there
+    # should be a corresponding _CH2. After making sure of this, remove the
+    # _CH2 file from this list since it will be taken care of in the later
+    # functions.
+    for afile in s3_full_filenames:
+        temp = os.path.splitext(afile)
+        basename = temp[0]
+        file_format = temp[-1]
+        if basename[-4:] == '_CH1':
+            if not basename[:-1] + '2' + file_format in s3_full_filenames:
+                raise Exception('CH2 file not found for %s' % afile)
+            s3_full_filenames.remove(basename[:-1] + '2' + file_format)
     return s3_full_filenames
+
+
+# This is just a debugging function. Not needed for analysis
+def ping_for_a_while(num_minutes, start_time):
+    temp_start_time = start_time
+    while (time.time() - start_time) < num_minutes*60:
+        if (time.time() - temp_start_time) > 30:
+            print('%s seconds later!' % (time.time() - start_time))
+            sys.stdout.flush()
+            temp_start_time = time.time()
 
 
 def main():
@@ -529,11 +657,8 @@ def main():
         raise Exception('Action not recognized!')
 
     s3_full_filenames = get_filenames_to_analyze()
-    # If you want to filter the list of files to analyze, you can 
-    # do that in the next 2 lines
-
     # temp = get_filenames_to_analyze()
-    # s3_full_filenames = [f for f in temp if '50percent' in f]
+    # s3_full_filenames = [f for f in temp if 'D4' in f]
 
     if not s3_full_filenames:
         raise Exception('No file(s) to analyze')
@@ -587,10 +712,15 @@ def main():
 
 if __name__ == '__main__':
 
-    # Set the current working directory as /mnt/DATA/.
-    # This directory has already been created by the set up program that
-    # initiates the EC2 instance
+    # Set the current working directory.
+    # If this is /mnt/DATA, this directory has already been created
+    # by the set up program that initiates the EC2 instance
+    os.system('mkdir -p "%s"' % base_path_on_ec2)
     os.chdir(base_path_on_ec2)
+    if os.path.isfile('/tmp/analysisfailed.txt'):
+        os.system('rm /tmp/analysisfailed.txt')
+    if os.path.isfile('/tmp/analysissuccess.txt'):
+        os.system('rm /tmp/analysissuccess.txt')
 
     # Create log file
     there_was_any_error = False
@@ -621,5 +751,25 @@ if __name__ == '__main__':
     k.key = 'logfiles/' + log_filename
     k.set_contents_from_filename(log_filename)
 
+    # We are handling server drops in a clunky way by writing one of two
+    # status files below indicating whether the analysis successfully
+    # completed or failed. This is because if the instance drops its
+    # connection for even a little bit, the loop checking for exit flag
+    # from the instance in ConnectToEC2.py hangs indefinitely. Thus, in
+    # this case, we created a solution  by timing out the connection every
+    # once in a while and reconnecting. This way, if the instance drops
+    # its connection but the analysis actually completes, the following
+    # files get written. So then when the reconnection to the instance
+    # happens, we can check for the existence of these files to know
+    # if the analysis completed prior to the time out.
+
+    # The elif clause is added because if the /tmp/runanalysis socket
+    # gets deleted somehow (may be intentionally by the user), the try
+    # catch loop above calling main() exits without an error and it would
+    # appear as if the analysis successfully completed, when in fact, it did
+    # not.
     if there_was_any_error:
+        os.system('touch /tmp/analysisfailed.txt')
         raise Exception('Analysis failed. Check log file')
+    elif os.path.exists('/tmp/runanalysis'):
+        os.system('touch /tmp/analysissuccess.txt')
