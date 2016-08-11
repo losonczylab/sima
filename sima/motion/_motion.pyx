@@ -115,7 +115,7 @@ def slice_lookup(np.ndarray[FLOAT_TYPE_t, ndim=3] references,
     return sliceLookup
 
 
-@cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 @cython.wraparound(False)
 def log_observation_probabilities_generalized(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
@@ -157,7 +157,7 @@ def log_observation_probabilities_generalized(
         tmpLogP[i] += logp
 
 
-@cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 @cython.wraparound(False)
 def log_observation_probabilities(
         np.ndarray[FLOAT_TYPE_t, ndim=1] tmpLogP,
@@ -201,7 +201,7 @@ def log_observation_probabilities(
                     logp += logImP[frame_row, j, chan]
             tmpLogP[i] += logp
 
-@cython.boundscheck(False)  # turn of bounds-checking for entire function
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def _align_frame(
         np.ndarray[FLOAT_TYPE_t, ndim=4] frame,
         np.ndarray[INT_TYPE_t, ndim=3] displacements,

@@ -5,3 +5,10 @@
 *.so
 *archive*.ui
 build
+dist
+*.h5
+*.pkl
+*.npz
+*.c
+sima.egg-info
+.ipynb_checkpoints
