@@ -394,7 +394,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
         return np.concatenate([np.expand_dims(frame, 0) for frame in self])
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
-               channel_names=None, compression=None):
+               channel_names=None, compression=None, scale_values=False):
         """Save frames to the indicated filenames.
 
         This function stores a multipage tiff file for each channel.
@@ -417,6 +417,9 @@ class Sequence(with_metaclass(ABCMeta, object)):
             If not None and 'fmt' is 'HDF5', compress the data with the
             specified lossless compression filter. See h5py docs for details on
             each compression filter.
+        scale_values : bool, optional
+            Whether to scale the values to use the full range of the
+            output format. Defaults to False.  Channels are scaled separately.
 
         """
 
@@ -450,7 +453,32 @@ class Sequence(with_metaclass(ABCMeta, object)):
             save_frames = _fill_gaps(iter(self), iter(self))
         else:
             save_frames = iter(self)
+
+        if scale_values:
+            # Scale each channel separately
+            n_channels = iter(self).next().shape[-1]
+            scaling_values = np.array([0.] * n_channels)
+            for frame in iter(self):
+                for channel_ix in range(n_channels):
+                    scaling_values[channel_ix] = max(
+                        scaling_values[channel_ix],
+                        np.nanmax(np.array(frame)[:, :, :, channel_ix]))
+            if fmt == 'TIFF8':
+                output_bit_depth = 8
+            elif fmt == 'TIFF16':
+                output_bit_depth = 16
+            elif fmt == 'HDF5':
+                output_bit_depth = int(str(f['imaging'].dtype)[-2:])
+
         for f_idx, frame in enumerate(save_frames):
+            if scale_values:
+                for z_ix in range(len(frame)):
+                    for channel_ix in range(n_channels):
+                        frame[z_ix][:, :, channel_ix] = \
+                            (2 ** output_bit_depth - 1) * (
+                                frame[z_ix][:, :, channel_ix] / float(
+                                    scaling_values[channel_ix]))
+
             if fmt == 'HDF5':
                 f['imaging'][f_idx, ...] = frame
             else:
