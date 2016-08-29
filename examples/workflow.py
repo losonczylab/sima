@@ -11,6 +11,9 @@ from __future__ import print_function
 from builtins import input
 from builtins import range
 
+import os
+import shutil
+
 ##############################################################################
 #                                                                            #
 #   PART 0: Import SIMA and necessary submodules.                            #
@@ -52,6 +55,16 @@ sequences = [
 dataset_path = 'workflow_data/dataset.sima'
 correction_approach = sima.motion.HiddenMarkov2D(num_states_retained=30,
                                                  max_displacement=[20, 30])
+
+if os.path.exists(dataset_path):
+    while True:
+        input_ = input("Dataset path already exists. Overwrite? (y/n)")
+        if input_ == 'n':
+            exit()
+        elif input_ == 'y':
+            shutil.rmtree(dataset_path)
+            break
+
 dataset = correction_approach.correct(
     sequences, dataset_path, channel_names=['tdTomato', 'GCaMP'],
     trim_criterion=0.95)
