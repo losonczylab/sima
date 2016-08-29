@@ -28,11 +28,12 @@ environment:
     MINICONDA_VERSION: "3.5.5"
     CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_compiler.cmd"
   matrix:
-    # - PYTHON_VERSION: "2.7"
+    - PYTHON_VERSION: "2.7"
+    - PYTHON_VERSION: "3.4"
     - PYTHON_VERSION: "3.5"
 
 platform:
-  # - x64
+  - x64
   - x86
 
 # scripts that are called at very beginning, before repo cloning
