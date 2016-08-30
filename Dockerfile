@@ -1,13 +1,13 @@
-# Dockerfile for SIMA container that also includes additional optional
-# dependencies and can completely run workflow.py.
+# Container running SIMA in Python 2.7 with additional optional
+# dependencies.
 #
 # https://github.com/losonczylab/sima
 #
 # To build:
 #   docker build -t losonczylab/sima -f .
 # 
-# To run with X forwarding enabled:
-#   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority --name sima losonczylab/sima python /sima/examples/workflow.py
+# To run an example workflow with X forwarding enabled:
+#   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw --name sima losonczylab/sima python /sima/examples/workflow.py
 #
 
 FROM debian:jessie
