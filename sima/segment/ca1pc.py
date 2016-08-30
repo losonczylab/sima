@@ -5,7 +5,16 @@ from distutils.version import LooseVersion
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import measurements
-from skimage.filter import threshold_otsu
+# skimage renamed the 'filter' module to 'filters' in 0.11 and will remove
+# 'filter' in 0.13
+# Currently (August 2016) 0.13 dev builds are out, but the version in the
+# debian repository is still 0.10.
+# Eventually require skimage >= 0.11, but leave for now for compatibility
+try:
+    from skimage.filters import threshold_otsu
+except ImportError:
+    from skimage.filter import threshold_otsu
+
 try:
     import cv2
 except ImportError:
