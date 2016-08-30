@@ -1,0 +1,53 @@
+# Dockerfile for SIMA container that also includes additional optional
+# dependencies and can completely run workflow.py.
+#
+# To build:
+#   docker build -t sima -f Dockerfile.all .
+# To run with X forwarding enabled:
+#   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority sima /sima/examples/workflow.py
+#
+
+FROM jzaremba/sima_core
+
+MAINTAINER Jeff Zaremba <jzaremba@gmail.com>
+
+ENV DEBIAN_FRONTEND "noninteractive"
+
+RUN apt-get update -qq && apt-get install -qq \
+    build-essential \
+    cmake \
+    libhdf5-dev \
+    python-tk \
+    unzip \
+    && apt-get clean
+
+RUN pip install \
+    bottleneck \
+    h5py \
+    matplotlib \
+    MDP \
+    picos
+
+# Build and install OpenCV
+RUN mkdir /opencv && \
+    cd /opencv && \
+    curl -s http://heanet.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.13/opencv-2.4.13.zip -o opencv-2.4.13.zip && \
+    unzip -qq opencv-2.4.13.zip && \
+    rm opencv-2.4.13.zip && \
+    mkdir opencv-2.4.13/build && \
+    cd opencv-2.4.13 && \
+    cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local -D CMAKE_BUILD_DIR=/opencv/opencv-2.4.13/build . && \
+    make && \
+    make install
+
+# Download example data for workflow.py
+RUN curl -s http://www.losonczylab.org/workflow_data.zip -o /sima/examples/workflow_data.zip && \
+    cd /sima/examples && \
+    unzip -qq /sima/examples/workflow_data.zip && \
+    rm /sima/examples/workflow_data.zip
+WORKDIR /sima
+
+# On first-run matplotlib needs to build a font list
+RUN python -c "import matplotlib.pyplot"
+
+CMD python
