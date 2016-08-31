@@ -11,6 +11,9 @@ from __future__ import print_function
 from builtins import input
 from builtins import range
 
+import os
+import shutil
+
 ##############################################################################
 #                                                                            #
 #   PART 0: Import SIMA and necessary submodules.                            #
@@ -52,11 +55,23 @@ sequences = [
 dataset_path = 'workflow_data/dataset.sima'
 correction_approach = sima.motion.HiddenMarkov2D(num_states_retained=30,
                                                  max_displacement=[20, 30])
+
+if os.path.exists(dataset_path):
+    while True:
+        input_ = input("Dataset path already exists. Overwrite? (y/n) ")
+        if input_ == 'n':
+            exit()
+        elif input_ == 'y':
+            shutil.rmtree(dataset_path)
+            break
+
+print("Running motion correction.")
 dataset = correction_approach.correct(
     sequences, dataset_path, channel_names=['tdTomato', 'GCaMP'],
     trim_criterion=0.95)
 
 # Export the time averages for a manuscript figure.
+print("Exporting motion-corrected time averages.")
 dataset.export_averages(['workflow_data/tdTomato.tif',
                          'workflow_data/GCaMP.tif'])
 
@@ -70,6 +85,7 @@ output_filenames = [
 print("Output filenames:\n", output_filenames)
 
 # Export the corrected frames for a presentation.
+print("Exporting motion-corrected movies.")
 dataset.export_frames(output_filenames, fill_gaps=True)
 
 # At this point, one may wish to inspect the exported image data to evaluate
@@ -104,6 +120,8 @@ segmentation_approach = sima.segment.PlaneCA1PC(
     min_roi_size=20,
     min_cut_size=40
 )
+
+print("Running auto-segmentation.")
 dataset.segment(segmentation_approach, 'auto_ROIs')
 
 # At this point, one may wish to edit the automatically segmented ROIs using
@@ -125,9 +143,11 @@ while True:
 dataset = sima.ImagingDataset.load(dataset_path)
 
 # Extract the signals. By default, the most recently created ROIs are used.
+print("Extracting signals.")
 dataset.extract(signal_channel='GCaMP', label='GCaMP_signals')
 
 # Export the extracted signals to a CSV file.
+print("Exporting GCaMP time series.")
 dataset.export_signals('example_signals.csv', channel='GCaMP',
                        signals_label='GCaMP_signals')
 
@@ -141,6 +161,7 @@ dataset.export_signals('example_signals.csv', channel='GCaMP',
 from matplotlib.pyplot import plot, show
 
 # plot the signal from an ROI object, with a different color for each cycle
+print("Displaying example calcium trace.")
 raw_signals = dataset.signals('GCaMP')['GCaMP_signals']['raw']
 for sequence in range(3):  # plot data from the first 3 cycles
     plot(raw_signals[sequence][3])  # plot the data from ROI #3

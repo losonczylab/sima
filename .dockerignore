@@ -1,0 +1,7 @@
+*.pyc
+.git*
+dist/
+build/
+sima.egg-info/
+*.tif
+*.sima

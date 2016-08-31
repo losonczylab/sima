@@ -45,7 +45,7 @@ Dependencies
 * `Python <http://python.org>`_ 2.7 
 * `numpy <http://www.scipy.org>`_ >= 1.6.2
 * `scipy <http://www.scipy.org>`_ >= 0.13.0
-* `scikit-image <http://scikit-image.org>`_ >= 0.9.3
+* `scikit-image <http://scikit-image.org>`_ >= 0.9.3 (0.11.0 recommended)
 * `scikit-learn <http://scikit-learn.org>`_ >= 0.11
 * `shapely <https://pypi.python.org/pypi/Shapely>`_ >= 1.2.14 (**Windows users**: be sure to install from `Christophe Gohlke's built wheels <http://www.lfd.uci.edu/~gohlke/pythonlibs/#shapely>`_)
 * `pillow <https://pypi.python.org/pypi/Pillow>`_ >= 2.6.1
