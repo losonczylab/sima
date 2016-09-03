@@ -474,7 +474,7 @@ class ImagingDataset(object):
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
 
-        **method_kwargs : optional
+        **method_kwargs
             Additional arguments can be passed in specific to the particular
             method. For example, 'order' for a polynomial transform estimation.
 

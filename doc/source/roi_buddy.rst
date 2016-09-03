@@ -35,10 +35,16 @@ Installation
 The ROI Buddy GUI has the following dependencies which should be installed
 prior to installation of ROI Buddy:
 
-* sima>=1.0 (https://pypi.python.org/pypi/sima)
-* PyQt4 (http://www.riverbankcomputing.co.uk/software/pyqt)
-* guidata (https://pypi.python.org/pypi/guidata)
-* guiqwt (https://pypi.python.org/pypi/guiqwt)
+* `SIMA <https://pypi.python.org/pypi/sima>`_ >= 1.0
+* `PyQt4 <http://www.riverbankcomputing.co.uk/software/pyqt>`_
+* `PythonQwt <https://github.com/PierreRaybaut/PythonQwt>`_
+* `guidata <https://pypi.python.org/pypi/guidata>`_ >= 1.7.0
+* `guiqwt <https://pypi.python.org/pypi/guiqwt>`_ >= 3.0.0
+
+In addition, transforming or registering ROIs across sessions requires an
+optional SIMA dependency:
+
+* `OpenCV <http://opencv.org>`_ >= 2.4.8
 
 Once these dependencies are installed, the ROI Buddy can be installed from 
 the Python Package Index using pip.::
@@ -51,20 +57,32 @@ released versions can be downloaded from the `Python Package Index
 downloaded from the project's `GitHub page
 <https://github.com/losonczylab/roibuddy>`__.
 
-Installation of ROI Buddy will create an executable file that can be run by
-typing "roibuddy" into your terminal. If this command does not work, check
-the output of the installation command to determine the directory where the
-executable was placed, and either add this directory to your path or run
-the executable directly from that location.
+Once installed, ROI Buddy can be run either by::
+
+    $ roibuddy
+
+or::
+
+    $ python -m roibuddy
+
+
+If these commands do not work, check the output of the installation command to
+determine the directory where the executable was placed, and either add this
+directory to your path or run the executable directly from that location.
+
+As an alternative, you can also run ROI Buddy from a
+`Docker <https://www.docker.com/>`_ container, see :ref:`docker setup<docker-setup-roibuddy>`.
 
 Windows
 -------
 After installing `SIMA <install.html>`__, we recommend installing pre-compiled
-wheels from (http://www.lfd.uci.edu/~gohlke/pythonlibs/) for
-`PyQt4 <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyqt4>`__,
-`PyQwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyqwt>`__,
-`quidata <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`__, and
-`guiqwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`__ (in that order),
+wheels from (http://www.lfd.uci.edu/~gohlke/pythonlibs/) in this order:
+
+* `PyQt4 <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pyqt4>`_
+* `PythonQwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#pythonqwt>`_
+* `guidata <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`_ >= 1.7.0
+* `guiqwt <http://www.lfd.uci.edu/~gohlke/pythonlibs/#guiqwt>`_ >= 3.0.0
+
 before installing ROI Buddy from the
 `Python Package Index <https://pypi.python.org/pypi/roibuddy>`__.
 
@@ -80,6 +98,28 @@ run the following command in Terminal to install an additional dependency::
 Then download and install `guidata <https://code.google.com/p/guidata/>`__ and
 `guiqwt <https://code.google.com/p/guiqwt/>`__ before installing ROI Buddy from
 the `Python Package Index <https://pypi.python.org/pypi/roibuddy>`__.
+
+.. _docker-setup-roibuddy:
+
+Docker
+------
+`Docker <https://www.docker.com/>`_ images are pre-built installations
+that you can run immediately on your local machine. To run ROI Buddy from a
+Docker container, first follow the Docker Engine
+`installation <https://docs.docker.com/engine/installation/>`_ instructions
+for your operating system. You will also need an X Windows server installed
+on your machine. On linux, this is most likely already installed, newer
+versions of OS X can install `XQuartz <https://www.xquartz.org/>`_, and on
+Windows we recommend either `Xming <https://sourceforge.net/projects/xming/>`_
+or `MobaXterm <http://mobaxterm.mobatek.net/>`_.
+
+From a docker terminal run the latest ROI Buddy image (it will automatically be downloaded), with::
+
+    $ docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw
+        -v /PATH/TO/DATA:/data --name roibuddy losonczylab/roibuddy
+
+If you have issues launching the ROI Buddy image, make sure your DISPLAY
+environment variable is set correctly to reach the X server that you are running.
 
 
 User Interface

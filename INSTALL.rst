@@ -20,6 +20,9 @@ the various prerequisites. Recommended distributions are:
 For Mac OS X, we recommend installing the prerequisites, especially OpenCV,
 using a package manager, such as `MacPorts <http://www.macports.org>`_.
 
+As an alternative, you can also run SIMA within a
+`Docker <https://www.docker.com/>`_ container, see :ref:`docker setup<docker-setup-sima>`.
+
 Prerequisites
 =============
 
@@ -110,3 +113,26 @@ install SIMA and its dependencies::
     $ sudo port select --set python python27
     $ sudo port select --set pip pip27
     $ pip install sima --user
+
+.. _docker-setup-sima:
+
+Docker
+------
+`Docker <https://www.docker.com/>`_ images are pre-built installations
+that you can run immediately on your local machine. To run SIMA inside a
+Docker container, first follow the Docker Engine
+`installation <https://docs.docker.com/engine/installation/>`_ instructions
+for your operating system.  
+
+From a docker terminal run the latest SIMA image (it will automatically be downloaded), with::
+
+    $ docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw
+        -v /PATH/TO/DATA:/data --name sima losonczylab/sima bash
+
+This will give you a shell within the container from which you can run the example
+workflow script::
+
+    $ python /sima/examples/workflow.py
+
+or your own custom scripts on any data you've mapped into the container from
+/PATH/TO/DATA

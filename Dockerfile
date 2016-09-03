@@ -6,8 +6,9 @@
 # To build:
 #   docker build -t losonczylab/sima -f .
 # 
-# To run an example workflow with X forwarding enabled:
-#   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw --name sima losonczylab/sima python /sima/examples/workflow.py
+# To run the image with X forwarding enabled:
+#   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw
+#       -v /PATH/TO/DATA:/data --name sima losonczylab/sima bash
 #
 
 FROM debian:jessie
