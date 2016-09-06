@@ -1,8 +1,9 @@
 language: python
 env:
-  # AWS keys
-  secure: "hWFDIYzWLfvsVuF5YgdEunz9BU6N1O/ZoM9h4ucwYU+UGx5nCuTM9apuFQX3Ox+FR3HnFrhE6JEFWa1RVjyusdik4huouYdCJmyyEC1Ot3UCsJST3lVDiZh8QLn1AyLIDUdhe3Hx/gF1H6zufGWtjQRzcA3/CKEcu0at+gB1o5M="
-  secure: "I4MgDeVY+P3MbBhdJqTb5jhearGruGBpVGpNW2rqRifan9mLMxr9zQurQY8LiGr8kbpAjP3KTHb5XCPDyL8uFcTSUmwH4c9wFfl4tqBKGnf15PKysohhHRtIBhWKQYJbPaps4PYO0Abqq5iYO5A8lOqpcLnfL/ACMP+abUPG+M4="
+  global:
+    # AWS keys
+    secure: "hWFDIYzWLfvsVuF5YgdEunz9BU6N1O/ZoM9h4ucwYU+UGx5nCuTM9apuFQX3Ox+FR3HnFrhE6JEFWa1RVjyusdik4huouYdCJmyyEC1Ot3UCsJST3lVDiZh8QLn1AyLIDUdhe3Hx/gF1H6zufGWtjQRzcA3/CKEcu0at+gB1o5M="
+    secure: "I4MgDeVY+P3MbBhdJqTb5jhearGruGBpVGpNW2rqRifan9mLMxr9zQurQY8LiGr8kbpAjP3KTHb5XCPDyL8uFcTSUmwH4c9wFfl4tqBKGnf15PKysohhHRtIBhWKQYJbPaps4PYO0Abqq5iYO5A8lOqpcLnfL/ACMP+abUPG+M4="
 matrix:
   include:
   - os: linux
