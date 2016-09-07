@@ -32,7 +32,7 @@ from sima.misc import mkdir_p, most_recent_key, estimate_array_transform, \
     estimate_coordinate_transform
 from sima.extract import extract_rois, save_extracted_signals
 from sima.ROI import ROIList
-
+from sima.segment import ca1pc
 from future import standard_library
 standard_library.install_aliases()
 
@@ -434,7 +434,9 @@ class ImagingDataset(object):
     def import_transformed_ROIs(
             self, source_dataset, method='affine', source_channel=0,
             target_channel=0, source_label=None, target_label=None,
-            anchor_label=None, copy_properties=True, **method_kwargs):
+            anchor_label=None, copy_properties=True,
+            pre_processing_method=None, pre_processing_kwargs=None,
+            **method_kwargs):
         """Calculate a transformation that maps the source ImagingDataset onto
         this ImagingDataset, transforms the source ROIs by this mapping,
         and then imports them into this ImagingDataset.
@@ -474,6 +476,12 @@ class ImagingDataset(object):
             Copy the label, id, tags, and im_shape properties from the source
             ROIs to the transformed ROIs
 
+        pre_processing_method: string, optional
+            pre-processing step applied before image registration
+
+        pre_processing_kwargs: dictionary, optional
+            arguments for pre-processing of image
+
         **method_kwargs : optional
             Additional arguments can be passed in specific to the particular
             method. For example, 'order' for a polynomial transform estimation.
@@ -482,8 +490,19 @@ class ImagingDataset(object):
 
         source_channel = source_dataset._resolve_channel(source_channel)
         target_channel = self._resolve_channel(target_channel)
-        source = source_dataset.time_averages[..., source_channel]
-        target = self.time_averages[..., target_channel]
+        if pre_processing_kwargs is None:
+            pre_processing_kwargs = {}
+
+        if pre_processing_method == 'ca1pc':
+            source = ca1pc._processed_image_ca1pc(
+                source_dataset, channel_idx=source_channel,
+                **pre_processing_kwargs)
+            target = ca1pc._processed_image_ca1pc(
+                self, channel_idx=target_channel,
+                **pre_processing_kwargs)
+        else:
+            source = source_dataset.time_averages[..., source_channel]
+            target = self.time_averages[..., target_channel]
 
         if anchor_label is None:
             try:
