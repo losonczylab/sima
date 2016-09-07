@@ -1,4 +1,9 @@
 language: python
+env:
+  global:
+    # AWS keys
+    secure: "hWFDIYzWLfvsVuF5YgdEunz9BU6N1O/ZoM9h4ucwYU+UGx5nCuTM9apuFQX3Ox+FR3HnFrhE6JEFWa1RVjyusdik4huouYdCJmyyEC1Ot3UCsJST3lVDiZh8QLn1AyLIDUdhe3Hx/gF1H6zufGWtjQRzcA3/CKEcu0at+gB1o5M="
+    secure: "I4MgDeVY+P3MbBhdJqTb5jhearGruGBpVGpNW2rqRifan9mLMxr9zQurQY8LiGr8kbpAjP3KTHb5XCPDyL8uFcTSUmwH4c9wFfl4tqBKGnf15PKysohhHRtIBhWKQYJbPaps4PYO0Abqq5iYO5A8lOqpcLnfL/ACMP+abUPG+M4="
 matrix:
   include:
   - os: linux
@@ -25,7 +30,6 @@ script:
   --doctests -m $TESTMODE $COVERAGE; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py35" ]]; then python3 runtests.py
   --doctests -m $TESTMODE $COVERAGE; fi
-- cd doc && make html && cd ..
 branches:
   only:
   - master
@@ -33,17 +37,10 @@ branches:
   - 1.0.x
   - 1.1.x
   - 1.3.x
-deploy:
-  provider: s3
-  bucket: jdz2110.travis
-  secret_access_key:
-    secure: HDEeMrrCIUyGgDNDBpzgmDabKWrK8mc+F7XY5l4rZLwD/CkpETYWUveNkqvvSM8Vkt/aA04l2u+sLN8agZ26UTOnL9iTZP5VaSTw8tdvtqZZ6VCW5JSJ7Y2VqPtEG3afxXf91eno1KOejvmFY87QkwTnAbJya2yToPacuoNVQRc=
-  access_key_id: AKIAJGVHLWIG37JT6RLA
-  skip_cleanup: true
-  upload-dir: ${TRAVIS_OS_NAME}_${TOKENV}
 after_success:
 - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then if [ "${TESTMODE}" == "full" ];
   then cp build/test/.coverage . && coveralls; fi; fi
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then python setup.py bdist_whl; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py27" ]]; then python setup.py bdist_whl; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py35" ]]; then python3 setup.py bdist_whl; fi
+- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false"]]; then pip install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
