@@ -434,7 +434,7 @@ class ImagingDataset(object):
     def import_transformed_ROIs(
             self, source_dataset, method='affine', source_channel=0,
             target_channel=0, source_label=None, target_label=None,
-            anchor_label=None, copy_properties=True, 
+            anchor_label=None, copy_properties=True,
             pre_processing_method=None, pre_processing_kwargs=None,
             **method_kwargs):
         """Calculate a transformation that maps the source ImagingDataset onto
@@ -477,7 +477,7 @@ class ImagingDataset(object):
             ROIs to the transformed ROIs
 
         pre_processing_method: string, optional
-            pre-processing step applied before image regiistration
+            pre-processing step applied before image registration
 
         pre_processing_kwargs: dictionary, optional
             arguments for pre-processing of image
