@@ -482,12 +482,11 @@ class ImagingDataset(object):
         pre_processing_kwargs: dictionary, optional
             arguments for pre-processing of image
 
-        **method_kwargs : optional
+        **method_kwargs
             Additional arguments can be passed in specific to the particular
             method. For example, 'order' for a polynomial transform estimation.
 
         """
-
         source_channel = source_dataset._resolve_channel(source_channel)
         target_channel = self._resolve_channel(target_channel)
         if pre_processing_kwargs is None:

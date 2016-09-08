@@ -653,113 +653,113 @@ def main():
     parser = ArgumentParser(description="Create connection to Amazon EC2",
                             formatter_class=RawTextHelpFormatter)
     parser.add_argument("action", help="Use one of the following options:\n"
-                        "1. launch             : launches the instance, \
-                                                 copies\n"
-                        "                        analysis and ipython \
-                                                 notebook\n"
+                        "1. launch             : launches the instance, " +
+                        "copies\n"
+                        "                        analysis and ipython " +
+                        "notebook\n"
                         "                        scripts.\n"
-                        "                        Manually log in to run \
-                                                 ipython\n"
-                        "                        notebook or the analysis \
-                                                 script.\n"
-                        "                        If instance already exists, \
-                                                 thro\n"
-                        "                        ws an error unless the \
-                                                 --resume\n"
+                        "                        Manually log in to run " +
+                        "ipython\n"
+                        "                        notebook or the analysis " +
+                        "script.\n"
+                        "                        If instance already exists," +
+                        " thro\n"
+                        "                        ws an error unless the " +
+                        "--resume\n"
                         "                        flag is specified.\n"
-                        "2. analyze            : automatically runs the \
-                                                 runanalys\n"
-                        "                        is.py script and shows \
-                                                 you the \n"
-                        "                        output. Does not terminate \
-                                                 after\n"
+                        "2. analyze            : automatically runs the " +
+                        "runanalys\n"
+                        "                        is.py script and shows " +
+                        "you the \n"
+                        "                        output. Does not terminate " +
+                        "after\n"
                         "                        running.\n"
-                        "                        If instance already exists, \
-                                                 thro\n"
-                        "                        ws an error unless the \
-                                                 --resume\n"
+                        "                        If instance already exists," +
+                        " thro\n"
+                        "                        ws an error unless the " +
+                        "--resume\n"
                         "                        flag is specified.\n"
-                        "3. analyzeandterminate: automatically runs the \
-                                                 runanalys\n"
-                        "                        is.py script and shows \
-                                                 you the \n"
-                        "                        output. Terminates if \
-                                                 analysis \n"
-                        "                        successfully completed. \
-                                                 If analy\n"
-                        "                        sis failed, terminates \
-                                                 if \n"
-                        "                        --terminate_on_error flag \
-                                                 is \n"
+                        "3. analyzeandterminate: automatically runs the " +
+                        "runanalys\n"
+                        "                        is.py script and shows " +
+                        "you the \n"
+                        "                        output. Terminates if " +
+                        "analysis \n"
+                        "                        successfully completed. " +
+                        "If analy\n"
+                        "                        sis failed, terminates " +
+                        "if \n"
+                        "                        --terminate_on_error flag " +
+                        "is \n"
                         "                        specified.\n"
-                        "                        If instance already exists, \
-                                                 thro\n"
-                        "                        ws an error unless the \
-                                                 --resume\n"
+                        "                        If instance already exists," +
+                        " thro\n"
+                        "                        ws an error unless the " +
+                        "--resume\n"
                         "                        flag is specified.\n"
                         "4. login              : Login to the instance\n"
                         "5. reconnect          : actions <analyze> and \n"
-                        "                        <analyzeandterminate> run \
-                                                 a \n"
-                        "                        detached session, meaning \
-                                                 that\n"
-                        "                        if your terminal \
-                                                 accidentally \n"
-                        "                        shuts down or you log out \
-                                                 or \n"
-                        "                        lose connection, the \
-                                                 analysis \n"
-                        "                        still continues on the EC2 \
-                                                 insta\n"
-                        "                        nce. You should use \
-                                                 reconnect if\n"
-                        "                        you want to reattach to \
-                                                 a prev\n"
+                        "                        <analyzeandterminate> run " +
+                        "a \n"
+                        "                        detached session, meaning " +
+                        "that\n"
+                        "                        if your terminal " +
+                        "accidentally \n"
+                        "                        shuts down or you log out " +
+                        "or \n"
+                        "                        lose connection, the " +
+                        "analysis \n"
+                        "                        still continues on the EC2 " +
+                        "insta\n"
+                        "                        nce. You should use " +
+                        "reconnect if\n"
+                        "                        you want to reattach to " +
+                        "a prev\n"
                         "                        ious <analyze> session.\n"
-                        "6. reconnectandterminate:Similar to reconnect but \
-                                                 mimics\n"
-                        "                        <analyzeandterminate> \
-                                                 behavior.\n"
+                        "6. reconnectandterminate:Similar to reconnect but " +
+                        "mimics\n"
+                        "                        <analyzeandterminate> " +
+                        "behavior.\n"
                         "                        So if analysis successfully\n"
-                        "                        completes, terminates \
-                                                 instance.\n"
-                        "                        If there was an error, \
-                                                 terminat\n"
-                        "                        es only if \
-                                                 --terminate_on_error\n"
-                        "                        flag is specified. For \
-                                                 reconnect\n"
-                        "                        and reconectandterminate, \
-                                                 it doe\n"
-                        "                        s not matter if you ran \
-                                                 analyze\n"
-                        "                        or analyzeandterminate. \
-                                                 So if yo\n"
-                        "                        u ran analyze previously \
-                                                 and the\n"
-                        "                        terminal detached, you can \
-                                                 do\n"
-                        "                        reconnectandterminate and \
-                                                 it'll\n"
-                        "                        give you \
-                                                 analyzeandterminate\n"
-                        "                        behavior for the \
-                                                 reattached\n"
+                        "                        completes, terminates " +
+                        "instance.\n"
+                        "                        If there was an error, " +
+                        "terminat\n"
+                        "                        es only if " +
+                        "--terminate_on_error\n"
+                        "                        flag is specified. For " +
+                        "reconnect\n"
+                        "                        and reconectandterminate, " +
+                        "it doe\n"
+                        "                        s not matter if you ran " +
+                        "analyze\n"
+                        "                        or analyzeandterminate. " +
+                        "So if yo\n"
+                        "                        u ran analyze previously " +
+                        "and the\n"
+                        "                        terminal detached, you can " +
+                        "do\n"
+                        "                        reconnectandterminate and " +
+                        "it'll\n"
+                        "                        give you " +
+                        "analyzeandterminate\n"
+                        "                        behavior for the " +
+                        "reattached\n"
                         "                        session."
                         "7. terminate          : terminates the instance\n"
-                        "8. start              : starts a previously stopped \
-                                                 inst\n"
+                        "8. start              : starts a previously stopped" +
+                        " inst\n"
                         "                        ance\n"
-                        "9. stop               : stop an instance. This \
-                                                 will \n"
-                        "                        remove all downloaded data \
-                                                 but \n"
-                        "                        the installs are kept. \
-                                                 You will\n"
-                        "                        have to pay a low rate to \
-                                                 Amazon\n"
-                        "                        for keeping an instance \
-                                                 alive but\n"
+                        "9. stop               : stop an instance. This " +
+                        "will \n"
+                        "                        remove all downloaded data " +
+                        "but \n"
+                        "                        the installs are kept. " +
+                        "You will\n"
+                        "                        have to pay a low rate to " +
+                        "Amazon\n"
+                        "                        for keeping an instance " +
+                        "alive but\n"
                         "                        stopped.")
 
     parser.add_argument("instance_name", help="Name of EC2 instance")
@@ -767,35 +767,35 @@ def main():
                         default="mykey", help="Key pair to use on instances")
     parser.add_argument("-i", "--identity_file",
                         default=os.path.join(os.getcwd(), "mykey.pem"),
-                        help="SSH private key file to use for logging into \
-                              instances",)
+                        help="SSH private key file to use for logging into " +
+                              "instances",)
     parser.add_argument("-r", "--region", default="us-east-1",
-                        help="EC2 region to launch instances \
-                              (default: us-east-1)")
+                        help="EC2 region to launch instances " +
+                              "(default: us-east-1)")
     parser.add_argument("-t", "--instance_type", default="r3.2xlarge",
-                        help="Type of instance to launch \
-                              (default: r3.2xlarge).\n"
+                        help="Type of instance to launch " +
+                              "(default: r3.2xlarge).\n"
                              "WARNING: must be 64-bit; "
-                             "small instances won't\n work. Pick instances\
-                              with at least one ephemeral storage device")
+                             "small instances won't\n work. Pick instances " +
+                              "with at least one ephemeral storage device")
     parser.add_argument("--resume", default=False, action="store_true",
                         help="If this flag is present, resumes\n"
-                             "installation on a previously launched \
-                              instance\n"
+                             "installation on a previously launched " +
+                             "instance\n"
                              "Use if the instance has already been launched")
     parser.add_argument("--copyscript", default=False, action="store_true",
-                        help="If this flag is present, the script assumes \
-                              that\n"
-                             "installations have already been done. So it \
-                              doesn't\n"
+                        help="If this flag is present, the script assumes " +
+                             "that\n"
+                             "installations have already been done. So it " +
+                             "doesn't\n"
                              "perform any installations. If action==launch,\n"
-                             "it copies runanalysis.py. So, use this if you \
-                              changed\n"
-                             "something in the script locally and you \
-                              want it\n"
+                             "it copies runanalysis.py. So, use this if you " +
+                             "changed\n"
+                             "something in the script locally and you " +
+                             "want it\n"
                              "copied over again to the instance.\n"
-                             "If action==analyze(andterminate), the script \
-                              copies\n"
+                             "If action==analyze(andterminate), the script " +
+                             "copies\n"
                              "runanalysis.py, runs it (and then terminates\n"
                              "the instance)")
     parser.add_argument("--terminate_on_error", default=False,
@@ -815,8 +815,8 @@ def main():
 
     # Check file permissions for the key file. This is not an issue on Windows
     if oct(os.stat(opts.identity_file).st_mode & 0777) != oct(0600):
-        raise Exception('Set correct permissions for the key file. \
-                         It should be 0600!')
+        raise Exception('Set correct permissions for the key file. ' +
+                        'It should be 0600!')
 
     # Create EC2 connection
     try:

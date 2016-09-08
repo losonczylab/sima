@@ -32,6 +32,7 @@ Documentation
 .. toctree::
    :maxdepth: 2
 
+   Introduction <index>
    install
    tutorial
    api/index
