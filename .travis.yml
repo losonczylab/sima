@@ -43,4 +43,5 @@ after_success:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip install wheel && python setup.py bdist_wheel; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py27" ]]; then pip install wheel && python setup.py bdist_wheel; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py35" ]]; then pip3 install wheel && python3 setup.py bdist_wheel; fi
-- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then pip install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
+- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" == "osx" && "$TOKENV" == "py35" ]]; then pip3 install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
+- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" != "osx" || "$TOKENV" != "py35" ]]; then pip install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
