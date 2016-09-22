@@ -1,9 +1,11 @@
 language: python
 env:
   global:
-    # AWS keys
-    - secure: "Nw/GKObNzAgIyBrMnFTyxH7y5VhXYDDeLkf2Jusnbf6pGG/hwPuuFgfRmVs8rKl99oSIruR6CIpA2iYcBJMgdqevXS1YFT6YeN4g0K61FX1UjLmxjfoyM3Knbegwr9GeR2KndkpP+8wjqJB0gIYdLfNwj0F/d3koQMwWmW1m3I4="
-    - secure: "Nj8okJzwOyrcW7BrXkpwfwVZuUVvwMaiFU4CzmlLL3G1zGiwtrI56Ewcluyu/2HanjJ+WZ7gtZmOWwS3uaxR70z8tw1iBCg5joZJM5HMss5Djpv4bf33e7sOxbfJcMXAzoUDZXcqraIiVHermpWTkExR3Asi0ZnMIxuYrliFW/I="
+    # AWS keys (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+    # Encrypt them with:
+    # >>> travis encrypt -r losonczylab/sima AWS_ACCESS_KEY_ID=XXX
+    - secure: "d11jBVK35Zhnd8mmhUJMl1ySyUogP2lYqMZVUz5+Cj4NXL3D4T1JolrB0PjJ/p/0udZeJsn4yJcejZQzre2iUxjTdXhHBGuvkEyWnHaNMZNT8+/hwv4wnlY55Wrj6qds5BvWk++9qyRoWJS/OlON7Hu3lQC4gSpjwN2q3D1AgyU="
+    - secure: "TTIONuS+F5U7mFsX/PQKgMzFlKHmhyNXv8DdLS8RJYmNjli71L0b9CLW4HH4OVAHh2eB+cEdZwxu1lJrttMDUpbDWqsqFUylAqqWHlbIJDlJPmzJhM/kAnsA1SJGHHW4QO75776t1+Rw5wzJGgZ5QrqarI0TShlHVX4HnnU08T8="
 matrix:
   include:
   - os: linux
