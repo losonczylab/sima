@@ -2,8 +2,8 @@ language: python
 env:
   global:
     # AWS keys
-    - secure: "hWFDIYzWLfvsVuF5YgdEunz9BU6N1O/ZoM9h4ucwYU+UGx5nCuTM9apuFQX3Ox+FR3HnFrhE6JEFWa1RVjyusdik4huouYdCJmyyEC1Ot3UCsJST3lVDiZh8QLn1AyLIDUdhe3Hx/gF1H6zufGWtjQRzcA3/CKEcu0at+gB1o5M="
-    - secure: "I4MgDeVY+P3MbBhdJqTb5jhearGruGBpVGpNW2rqRifan9mLMxr9zQurQY8LiGr8kbpAjP3KTHb5XCPDyL8uFcTSUmwH4c9wFfl4tqBKGnf15PKysohhHRtIBhWKQYJbPaps4PYO0Abqq5iYO5A8lOqpcLnfL/ACMP+abUPG+M4="
+    - secure: "Nw/GKObNzAgIyBrMnFTyxH7y5VhXYDDeLkf2Jusnbf6pGG/hwPuuFgfRmVs8rKl99oSIruR6CIpA2iYcBJMgdqevXS1YFT6YeN4g0K61FX1UjLmxjfoyM3Knbegwr9GeR2KndkpP+8wjqJB0gIYdLfNwj0F/d3koQMwWmW1m3I4="
+    - secure: "Nj8okJzwOyrcW7BrXkpwfwVZuUVvwMaiFU4CzmlLL3G1zGiwtrI56Ewcluyu/2HanjJ+WZ7gtZmOWwS3uaxR70z8tw1iBCg5joZJM5HMss5Djpv4bf33e7sOxbfJcMXAzoUDZXcqraIiVHermpWTkExR3Asi0ZnMIxuYrliFW/I="
 matrix:
   include:
   - os: linux
@@ -43,5 +43,5 @@ after_success:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip install wheel && python setup.py bdist_wheel; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py27" ]]; then pip install wheel && python setup.py bdist_wheel; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py35" ]]; then pip3 install wheel && python3 setup.py bdist_wheel; fi
-- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" == "osx" && "$TOKENV" == "py35" ]]; then pip3 install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
-- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" != "osx" || "$TOKENV" != "py35" ]]; then pip install awscli && aws s3 cp dist s3://jdz2110.travis/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
+- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" == "osx" && "$TOKENV" == "py35" ]]; then pip3 install awscli && aws s3 cp dist s3://losonczylab.sima/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
+- if [[ "$TRAVIS_REPO_SLUG" == "losonczylab/sima" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$TRAVIS_OS_NAME" != "osx" || "$TOKENV" != "py35" ]]; then pip install awscli && aws s3 cp dist s3://losonczylab.sima/${TRAVIS_OS_NAME}_${TOKENV} --recursive; fi
