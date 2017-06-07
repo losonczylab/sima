@@ -807,7 +807,7 @@ class _Sequence_memmap(Sequence):
         self._shape = shape
         self._dtype = dtype
         self._dataset = np.memmap(path, dtype=dtype, mode='r',
-            shape=(shape[0], shape[1], shape[2], shape[3]))
+                                  shape=tuple(shape))
         if len(dim_order) != len(shape):
             raise ValueError(
                 'dim_order must have same length as the number of ' +
