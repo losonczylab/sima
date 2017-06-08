@@ -178,11 +178,21 @@ Toggling the visibility of ROIs
 Keyboard shortcuts
 ==================
 
-:m (edit mode): merge separate ROIs into a single ROI object
+:ctrl + o: add a single t-series .sima folder
+:ctrl + s: save the current ROI set to file
+:ctrl + a: select all of the ROIs
+
+:e (edit mode): merge separate ROIs into a single ROI object
 :m (align mode): merge selected ROIs into the same cluster, assigning them the same ID attribute
 :u (align mode): unmerge ROI from its cluster and assign it a unique ID attribute
 :f (edit mode): select freeform tool
 :s (edit mode): select pointer-selection tool
 :d: delete
 :r: randomize ROI colors
+:t: add tags to selected ROIs
+:c: clear tags from selected ROIs
+:z: undo deleting an ROI
+:y: redo deletion of an ROI
+
+:ctrl + q: close ROI Buddy
 
