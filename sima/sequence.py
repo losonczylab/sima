@@ -250,7 +250,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
         Parameters
         ----------
-        fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray'}
+        fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray', 'memmap'}
             The format of the data used to create the Sequence.
         *args
         **kwargs
@@ -300,6 +300,32 @@ class Sequence(with_metaclass(ABCMeta, object)):
         only be moved if the ImagingDataset path is also moved
         such that they retain the same relative position.
 
+
+        **memmap**
+
+        path : str
+            The memmap filename, typically with .mmap extension.
+        shape : tuple
+            the shape of the data array stored in the memmap file
+        dim_order : str
+            Specification of the order of the dimensions. This
+            string can contain the letters 't', 'x', 'y', 'z',
+            and 'c', representing time, column, row, plane,
+            and channel, respectively.
+            For example, 'tzyxc' indicates that the HDF5 data
+            dimensions represent time (t), plane (z), row (y),
+            column (x), and channel (c), respectively.
+            The string 'tyx' indicates that data for a single
+            imaging plane and single channel has been stored in a
+            HDF5 dataset with three dimensions representing time (t),
+            column (y), and row (x), respectively.
+
+        Warning
+        -------
+        Moving the memmap file may make this Sequence unusable
+        when the ImagingDataset is reloaded. The memmap file can
+        only be moved if the ImagingDataset path is also moved
+        such that they retain the same relative position.
 
         **TIFF**
 
@@ -376,6 +402,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             return _Sequence_TIFFs(*args, **kwargs)
         elif fmt == 'ndarray':
             return _Sequence_ndarray(*args, **kwargs)
+        elif fmt == 'memmap':
+            return _Sequence_memmap(*args, **kwargs)
         else:
             raise ValueError('Unrecognized format')
 
@@ -757,6 +785,75 @@ class _Sequence_HDF5(Sequence):
              'dim_order': self._dim_order,
              'group': self._group.name,
              'key': self._key}
+        if savedir is None:
+            d.update({'path': abspath(self._path)})
+        else:
+            d.update({'_abspath': abspath(self._path),
+                      '_relpath': relpath(self._path, savedir)})
+        return d
+
+
+class _Sequence_memmap(Sequence):
+
+    """
+    Iterable for an numpy memmap file containing imaging data.
+
+    See sima.Sequence.create() for details.
+
+    """
+
+    def __init__(self, path, shape, dim_order, dtype='float32'):
+        self._path = abspath(path)
+        self._shape = shape
+        self._dtype = dtype
+        self._dataset = np.memmap(path, dtype=dtype, mode='r',
+                                  shape=tuple(shape))
+        if len(dim_order) != len(shape):
+            raise ValueError(
+                'dim_order must have same length as the number of ' +
+                'dimensions in the mammap dataset.')
+        self._T_DIM = dim_order.find('t')
+        self._Z_DIM = dim_order.find('z')
+        self._Y_DIM = dim_order.find('y')
+        self._X_DIM = dim_order.find('x')
+        self._C_DIM = dim_order.find('c')
+        self._dim_order = dim_order
+
+    def __del__(self):
+        del self._dataset
+
+    def __len__(self):
+        return self._shape[self._T_DIM]
+
+    def _get_frame(self, t):
+        """Get the frame at time t, but not clipped"""
+        slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
+        frame = self._dataset[slices]
+
+        swapper = [None for _ in range(frame.ndim)]
+        for i, v in [(self._Z_DIM, 0), (self._Y_DIM, 1),
+                     (self._X_DIM, 2), (self._C_DIM, 3)]:
+            if i >= 0:
+                j = i if self._T_DIM > i else i - 1
+                swapper[j] = v
+            else:
+                swapper.append(v)
+                frame = np.expand_dims(frame, -1)
+        assert not any(s is None for s in swapper)
+        for i in range(frame.ndim):
+            idx = swapper.index(i)
+            if idx != i:
+                swapper[i], swapper[idx] = swapper[idx], swapper[i]
+                frame = frame.swapaxes(i, idx)
+        assert swapper == [0, 1, 2, 3]
+        assert frame.ndim == 4
+        return frame.astype(float)
+
+    def _todict(self, savedir=None):
+        d = {'__class__': self.__class__,
+             'dim_order': self._dim_order,
+             'dtype': self._dtype,
+             'shape': self._shape}
         if savedir is None:
             d.update({'path': abspath(self._path)})
         else:
