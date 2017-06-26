@@ -64,7 +64,7 @@ RUN python -c "import matplotlib.pyplot"
 # Build and install OpenCV
 RUN mkdir /opencv && \
     cd /opencv && \
-    curl -s http://heanet.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.13/opencv-2.4.13.zip -o opencv-2.4.13.zip && \
+    curl -s http://kent.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.13/opencv-2.4.13.zip -o opencv-2.4.13.zip && \
     unzip -qq opencv-2.4.13.zip && \
     rm opencv-2.4.13.zip && \
     mkdir opencv-2.4.13/build && \
