@@ -49,7 +49,7 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
     """
 
     def __init__(self, max_displacement=None, method='correlation',
-                 n_processes=1):
+                 n_processes=1, **method_kwargs):
         self._params = dict(locals())
         del self._params['self']
 
@@ -69,11 +69,12 @@ class PlaneTranslation2D(motion.MotionEstimationStrategy):
         params = self._params
         return _frame_alignment_base(
             dataset, params['max_displacement'], params['method'],
-            params['n_processes'])[0]
+            params['n_processes'], **params['method_kwargs'])[0]
 
 
 def _frame_alignment_base(
-        dataset, max_displacement=None, method='correlation', n_processes=1):
+        dataset, max_displacement=None, method='correlation', n_processes=1,
+        **method_kwargs):
     """Estimate whole-frame displacements based on pixel correlations.
 
     Parameters
@@ -130,7 +131,8 @@ def _frame_alignment_base(
             map_generator = map(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
-                    it.repeat(method), it.repeat(max_displacement)))
+                    it.repeat(method), it.repeat(max_displacement),
+                    it.repeat(method_kwargs)))
 
         # Loop over generator and calculate frame alignments
         while True:
@@ -185,7 +187,8 @@ def _align_frame(inputs):
 
     """
 
-    frame_idx, frame, cycle_idx, method, max_displacement = inputs
+    (frame_idx, frame, cycle_idx, method,
+        max_displacement, method_kwargs) = inputs
     if max_displacement is not None:
         max_displacement = [0] + list(max_displacement)
 
@@ -227,12 +230,13 @@ def _align_frame(inputs):
                     displacement_bounds = offset + np.array(
                         [np.minimum(max_shift - max_displacement, min_shift),
                          np.maximum(min_shift + max_displacement, max_shift) +
-                         1])
+                         1], dtype=int)
                 else:
                     displacement_bounds = None
                 shift = pyramid_align(np.expand_dims(reference, 0),
                                       np.expand_dims(plane, 0),
-                                      bounds=displacement_bounds)
+                                      bounds=displacement_bounds,
+                                      **method_kwargs)
                 if displacement_bounds is not None and shift is not None:
                     assert np.all(shift >= displacement_bounds[0])
                     assert np.all(shift <= displacement_bounds[1])
