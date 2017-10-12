@@ -187,7 +187,8 @@ def _align_frame(inputs):
 
     """
 
-    frame_idx, frame, cycle_idx, method, max_displacement, method_kwargs = inputs
+    (frame_idx, frame, cycle_idx, method,
+        max_displacement, method_kwargs) = inputs
     if max_displacement is not None:
         max_displacement = [0] + list(max_displacement)
 
