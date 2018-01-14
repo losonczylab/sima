@@ -125,7 +125,8 @@ def _frame_alignment_base(
             map_generator = pool.imap_unordered(
                 _align_frame,
                 zip(it.count(), cycle, it.repeat(cycle_idx),
-                    it.repeat(method), it.repeat(max_displacement)),
+                    it.repeat(method), it.repeat(max_displacement),
+                    it.repeat(method_kwargs)),
                 chunksize=chunksize)
         else:
             map_generator = map(
