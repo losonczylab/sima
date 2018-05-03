@@ -54,6 +54,7 @@ except ImportError:
     from os import stat
 
     def samefile(file1, file2):
+        """Compare files for Windows."""
         return stat(file1) == stat(file2)
 
 from PIL import Image
@@ -72,7 +73,6 @@ with warnings.catch_warnings():
 
 
 class Sequence(with_metaclass(ABCMeta, object)):
-
     """Object containing data from sequentially acquired imaging data.
 
     Sequences are created with a call to the create method.
@@ -106,6 +106,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
     """
 
     def __new__(cls, *args, **kwargs):
+        """Initialize a new sequence."""
         try:
             return super(Sequence, cls).__new__(cls)
         except TypeError as err:
@@ -126,9 +127,32 @@ class Sequence(with_metaclass(ABCMeta, object)):
         num_rows, num_columns, num_channels).
 
         """
-
         for t in range(len(self)):
             yield self._get_frame(t)
+
+    def __add__(self, other):
+        """Add frames element-wise."""
+        return _AddWrapperSequence(self, other)
+
+    def __sub__(self, other):
+        """Subtract frames element-wise."""
+        return _SubtractWrapperSequence(self, other)
+
+    def __mul__(self, other):
+        """Multiply frames element-wise."""
+        return _MultiplyWrapperSequence(self, other)
+
+    def __div__(self, other):
+        """Divide frames element-wise."""
+        return _DivideWrapperSequence(self, other)
+
+    def __floordiv__(self, other):
+        """Floor divide frames element-wise."""
+        return _FloorDivideWrapperSequence(self, other)
+
+    def __truediv__(self, other):
+        """True divide frames element-wise."""
+        return _TrueDivideWrapperSequence(self, other)
 
     @abstractmethod
     def _get_frame(self, n):
@@ -145,7 +169,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
             The desired frame of image data.
 
         """
-
         raise NotImplementedError
 
     @abstractmethod
@@ -160,13 +183,22 @@ class Sequence(with_metaclass(ABCMeta, object)):
         return cls(**d)
 
     def __len__(self):
+        """The number of frames (time steps) in the sequence.
+
+        The default implementation iterates over the entire sequence.
+        Subclasses should replace this method with a more efficient method if
+        possible.
+
+        """
         return sum(1 for _ in self)
 
     @property
     def shape(self):
+        """Return shape of the sequence."""
         return (len(self),) + self._get_frame(0).shape
 
     def apply_displacements(self, displacements, frame_shape=None):
+        """Wrap the sequence to apply offsets to each line/frame."""
         return _MotionCorrectedSequence(self, displacements, frame_shape)
 
     def mask(self, masks):
@@ -210,7 +242,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
         >>> masked_seq = seq.mask([(None, mask, 0)])
 
         """
-
         return _MaskedSequence(self, masks)
 
     @staticmethod
@@ -241,7 +272,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
         True
 
         """
-
         return _Joined_Sequence(sequences)
 
     @classmethod
@@ -250,7 +280,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
         Parameters
         ----------
-        fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray', 'memmap'}
+        fmt : {'HDF5', 'TIFF', 'TIFFs', 'ndarray', 'memmap', 'constant'}
             The format of the data used to create the Sequence.
         *args
         **kwargs
@@ -312,13 +342,18 @@ class Sequence(with_metaclass(ABCMeta, object)):
             string can contain the letters 't', 'x', 'y', 'z',
             and 'c', representing time, column, row, plane,
             and channel, respectively.
-            For example, 'tzyxc' indicates that the HDF5 data
+            For example, 'tzyxc' indicates that the data
             dimensions represent time (t), plane (z), row (y),
             column (x), and channel (c), respectively.
             The string 'tyx' indicates that data for a single
             imaging plane and single channel has been stored in a
-            HDF5 dataset with three dimensions representing time (t),
+            binary file with three dimensions representing time (t),
             column (y), and row (x), respectively.
+        dtype : data-type, optional
+            The data-type used to interpret the file contents.
+        order : {'C', 'F'}, optional
+            Specify the order of the data in the file; C-style or
+            Fortran-style.
 
         Warning
         -------
@@ -392,8 +427,21 @@ class Sequence(with_metaclass(ABCMeta, object)):
             Instead of directly passing in an array, a path to a saved numpy
             .npy file may be used to initialize the sequence.
 
-        """
 
+        **constant**
+
+        This format returns a constant value for all values of all frames.
+        Must specify the full shape of the sequence in tzyxc (num_frames,
+        num_planes, num_rows, num_columns, num_channels) order.
+
+        value : number
+            A single value that will fill all frames. The type of the frame
+            array will match the type of 'value'.
+        shape : tuple
+            Must be a tuple of exactly 5 ints specifying the shape of the
+            sequence.
+
+        """
         if fmt == 'HDF5':
             return _Sequence_HDF5(*args, **kwargs)
         elif fmt == 'TIFF':
@@ -404,6 +452,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             return _Sequence_ndarray(*args, **kwargs)
         elif fmt == 'memmap':
             return _Sequence_memmap(*args, **kwargs)
+        elif fmt == 'constant':
+            return _Sequence_constant(*args, **kwargs)
         else:
             raise ValueError('Unrecognized format')
 
@@ -418,7 +468,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
         True
 
         """
-
         return np.concatenate([np.expand_dims(frame, 0) for frame in self])
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
@@ -450,7 +499,6 @@ class Sequence(with_metaclass(ABCMeta, object)):
             output format. Defaults to False.  Channels are scaled separately.
 
         """
-
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
         if (fmt in ['TIFF16', 'TIFF8']) and not np.array(filenames).ndim == 2:
@@ -532,8 +580,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
 
 
 class _Sequence_TIFF_Interleaved(Sequence):
-
-    """
+    """Sequence with data in a single TIFF stack with frames in the z dim.
 
     Parameters
     ----------
@@ -568,7 +615,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
         images = Image.open(self._path, 'r')
 
         def _get_im(n, p, c):
-            """Get the image corresponding to time n, plane p, channel c"""
+            """Get the image corresponding to time n, plane p, channel c."""
             images.seek(n * self._num_planes * self._num_channels +
                         p * self._num_channels + c)
             return np.array(images).astype(float)
@@ -616,8 +663,7 @@ class _Sequence_TIFF_Interleaved(Sequence):
 
 
 class _Sequence_TIFFs(Sequence):
-
-    """
+    """Sequence of data with one frame per TIFF.
 
     Parameters
     ----------
@@ -715,7 +761,6 @@ class _Sequence_ndarray(Sequence):
 
 
 class _Sequence_HDF5(Sequence):
-
     """
     Iterable for an HDF5 file containing imaging data.
 
@@ -758,7 +803,7 @@ class _Sequence_HDF5(Sequence):
         # return (indices[1] - indices[0] + indices[2] - 1) // indices[2]
 
     def _get_frame(self, t):
-        """Get the frame at time t, but not clipped"""
+        """Get the frame at time t, but not clipped."""
         slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
         frame = self._dataset[slices]
         swapper = [None for _ in range(frame.ndim)]
@@ -794,7 +839,6 @@ class _Sequence_HDF5(Sequence):
 
 
 class _Sequence_memmap(Sequence):
-
     """
     Iterable for an numpy memmap file containing imaging data.
 
@@ -802,16 +846,17 @@ class _Sequence_memmap(Sequence):
 
     """
 
-    def __init__(self, path, shape, dim_order, dtype='float32'):
+    def __init__(self, path, shape, dim_order, dtype='float32', order='C'):
         self._path = abspath(path)
         self._shape = shape
         self._dtype = dtype
+        self._order = order
         self._dataset = np.memmap(path, dtype=dtype, mode='r',
-                                  shape=tuple(shape))
+                                  shape=tuple(shape), order=order)
         if len(dim_order) != len(shape):
             raise ValueError(
                 'dim_order must have same length as the number of ' +
-                'dimensions in the mammap dataset.')
+                'dimensions in the memmap dataset.')
         self._T_DIM = dim_order.find('t')
         self._Z_DIM = dim_order.find('z')
         self._Y_DIM = dim_order.find('y')
@@ -826,7 +871,7 @@ class _Sequence_memmap(Sequence):
         return self._shape[self._T_DIM]
 
     def _get_frame(self, t):
-        """Get the frame at time t, but not clipped"""
+        """Get the frame at time t, but not clipped."""
         slices = tuple(slice(None) for _ in range(self._T_DIM)) + (t,)
         frame = self._dataset[slices]
 
@@ -853,12 +898,41 @@ class _Sequence_memmap(Sequence):
         d = {'__class__': self.__class__,
              'dim_order': self._dim_order,
              'dtype': self._dtype,
-             'shape': self._shape}
+             'shape': self._shape,
+             'order': self._order}
         if savedir is None:
             d.update({'path': abspath(self._path)})
         else:
             d.update({'_abspath': abspath(self._path),
                       '_relpath': relpath(self._path, savedir)})
+        return d
+
+
+class _Sequence_constant(Sequence):
+    def __init__(self, value, shape):
+        self._value = value
+        self._shape = shape
+
+        self._frame = np.ones(shape[1:], dtype=type(value)) * value
+
+    def __iter__(self):
+        for _ in range(self._shape[0]):
+            yield self._frame.copy()
+
+    def _get_frame(self, t):
+        return self._frame.copy()
+
+    def __len__(self):
+        return self._shape[0]
+
+    @property
+    def shape(self):
+        return self._shape
+
+    def _todict(self, savedir=None):
+        d = {'__class__': self.__class__,
+             'value': self._value,
+             'shape': self._shape}
         return d
 
 
@@ -909,8 +983,7 @@ class _Joined_Sequence(Sequence):
 
 
 class _WrapperSequence(with_metaclass(ABCMeta, Sequence)):
-
-    "Abstract class for wrapping a Sequence to modify its functionality"""
+    """Abstract class for wrapping a Sequence to modify its functionality."""
 
     def __init__(self, base):
         self._base = base
@@ -937,7 +1010,6 @@ class _WrapperSequence(with_metaclass(ABCMeta, Sequence)):
 
 
 class _MotionCorrectedSequence(_WrapperSequence):
-
     """Wraps any other sequence to apply motion correction.
 
     Parameters
@@ -1205,13 +1277,98 @@ class _IndexedSequence(_WrapperSequence):
             'indices': self._indices
         }
 
-    # def __dir__(self):
-    #     """Customize how attributes are reported, e.g. for tab completion.
 
-    #     This may not be necessary if we inherit an abstract class"""
-    # heritage = dir(super(self.__class__, self)) # inherited attributes
-    #     return sorted(heritage + self.__class__.__dict__.keys() +
-    #                   self.__dict__.keys())
+class _MathWrapperSequence(_WrapperSequence):
+    """Wrapper base class for math wrapper sequences."""
+
+    def __init__(self, base, other):
+        warnings.warn(
+            "Sequence math is currently experimental and may change in " +
+            "the future.", FutureWarning)
+        super(_MathWrapperSequence, self).__init__(base)
+        self._other = other
+
+        assert base.shape == other.shape
+
+    def __len__(self):
+        return len(self._base)
+
+    @property
+    def shape(self):
+        return self._base.shape
+
+    def _todict(self, savedir=None):
+        return {
+            '__class__': self.__class__,
+            'base': self._base._todict(savedir),
+            'other': self._other._todict(savedir)
+        }
+
+    @classmethod
+    def _from_dict(cls, d, savedir=None):
+        base_dict = d.pop('base')
+        base_class = base_dict.pop('__class__')
+        base = base_class._from_dict(base_dict, savedir)
+        other_dict = d.pop('other')
+        other_class = other_dict.pop('__class__')
+        other = other_class._from_dict(other_dict, savedir)
+        return cls(base, other, **d)
+
+
+class _AddWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.add(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.add(self._base._get_frame(t), self._other._get_frame(t))
+
+
+class _SubtractWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.subtract(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.subtract(self._base._get_frame(t), self._other._get_frame(t))
+
+
+class _MultiplyWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.multiply(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.multiply(self._base._get_frame(t), self._other._get_frame(t))
+
+
+class _DivideWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.divide(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.divide(self._base._get_frame(t), self._other._get_frame(t))
+
+
+class _FloorDivideWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.floor_divide(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.floor_divide(
+            self._base._get_frame(t), self._other._get_frame(t))
+
+
+class _TrueDivideWrapperSequence(_MathWrapperSequence):
+    def __iter__(self):
+        for bframe, oframe in it.izip(self._base, self._other):
+            yield np.true_divide(bframe, oframe)
+
+    def _get_frame(self, t):
+        return np.true_divide(
+            self._base._get_frame(t), self._other._get_frame(t))
 
 
 def _fill_gaps(frame_iter1, frame_iter2):
@@ -1230,7 +1387,6 @@ def _fill_gaps(frame_iter1, frame_iter2):
         The corrected and filled frames.
 
     """
-
     first_obs = next(frame_iter1)
     for frame in frame_iter1:
         for frame_chan, fobs_chan in zip(frame, first_obs):
