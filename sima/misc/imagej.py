@@ -205,10 +205,11 @@ def read_roi(roi_obj):
         coords = [float(c) for c in coords]
         return coords
     else:
+        # Unrecognized format, but we'll just try to get coordinates
         try:
             coords = _getcoords(z)
             coords = coords.astype('float')
             return {'polygons': coords}
-        except:
+        except:  # noqa: E722
             raise ValueError(
                 'read_imagej_roi: ROI type {} not supported'.format(roi_type))

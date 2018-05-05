@@ -43,4 +43,4 @@ cp /usr/lib/x86_64-linux-gnu/libm.so /home/travis/miniconda/envs/test-environmen
 ldconfig -p
 conda list -e
 
-flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/motion/__init__.py,sima/segment/__init__.py
+flake8 --config=.flake8

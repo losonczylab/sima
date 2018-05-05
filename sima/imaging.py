@@ -323,7 +323,7 @@ class ImagingDataset(object):
             counts[np.isfinite(frame)] += 1
         means = old_div(sums, counts)
         mean_of_squares = old_div(sums_squares, counts)
-        std = np.sqrt(mean_of_squares-np.square(means))
+        std = np.sqrt(mean_of_squares - np.square(means))
         if self.savedir is not None and not self._read_only:
             with open(join(self.savedir, 'time_std.pkl'), 'wb') as f:
                 pickle.dump(std, f, pickle.HIGHEST_PROTOCOL)
@@ -360,7 +360,7 @@ class ImagingDataset(object):
         # of the mean subtracted trace for each pixel.
         sums_fourthpower = np.zeros(self.frame_shape)
         for frame in it.chain.from_iterable(self):
-            sums_fourthpower += np.power(np.nan_to_num(frame-means), 4)
+            sums_fourthpower += np.power(np.nan_to_num(frame - means), 4)
         kurtosis = old_div(sums_fourthpower, counts)
 
         if self.savedir is not None and not self._read_only:
@@ -728,7 +728,7 @@ class ImagingDataset(object):
 
         try:
             depth = np.array(filenames).ndim
-        except:
+        except:  # noqa: E722
             raise TypeError('Improperly formatted filenames')
         if (fmt in ['TIFF16', 'TIFF8']) and not depth == 3:
             raise TypeError('Improperly formatted filenames')

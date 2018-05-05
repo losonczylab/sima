@@ -132,12 +132,14 @@ def _whole_frame_shifting(dataset, shifts):
         if shift.ndim == 1:  # single shift for the whole volume
             if any(x is np.ma.masked for x in shift):
                 continue
-            l = shift - min_shifts
-            h = shift + frame.shape[:-1]
-            reference[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(frame)
-            sum_squares[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.nan_to_num(
-                frame ** 2)
-            count[l[0]:h[0], l[1]:h[1], l[2]:h[2]] += np.isfinite(frame)
+            low = shift - min_shifts
+            high = shift + frame.shape[:-1]
+            reference[low[0]:high[0], low[1]:high[1], low[2]:high[2]] += \
+                np.nan_to_num(frame)
+            sum_squares[low[0]:high[0], low[1]:high[1], low[2]:high[2]] += \
+                np.nan_to_num(frame ** 2)
+            count[low[0]:high[0], low[1]:high[1], low[2]:high[2]] += \
+                np.isfinite(frame)
         else:  # plane-specific shifts
             for plane, p_shifts, ref, ssq, cnt in zip(
                     frame, shift, reference, sum_squares, count):
@@ -385,7 +387,7 @@ class _HiddenMarkov(MotionEstimationStrategy):
             restarts = self._params['restarts']
             if restarts is not None:
                 restart_period = np.prod(
-                    sequence.shape[(restarts+1):(granularity[0]+1)]
+                    sequence.shape[(restarts + 1):(granularity[0] + 1)]
                 ) // granularity[1]
             else:
                 restart_period = None
@@ -564,14 +566,14 @@ class MovementModel(object):
                 y[idx] = past_future[i, j] + past_future[j, i]
                 idx_2 = 0
                 for k in range(D):
-                    for l in range(k + 1):
+                    for m in range(k + 1):
                         if k == i:
-                            M[idx, idx_2] += past_past[j, l]
-                        elif l == i:
+                            M[idx, idx_2] += past_past[j, m]
+                        elif m == i:
                             M[idx, idx_2] += past_past[j, k]
                         if k == j:
-                            M[idx, idx_2] += past_past[i, l]
-                        elif l == j:
+                            M[idx, idx_2] += past_past[i, m]
+                        elif m == j:
                             M[idx, idx_2] += past_past[i, k]
                         idx_2 += 1
                 idx += 1

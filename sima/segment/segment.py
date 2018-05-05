@@ -514,7 +514,7 @@ class _SmoothBoundariesParallel(object):
                 smoothed_coords = approximate_polygon(polygon[:, :2],
                                                       self.tolerance)
                 smoothed_coords = np.hstack(
-                    (smoothed_coords, plane*np.ones(
+                    (smoothed_coords, plane * np.ones(
                         (smoothed_coords.shape[0], 1))))
 
                 if smoothed_coords.shape[0] < self.min_verts:

@@ -1,0 +1,12 @@
+[flake8]
+exclude =
+	sima/misc/tifffile.py,
+	# __init__ files import unused functions and classes
+	sima/__init__.py,
+	sima/motion/__init__.py,
+	sima/segment/__init__.py,\
+	# test files import extra functions as part of a template
+	test*.py,
+	# ignore example scripts and doc py files
+	examples,
+	doc,
