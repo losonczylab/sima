@@ -42,5 +42,3 @@ echo $PATH
 cp /usr/lib/x86_64-linux-gnu/libm.so /home/travis/miniconda/envs/test-environment/bin/../lib/libm.so.6
 ldconfig -p
 conda list -e
-
-flake8 --version --config=.flake8
