@@ -10,28 +10,28 @@ matrix:
   include:
   - os: linux
     python: 2.7
-    env: TOKENV=py27 TESTMODE=full COVERAGE=--coverage
+    env: TOKENV=py27 TESTMODE=full COVERAGE=--coverage DOCTESTS=--doctests
   - os: linux
     python: 3.4
-    env: TOKENV=py34 TESTMODE=full COVERAGE=--coverage
+    env: TOKENV=py34 TESTMODE=full COVERAGE=--coverage DOCTESTS=""
   - os: osx
     language: generic
-    env: TOKENV=py27 TESTMODE=full COVERAGE=--coverage
+    env: TOKENV=py27 TESTMODE=full COVERAGE=--coverage DOCTESTS=--doctests
   - os: osx
     language: generic
-    env: TOKENV=py35 TESTMODE=full COVERAGE=--coverage
+    env: TOKENV=py35 TESTMODE=full COVERAGE=--coverage DOCTESTS=--doctests
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then source .linux_build.sh $TOKENV $TESTMODE;
   fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then  source .osx_build.sh $TOKENV; fi
 script:
 - flake8 *.py sima --exclude sima/misc/tifffile.py,sima/__init__.py,test*.py,sima/motion/__init__.py,sima/segment/__init__.py
-- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then python runtests.py --doctests -m $TESTMODE
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then python runtests.py $DOCTESTS -m $TESTMODE
   $COVERAGE; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py27" ]]; then python runtests.py
-  --doctests -m $TESTMODE $COVERAGE; fi
+  $DOCTESTS -m $TESTMODE $COVERAGE; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$TOKENV" == "py35" ]]; then python3 runtests.py
-  --doctests -m $TESTMODE $COVERAGE; fi
+  $DOCTESTS -m $TESTMODE $COVERAGE; fi
 branches:
   only:
   - master
