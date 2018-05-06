@@ -99,14 +99,14 @@ class ROI(object):
     >>> from sima.ROI import ROI
     >>> roi = ROI(polygons=[[0, 0], [0, 1], [1, 1], [1, 0]], im_shape=(2, 2))
     >>> roi.coords
-    [array([[ 0.,  0.,  0.],
-           [ 0.,  1.,  0.],
-           [ 1.,  1.,  0.],
-           [ 1.,  0.,  0.],
-           [ 0.,  0.,  0.]])]
+    [array([[0., 0., 0.],
+           [0., 1., 0.],
+           [1., 1., 0.],
+           [1., 0., 0.],
+           [0., 0., 0.]])]
     >>> np.array(roi)
     array([[[ True, False],
-            [False, False]]], dtype=bool)
+            [False, False]]])
 
     Attributes
     ----------
@@ -530,7 +530,7 @@ def poly2mask(polygons, im_size):
     >>> mask[0].todense()
     matrix([[ True, False, False],
             [ True,  True, False],
-            [False, False, False]], dtype=bool)
+            [False, False, False]])
 
     Parameters
     ----------
