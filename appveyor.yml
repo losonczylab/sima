@@ -29,7 +29,8 @@ environment:
     CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_compiler.cmd"
   matrix:
     - PYTHON_VERSION: "2.7"
-    - PYTHON_VERSION: "3.4"
+    # Missing DLLs causes scipy to error on import (May 2018)
+    # - PYTHON_VERSION: "3.4"
     - PYTHON_VERSION: "3.5"
 
 platform:
@@ -48,9 +49,9 @@ install:
   - conda info -a
   - conda create -q --yes -n test-environment python=%PYTHON_VERSION%
   - activate test-environment
-  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn pillow setuptools pip future
-  - conda install -q --yes -c scitools shapely
-  - conda install -q --yes -c menpo opencv3
+  # - conda install mkl
+  - conda config --add channels conda-forge
+  - conda install -q --yes numpy>=1.8 scipy>=0.13 nose h5py cython scikit-image scikit-learn opencv shapely pillow setuptools pip future
   # - ps: if ($Env:PYTHON_VERSION -eq "2.7") {conda install -q --yes -c menpo opencv}
   - pip install wheel
 
@@ -60,7 +61,7 @@ install:
 build: off
 
 test_script:
-  - "%CMD_IN_ENV% python runtests.py --doctests -m full --coverage"
+  - "%CMD_IN_ENV% python runtests.py -m full --coverage"
 
 after_test:
   - "%CMD_IN_ENV% python setup.py bdist_wheel"

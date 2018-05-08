@@ -205,7 +205,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
 
         for i in range(ar_order):
             gen = gen + spmatrix(
-                float(-gamma[i]), range(i+1, T), range(T-i-1), (T, T))
+                float(-gamma[i]), range(i + 1, T), range(T - i - 1), (T, T))
 
         gr = np.roots(np.concatenate([np.array([1]), -gamma.flatten()]))
         # decay vector for initial fluorescence
@@ -228,7 +228,7 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
         # Add constraints
         prob.add_constraint(gen * calcium_fit >= 0)
         res = abs(matrix(fluor.astype(float)) - calcium_fit -
-                  baseline*matrix(np.ones(fluor.size)) -
+                  baseline * matrix(np.ones(fluor.size)) -
                   matrix(gd_vec) * init_calcium)
 
     else:
@@ -289,28 +289,28 @@ def spike_inference(fluor, sigma=None, gamma=None, mode="correct",
 
         cnt = 2  # no of constraints (init_calcium and baseline)
         ind_rows += range(T)
-        ind_cols += [T]*T
+        ind_cols += [T] * T
         vals = np.concatenate((vals, np.ones(T)))
 
         ind_rows += range(T)
-        ind_cols += [T+cnt-1]*T
+        ind_cols += [T + cnt - 1] * T
         vals = np.concatenate((vals, np.squeeze(gd_vec)))
 
-        P = spmatrix(vals, ind_rows, ind_cols, (T, T+cnt))
-        H = P.T*P
-        Py = P.T*matrix(fluor.astype(float))
+        P = spmatrix(vals, ind_rows, ind_cols, (T, T + cnt))
+        H = P.T * P
+        Py = P.T * matrix(fluor.astype(float))
         sol = solvers.qp(
             H, -Py, spdiag([-gen, -spmatrix(1., range(cnt), range(cnt))]),
-            matrix(0., (T+cnt, 1)))
+            matrix(0., (T + cnt, 1)))
         xx = sol['x']
         fit = np.array(xx[:T])
-        inference = np.array(gen*matrix(fit))
+        inference = np.array(gen * matrix(fit))
         fit = np.squeeze(fit)
 
-        baseline = np.array(xx[T+1]) + b_lb
+        baseline = np.array(xx[T + 1]) + b_lb
         init_calcium = np.array(xx[-1])
         sigma = np.linalg.norm(
-            fluor-fit-init_calcium*gd_vec-baseline)/np.sqrt(T)
+            fluor - fit - init_calcium * gd_vec - baseline) / np.sqrt(T)
         parameters = {'gamma': gamma, 'sigma': sigma,
                       'baseline': baseline}
     else:
@@ -358,9 +358,10 @@ def estimate_sigma(fluor, range_ff=(0.25, 0.5), method='logmexp'):
     ind = np.logical_and(ind1, ind2)
     Pxx_ind = Pxx[ind]
     sigma = {
-        'mean': lambda Pxx_ind: np.sqrt(np.mean(Pxx_ind/2)),
-        'median': lambda Pxx_ind: np.sqrt(np.median(Pxx_ind/2)),
-        'logmexp': lambda Pxx_ind: np.sqrt(np.exp(np.mean(np.log(Pxx_ind/2))))
+        'mean': lambda Pxx_ind: np.sqrt(np.mean(Pxx_ind / 2)),
+        'median': lambda Pxx_ind: np.sqrt(np.median(Pxx_ind / 2)),
+        'logmexp': lambda Pxx_ind: np.sqrt(
+            np.exp(np.mean(np.log(Pxx_ind / 2))))
     }[method](Pxx_ind)
 
     return sigma
@@ -397,13 +398,13 @@ def estimate_gamma(fluor, sigma, p=2, lags=5, fudge_factor=1):
     xc = axcov(fluor, lags)
     xc = xc[:, np.newaxis]
 
-    A = toeplitz(xc[lags+np.arange(lags)],
-                 xc[lags+np.arange(p)]) - sigma**2*np.eye(lags, p)
-    gamma = np.linalg.lstsq(A, xc[lags+1:])[0]
+    A = toeplitz(xc[lags + np.arange(lags)],
+                 xc[lags + np.arange(p)]) - sigma**2 * np.eye(lags, p)
+    gamma = np.linalg.lstsq(A, xc[lags + 1:])[0]
     if fudge_factor < 1:
         gr = fudge_factor * np.roots(
             np.concatenate([np.array([1]), -gamma.flatten()]))
-        gr = (gr+gr.conjugate())/2
+        gr = (gr + gr.conjugate()) / 2
         gr[gr > 1] = 0.95
         gr[gr < 0] = 0.15
         gamma = np.poly(gr)
@@ -478,7 +479,7 @@ def estimate_parameters(fluor, gamma=None, sigma=None, mode="correct",
             covars = []
             for trace in fluor:
                 lags = min(50, len(trace) // 2 - 1)
-                covars.append(axcov(trace, lags)[(lags+2):(lags+4)])
+                covars.append(axcov(trace, lags)[(lags + 2):(lags + 4)])
             covar = np.sum(covars, axis=0)
             gamma = covar[1] / covar[0]
             if gamma >= 1.0:

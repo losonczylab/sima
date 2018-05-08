@@ -12,3 +12,4 @@ dist
 *.c
 sima.egg-info
 .ipynb_checkpoints
+build.log

@@ -133,7 +133,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                 # load into memory... need to pass numpy array to dftreg.
                 # could(should?) rework it to instead accept tiff array
                 if verbose:
-                    print('Loading plane ' + str(plane_idx+1) + ' of ' +
+                    print('Loading plane ' + str(plane_idx + 1) + ' of ' +
                           str(num_planes) + ' into numpy array')
                 t0 = time.time()
                 # reshape, one plane at a time
@@ -180,7 +180,7 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
 
             total_time = time.time() - t0
             if verbose:
-                print('    Total time for plane ' + str(plane_idx+1) + ': ' +
+                print('    Total time for plane ' + str(plane_idx + 1) + ': ' +
                       str(total_time) + ' s')
 
         return displacements

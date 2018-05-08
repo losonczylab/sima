@@ -71,7 +71,8 @@ def auto_choose(d):
     dictionary."""
     try:
         return max(iter(d.values()), key=lambda x: x['timestamp'])
-    except:
+    except:  # noqa: E722
+        # TODO: what should this actually except?
         return max(iter(d.values()), key=lambda x: x.timestamp)
 
 
