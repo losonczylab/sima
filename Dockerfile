@@ -13,7 +13,7 @@
 
 FROM debian:jessie
 
-MAINTAINER Jeff Zaremba <jzaremba@gmail.com>
+LABEL maintainer="Jeff Zaremba <jzaremba@gmail.com>"
 
 ENV DEBIAN_FRONTEND "noninteractive"
 

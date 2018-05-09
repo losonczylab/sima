@@ -32,10 +32,10 @@ def sbxread(path, info_path):
     nchannels = info['nchannels']
     nplanes = info['nplanes']
     nframes = (info['max_idx'] + 1) // nplanes
-    shape = (nchannels, ncols, nrows, nframes, nplanes)
+    shape = (nchannels, ncols, nrows, nplanes, nframes)
 
     seq = sima.Sequence.create(
-        'memmap', path=path, shape=shape, dim_order='cxytz', dtype='uint16',
+        'memmap', path=path, shape=shape, dim_order='cxyzt', dtype='uint16',
         order='F')
 
     max_uint16_seq = sima.Sequence.create(
