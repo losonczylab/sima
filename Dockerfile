@@ -4,16 +4,16 @@
 # https://github.com/losonczylab/sima
 #
 # To build:
-#   docker build -t losonczylab/sima -f .
+#   docker build -t sima .
 # 
 # To run the image with X forwarding enabled:
 #   docker run -it --rm --net=host --env="DISPLAY" -v $HOME/.Xauthority:/root/.Xauthority:rw
-#       -v /PATH/TO/DATA:/data --name sima losonczylab/sima bash
+#       -v /PATH/TO/DATA:/data sima
 #
 
 FROM debian:jessie
 
-MAINTAINER Jeff Zaremba <jzaremba@gmail.com>
+LABEL maintainer="Jeff Zaremba <jzaremba@gmail.com>"
 
 ENV DEBIAN_FRONTEND "noninteractive"
 

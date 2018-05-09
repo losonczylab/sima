@@ -19,6 +19,8 @@ except ImportError:
 else:
     cv2_available = LooseVersion(cv2.__version__) >= LooseVersion('2.4.8')
 from skimage import transform as tf
+import scipy.io as spio
+import collections
 
 
 class TransformError(Exception):
@@ -107,9 +109,9 @@ def pairwise(iterable):
     return zip(a, b)
 
 
-# was affine_trnasform
+# was affine_transform
 def estimate_array_transform(source, target, method='affine'):
-    """Calculates an affine transformation from source array to target array
+    """Calculate an affine transformation from source array to target array.
 
     Parameters
     ----------
@@ -210,3 +212,44 @@ def example_hdf5():
 def example_volume():
     return os.path.join(os.path.dirname(__file__),
                         "../tests/data/example-volume.h5")
+
+
+def loadmat(filename):
+    """Load mat files and convert structs to dicts.
+
+    Originally implemented by Francisco Luongo, see:
+    https://scanbox.org/2016/09/02/reading-scanbox-files-in-python/
+
+    """
+    def check_keys(data):
+        """Check if entries in dictionary are mat-objects.
+
+        If yes, todict is called to change them to nested dictionaries
+
+        """
+        for key in data:
+            if isinstance(data[key], dict):
+                data[key] = check_keys(data[key])
+            elif isinstance(data[key], spio.matlab.mio5_params.mat_struct):
+                data[key] = todict(data[key])
+            elif isinstance(data[key], collections.Iterable) and \
+                    not isinstance(data[key], basestring) and \
+                    len(data[key]) and \
+                    isinstance(data[key][0],
+                               spio.matlab.mio5_params.mat_struct):
+                data[key] = [todict(item) for item in data[key]]
+        return data
+
+    def todict(matobj):
+        """Construct nested dictionaries from matobjects."""
+        data = {}
+        for strg in matobj._fieldnames:
+            elem = matobj.__dict__[strg]
+            if isinstance(elem, spio.matlab.mio5_params.mat_struct):
+                data[strg] = todict(elem)
+            else:
+                data[strg] = elem
+        return check_keys(data)
+
+    data = spio.loadmat(filename, struct_as_record=False, squeeze_me=True)
+    return check_keys(data)
