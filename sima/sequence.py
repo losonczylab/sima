@@ -42,6 +42,7 @@ import warnings
 from distutils.version import StrictVersion
 from os.path import (abspath, dirname, join, normpath, normcase, isfile,
                      relpath)
+import filecmp
 from abc import ABCMeta, abstractmethod
 import uuid
 
@@ -1432,6 +1433,9 @@ def _resolve_paths(d, savedir):
         elif len(valid_paths) > 1:
             testfile = list(valid_paths)[0]
             if all(path_compare(testfile, p) for p in valid_paths):
+                valid_paths = set()
+                valid_paths.add(testfile)
+            elif all(filecmp.cmp(testfile, p) for p in valid_paths):
                 valid_paths = set()
                 valid_paths.add(testfile)
             else:
