@@ -707,10 +707,13 @@ class ImagingDataset(object):
         Parameters
         ----------
         filenames : list of list of list of string or list of string
+                    or list of list of strings
             Path to the locations where the output files will be saved.
             If fmt is TIFF, filenames[i][j][k] is the path to the file
             for sequence i, plane j, channel k.  If fmt is 'HDF5', filenames[i]
-            is the path to the file for the ith sequence.
+            is the path to the file for the ith sequence. If fmt is TIFF and
+            interlace is True, filenames[i][k] is the path to the file for
+            sequence i, channel k.
         fmt : {'TIFF8', 'TIFF16', 'HDF5'}, optional
             The format of the output files. Defaults to 16-bit TIFF.
         fill_gaps : bool, optional
@@ -723,6 +726,9 @@ class ImagingDataset(object):
             If not None and 'fmt' is 'HDF5', compress the data with the
             specified lossless compression filter. See h5py docs for details on
             each compression filter.
+        interlace : bool, optional
+            Whether to save multiplane data as interlaced images in one
+            multipage TIFF file per sequence/channel. Defaults to False.
 
         """
 
