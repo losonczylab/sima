@@ -513,7 +513,7 @@ class Sequence(with_metaclass(ABCMeta, object)):
             raise TypeError('Improperly formatted filenames')
 
         # Make directories necessary for saving the files.
-        try:  # HDF5 case, or interlace planes for TIFFs
+        try:  # HDF5 case
             out_dirs = [[dirname(filenames)]]
         except (AttributeError, TypeError):  # TIFF case
             if not interlace:
