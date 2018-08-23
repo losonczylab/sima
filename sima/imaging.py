@@ -701,7 +701,7 @@ class ImagingDataset(object):
                 imsave(filename, out)
 
     def export_frames(self, filenames, fmt='TIFF16', fill_gaps=True,
-                      scale_values=False, compression=None):
+                      scale_values=False, compression=None, interlace=False):
         """Export imaging data from the dataset.
 
         Parameters
@@ -730,7 +730,9 @@ class ImagingDataset(object):
             depth = np.array(filenames).ndim
         except:  # noqa: E722
             raise TypeError('Improperly formatted filenames')
-        if (fmt in ['TIFF16', 'TIFF8']) and not depth == 3:
+        if (fmt in ['TIFF16', 'TIFF8']) and not depth == 3 and not interlace:
+            raise TypeError('Improperly formatted filenames')
+        if interlace and not depth == 2:
             raise TypeError('Improperly formatted filenames')
         if fmt == 'HDF5' and not np.array(filenames).ndim == 1:
             raise TypeError('Improperly formatted filenames')
@@ -738,7 +740,7 @@ class ImagingDataset(object):
             sequence.export(
                 fns, fmt=fmt, fill_gaps=fill_gaps,
                 channel_names=self.channel_names, compression=compression,
-                scale_values=scale_values)
+                scale_values=scale_values, interlace=interlace)
 
     def export_signals(self, path, fmt='csv', channel=0, signals_label=None):
         """Export extracted signals to a file.

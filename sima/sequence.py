@@ -472,18 +472,21 @@ class Sequence(with_metaclass(ABCMeta, object)):
         return np.concatenate([np.expand_dims(frame, 0) for frame in self])
 
     def export(self, filenames, fmt='TIFF16', fill_gaps=False,
-               channel_names=None, compression=None, scale_values=False):
+               channel_names=None, compression=None, scale_values=False,
+               interlace=False):
         """Save frames to the indicated filenames.
 
         This function stores a multipage tiff file for each channel.
 
         Parameters
         ----------
-        filenames : str or list of list str
+        filenames : str or list of list str or list of str
             The names of the output files. For HDF5 files, this must be a
             single string. For TIFF formats, this should be a list of list
             of strings, such that filenames[i][j] corresponds to the ith
-            plane and the jth channel.
+            plane and the jth channel, unless using the interlaced planes
+            option, in which case it should be a list of strings, such that
+            filenames[j] corresponds to the jth channel.
         fmt : {'HDF5', 'TIFF16', 'TIFF8'}
             The output file format.
         fill_gaps : bool, optional
@@ -498,24 +501,34 @@ class Sequence(with_metaclass(ABCMeta, object)):
         scale_values : bool, optional
             Whether to scale the values to use the full range of the
             output format. Defaults to False.  Channels are scaled separately.
-
+        interlace : bool, optional
+            When writing TIFFs, whether to save multiplane data as a sequence
+            of interlaced images rather than separate folders per planes.
+            Defaults to false.
         """
         if fmt not in ['TIFF8', 'TIFF16', 'HDF5']:
             raise ValueError('Unrecognized output format.')
-        if (fmt in ['TIFF16', 'TIFF8']) and not np.array(filenames).ndim == 2:
+        if (fmt in ['TIFF16', 'TIFF8']) and not (np.array(filenames).ndim == 2) \
+            and not interlace:
             raise TypeError('Improperly formatted filenames')
 
         # Make directories necessary for saving the files.
-        try:  # HDF5 case
+        try:  # HDF5 case, or interlace planes for TIFFs
             out_dirs = [[dirname(filenames)]]
         except (AttributeError, TypeError):  # TIFF case
-            out_dirs = [[dirname(f) for f in plane] for plane in filenames]
+            if not interlace:
+                out_dirs = [[dirname(f) for f in plane] for plane in filenames]
+            else:
+                out_dirs = [dirname(f) for f in filenames]
         for d in [_f for _f in it.chain.from_iterable(out_dirs) if _f]:
             sima.misc.mkdir_p(d)
 
         if 'TIFF' in fmt:
-            output_files = [[TiffFileWriter(fn) for fn in plane]
-                            for plane in filenames]
+            if not interlace:
+                output_files = [[TiffFileWriter(fn) for fn in plane]
+                                for plane in filenames]
+            else:
+                output_files = [TiffFileWriter(fn) for fn in filenames]
         elif fmt == 'HDF5':
             if not h5py_available:
                 raise ImportError('h5py >= 2.2.1 required')
@@ -561,7 +574,8 @@ class Sequence(with_metaclass(ABCMeta, object)):
             else:
                 for plane_idx, plane in enumerate(frame):
                     for ch_idx, channel in enumerate(np.rollaxis(plane, -1)):
-                        f = output_files[plane_idx][ch_idx]
+                        f = output_files[plane_idx][ch_idx] if not interlace \
+                            else output_files[ch_idx]
                         if fmt == 'TIFF16':
                             f.write_page(channel.astype('uint16'))
                         elif fmt == 'TIFF8':
@@ -569,8 +583,12 @@ class Sequence(with_metaclass(ABCMeta, object)):
                         else:
                             raise ValueError('Unrecognized output format.')
         if 'TIFF' in fmt:
-            for f in it.chain.from_iterable(output_files):
-                f.close()
+            if not interlace:
+                for f in it.chain.from_iterable(output_files):
+                    f.close()
+            else:
+                for f in output_files:
+                    f.close()
         elif fmt == 'HDF5':
             for idx, label in enumerate(['t', 'z', 'y', 'x', 'c']):
                 f['imaging'].dims[idx].label = label
