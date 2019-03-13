@@ -6,6 +6,8 @@ and averaging a subset of images/frames.
 
 *******************************************************************************
 Credit to Marius Pachitariu for concept of registering to aligned mean image.
+Credit to Olivier Dupont-Therrien, Doric Lenses Inc., for concept of applying
+Gaussian blur & Laplacian to eliminate static inhomogeneities.
 
 Parts of the code are based on:
 skimage.feature.register_translation, which is a port of MATLAB code by Manuel
@@ -35,6 +37,8 @@ from functools import partial
 import multiprocessing
 import numpy as np
 from scipy.ndimage.interpolation import shift
+from scipy.ndimage import laplace
+from scipy.ndimage import gaussian_filter
 import time
 from . import motion
 try:
@@ -83,6 +87,12 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
         enable verbose mode. Default: False.
     return_registered : bool, optional
         return registered frames? Default: False.
+    laplace : float, optional
+        Sigma of Gaussian. If positive, apply Gaussian blur & laplacian to all
+        images before computing the cross correlation. This step is useful to
+        eliminate static inhomogeneities (such as vignetting) from images.
+        Typical use case includes single-photon widefield microendoscope imaging
+        through a GRIN lens. Default: 0.0
 
     References
     ----------
@@ -97,7 +107,8 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                  num_images_for_mean=100,
                  randomise_frames=True, err_thresh=0.01, max_iterations=5,
                  rotation_scaling=False, save_fmt='mptiff', save_name=None,
-                 n_processes=1, verbose=False, return_registered=False):
+                 n_processes=1, verbose=False, return_registered=False,
+                 laplace=0.0):
         self._params = dict(locals())
         del self._params['self']
 
@@ -152,8 +163,14 @@ class DiscreteFourier2D(motion.MotionEstimationStrategy):
                 # shifting? this may run into problems when sima then crops the
                 # final image so no empty rows/columns at edge of any frame in
                 # the video (trim_criterion)
+                if params['laplace'] > 0:
+                    framesl = np.array([
+                        np.abs(laplace(gaussian_filter(frame, params['laplace'])))
+                        for frame in frames])
+                else:
+                    framesl = frames
                 output = _register(
-                    frames,
+                    framesl,
                     upsample_factor=params['upsample_factor'],
                     max_displacement=params['max_displacement'],
                     num_images_for_mean=params['num_images_for_mean'],
