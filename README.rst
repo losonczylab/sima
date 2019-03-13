@@ -79,7 +79,7 @@ resulting publications:
 
   `Kaifosh P, Zaremba J, Danielson N, and Losonczy A. SIMA: Python software for
   analysis of dynamic fluorescence imaging data. Frontiers in Neuroinformatics.
-  2014 Aug 27; 8:77. doi: 10.3389/fninf.2014.00077.
+  2014 Aug 27; 8:77. doi: 10.3389/fninf.2014.00080.
   <http://dx.doi.org/10.3389/fninf.2014.00080>`_
 
 License
